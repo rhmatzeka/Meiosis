@@ -1,0 +1,10 @@
+{
+  "locus": 3,
+  "mcpTools": [
+    "filesystem",
+    "bash"
+  ],
+  "name": "stack-react",
+  "traitId": 1,
+  "version": "1.0.0"
+}

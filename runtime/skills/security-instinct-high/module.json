@@ -1,0 +1,9 @@
+{
+  "locus": 6,
+  "mcpTools": [
+    "bash"
+  ],
+  "name": "security-instinct-high",
+  "traitId": 2,
+  "version": "1.0.0"
+}

@@ -1223,7 +1223,7 @@ Jadwal berikut mengasumsikan tenggat **awal Desember**. Geser kalau tanggalnya b
 |---|---|---|---|---|
 | ~~**P0**~~ | ~~17–26 Sep~~ | Monorepo Bun, `packages/shared`, `GeneLib` + fuzz, `gene-sim.ts` | 8 | ✅ **SELESAI 17 Sep.** 50,1% anak mewarisi keduanya; 9 test hijau |
 | ~~**P1**~~ | ~~29 Sep–10 Okt~~ | `AgentRegistry`, `Genesis`, `Hatchery`, `SkillRegistry` | 10 | ✅ **Kontrak selesai 17 Sep**, kelahiran terverifikasi di Anvil, 27 test hijau, gas kelahiran 119.636. Deploy Sepolia menunggu ETH faucet |
-| **P2** | 13–24 Okt | `expand()` + golden file + 12 modul skill + `materialize()` | 10 | Genome on-chain jadi agent yang mengerjakan job; `manifestHash` cocok |
+| ~~**P2**~~ | ~~13–24 Okt~~ | `expand()` + golden file + 12 modul skill + `materialize()` + lapisan penyedia | 10 | ✅ **SELESAI 17 Sep.** 36 test runtime, 20 berkas acuan, `manifestHash` cocok on-chain, tiga agent menjalankan tugas nyata lewat Groq |
 | **P3** | 27 Okt–7 Nov | **Uji diskriminasi dulu (§22.2)**, lalu VPS, sandbox, scorer, judge, median 3 run | 14 | **Angka hybrid vigor nyata.** Ini titik balik proyek |
 | **P4** | 10–21 Nov | Orkestrator, indexer, 4 layar web | 12 | Alur penuh berjalan dari browser tanpa sentuh terminal |
 | **P5** | 24–28 Nov | `LineageRoyalty`, `closeRound`, adapter ERC-8004 | 8 | Pendapatan anak terbagi ke leluhur dalam satu tx |

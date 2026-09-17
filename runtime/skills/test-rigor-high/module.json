@@ -1,0 +1,9 @@
+{
+  "locus": 5,
+  "mcpTools": [
+    "bash"
+  ],
+  "name": "test-rigor-high",
+  "traitId": 2,
+  "version": "1.0.0"
+}

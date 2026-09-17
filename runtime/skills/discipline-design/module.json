@@ -1,0 +1,9 @@
+{
+  "locus": 1,
+  "mcpTools": [
+    "filesystem"
+  ],
+  "name": "discipline-design",
+  "traitId": 2,
+  "version": "1.0.0"
+}

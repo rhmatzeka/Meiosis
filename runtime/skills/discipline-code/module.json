@@ -1,0 +1,10 @@
+{
+  "locus": 1,
+  "mcpTools": [
+    "filesystem",
+    "bash"
+  ],
+  "name": "discipline-code",
+  "traitId": 1,
+  "version": "1.0.0"
+}

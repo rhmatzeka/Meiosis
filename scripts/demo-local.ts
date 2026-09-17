@@ -141,3 +141,24 @@ for (const l of rows) {
   console.log(`  ${LOCUS_NAMES[l].toLowerCase().padEnd(20)} ${a.padEnd(11)} ${b.padEnd(11)} \x1b[1m${c.padEnd(9)}\x1b[0m ${from}`);
 }
 console.log();
+
+// ---------------------------------------------------------------------------
+// P2 — genome on-chain menjadi agent, dan hash-nya dicatat kembali ke chain
+// ---------------------------------------------------------------------------
+step("9. Merakit agent dari genome on-chain");
+const { expand, manifestHash, systemPrompt } = await import("../runtime/genome/expand");
+
+const childManifest = expand(onChain, seed);
+const childHash = manifestHash(childManifest);
+ok(`tier ${childManifest.modelTier}, temperature ${childManifest.params.temperature}, maxSteps ${childManifest.params.maxSteps}`);
+ok(`modul aktif: ${childManifest.traits.filter((t) => t.module).map((t) => t.module).join(", ")}`);
+ok(`system prompt ${systemPrompt(childManifest).length} karakter`);
+
+step("10. Mencatat manifestHash ke chain");
+await send(reg, alice, "setManifestHash", [childId, childHash]);
+const stored = (await read(reg, "agentOf", [childId])) as { manifestHash: bigint };
+console.log(`  dihitung runtime  0x${childHash.toString(16).padStart(16, "0")}`);
+console.log(`  tersimpan di chain 0x${stored.manifestHash.toString(16).padStart(16, "0")}`);
+if (stored.manifestHash !== childHash) { console.log("\n  \x1b[31m✗ TIDAK COCOK\x1b[0m\n"); process.exit(1); }
+ok("\x1b[1mCOCOK — agent yang dijalankan terbukti agent yang tercatat di chain\x1b[0m");
+console.log();
