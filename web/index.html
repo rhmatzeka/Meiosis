@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Meiosis</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🧬</text></svg>" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<header>
+  <div>
+    <div class="brand">Meio<span>sis</span></div>
+    <div class="tagline">Inherited intelligence, verifiable on-chain</div>
+  </div>
+  <div class="spacer"></div>
+  <span class="pill"><i class="dot" id="dot-chain"></i><span id="s-chain">memeriksa…</span></span>
+  <span class="pill" id="s-block">blok —</span>
+  <button class="act ghost" id="btn-theme" title="ganti tema">◐</button>
+</header>
+
+<nav>
+  <button data-tab="roster" class="active">Roster</button>
+  <button data-tab="breed">Kawinkan</button>
+  <button data-tab="tree">Silsilah</button>
+  <button data-tab="arena">Arena</button>
+</nav>
+
+<main>
+  <section id="tab-roster">
+    <h2>Roster agent</h2>
+    <p class="sub">Setiap agent adalah NFT yang menyimpan genome 256-bit. Trait yang
+      ditampilkan adalah hasil ekspresi genome — alel dengan dominansi tertinggi yang menang.</p>
+    <div id="roster"></div>
+  </section>
+
+  <section id="tab-breed" class="hidden">
+    <h2>Kawinkan dua agent</h2>
+    <p class="sub">Pilih dua induk. Perkawinan memakai commit–reveal: seed anak baru
+      ada 5 blok kemudian, sehingga hasilnya tidak bisa disimulasi lebih dulu.</p>
+    <div id="breed"></div>
+  </section>
+
+  <section id="tab-tree" class="hidden">
+    <h2>Pohon keluarga</h2>
+    <p class="sub">Garis menunjukkan pewarisan. Warna menandai generasi.</p>
+    <div id="tree"></div>
+  </section>
+
+  <section id="tab-arena" class="hidden">
+    <h2>Arena</h2>
+    <p class="sub">Tugas identik untuk setiap agent. Yang berbeda hanya genome-nya.
+      70 poin deterministik diukur di dalam sandbox, 30 poin dari judge yang tidak
+      tahu agent mana yang dinilainya.</p>
+    <div id="arena"></div>
+  </section>
+</main>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,256 @@
+/**
+ * Server UI: satu proses yang menyajikan API dan halaman webnya sekaligus.
+ *
+ * Tanpa build step. Astro menyusul ketika kita butuh ekspor statis untuk
+ * cadangan demo (PLAN.md §15.2); untuk sekarang yang dibutuhkan adalah sesuatu
+ * yang langsung bisa dijalankan dan dilihat.
+ */
+import { readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import type { Abi, Address } from "viem";
+import {
+  pub, wallets, ownerName, artifact, loadDeployment, saveDeployment,
+  deploymentValid, isLive, RPC, type Deployment,
+} from "./chain";
+import { express, relatedness, LOCUS_NAMES, traitName, LOCUS_COUNT } from "../packages/shared/src/genome";
+import { FOUNDERS } from "../packages/shared/src/founders";
+import { expand, manifestHash } from "../runtime/genome/expand";
+
+const PORT = Number(process.env.UI_PORT ?? 5173);
+let dep: Deployment | null = loadDeployment();
+
+const abis = {
+  registry: artifact("AgentRegistry").abi,
+  genesis: artifact("Genesis").abi,
+  hatchery: artifact("Hatchery").abi,
+};
+
+const read = (addr: Address, abi: Abi, fn: string, args: unknown[] = []) =>
+  pub.readContract({ address: addr, abi, functionName: fn, args } as never);
+
+async function send(addr: Address, abi: Abi, w: (typeof wallets)[number], fn: string, args: unknown[] = [], value = 0n) {
+  const hash = await w.writeContract({ address: addr, abi, functionName: fn, args, value } as never);
+  return pub.waitForTransactionReceipt({ hash });
+}
+
+// ---------------------------------------------------------------------------
+
+async function deployAll(): Promise<Deployment> {
+  const d = wallets[0];
+  const put = async (name: string, args: unknown[] = []) => {
+    const a = artifact(name);
+    const hash = await d.deployContract({ abi: a.abi, bytecode: a.bytecode.object, args } as never);
+    return (await pub.waitForTransactionReceipt({ hash })).contractAddress!;
+  };
+
+  const registry = await put("AgentRegistry");
+  const genesis = await put("Genesis", [registry]);
+  const hatchery = await put("Hatchery", [registry]);
+  const skills = await put("SkillRegistry");
+
+  await send(registry, abis.registry, d, "setMinter", [genesis, true]);
+  await send(registry, abis.registry, d, "setMinter", [hatchery, true]);
+
+  // Empat founder ke tiga pemilik berbeda, supaya demo royalti nanti bermakna.
+  const owners = [1, 2, 3, 3];
+  for (let i = 0; i < 4; i++) {
+    await send(genesis, abis.genesis, d, "mintFounder",
+      [wallets[owners[i]].account.address, FOUNDERS[i].genome, FOUNDERS[i].name]);
+  }
+  await send(genesis, abis.genesis, d, "seal");
+
+  // Tiap pemilik memasang founder-nya sebagai pejantan dengan biaya 0.
+  // Di chain lokal ini sekadar menghapus friksi: tanpa listing, mengawinkan
+  // agent milik orang lain akan revert dengan NotListedForStud, dan itu
+  // jebakan pertama yang ditemui siapa pun saat mencoba UI.
+  // Di Sepolia nanti, pemasangan ini adalah keputusan pemilik dan harganya
+  // ditentukan sendiri — lihat PLAN.md §6.5.
+  for (let i = 0; i < 4; i++) {
+    await send(hatchery, abis.hatchery, wallets[owners[i]], "listForStud", [i + 1, 0n]);
+  }
+
+  const out: Deployment = { registry, genesis, hatchery, skills, block: Number(await pub.getBlockNumber()) };
+  saveDeployment(out);
+  return out;
+}
+
+async function listAgents() {
+  if (!dep) return [];
+  const total = Number(await read(dep.registry, abis.registry, "totalMinted"));
+  const out = [];
+
+  for (let id = 1; id <= total; id++) {
+    const a = (await read(dep.registry, abis.registry, "agentOf", [id])) as {
+      genome: bigint; parentA: bigint; parentB: bigint; generation: number;
+      breedCount: number; manifestHash: bigint; birthBlock: number;
+    };
+    const owner = (await read(dep.registry, abis.registry, "ownerOf", [id])) as string;
+    const founderName = a.generation === 0
+      ? ((await read(dep.genesis, abis.genesis, "founderName", [id])) as string) : "";
+
+    // Seed kelahiran tidak tersimpan on-chain; untuk founder ia 0, dan untuk
+    // anak kita pakai 0 di tampilan. Ekspresi lokus yang seri bisa berbeda dari
+    // saat lahir — ditandai di UI agar tidak menyesatkan.
+    const seed = 0n;
+    const e = express(a.genome, seed);
+    const manifest = expand(a.genome, seed);
+
+    out.push({
+      id,
+      name: founderName || `Anak #${id}`,
+      owner, ownerName: ownerName(owner),
+      generation: a.generation,
+      parents: [Number(a.parentA), Number(a.parentB)],
+      breedCount: a.breedCount,
+      genome: "0x" + a.genome.toString(16).padStart(64, "0"),
+      genomeRaw: a.genome.toString(),
+      manifestHashOnChain: "0x" + a.manifestHash.toString(16).padStart(16, "0"),
+      manifestHashComputed: "0x" + manifestHash(manifest).toString(16).padStart(16, "0"),
+      birthBlock: a.birthBlock,
+      traits: e.map((t, i) => ({ locus: i, name: LOCUS_NAMES[i], value: traitName(i, t) })),
+      modules: manifest.traits.filter((t) => t.module).map((t) => t.module),
+      modelTier: manifest.modelTier,
+      params: manifest.params,
+    });
+  }
+  return out;
+}
+
+async function listPregnancies() {
+  if (!dep) return [];
+  const next = Number(await read(dep.hatchery, abis.hatchery, "nextPregnancyId"));
+  const now = Number(await pub.getBlockNumber());
+  const out = [];
+  for (let pid = 1; pid < next; pid++) {
+    const p = (await read(dep.hatchery, abis.hatchery, "pregnancies", [pid])) as unknown[];
+    const revealBlock = Number(p[2]);
+    out.push({
+      id: pid, parentA: Number(p[0]), parentB: Number(p[1]),
+      revealBlock, hatched: p[3] as boolean, to: p[4] as string,
+      blocksLeft: Math.max(0, revealBlock - now + 1),
+      ready: !p[3] && now > revealBlock,
+      expired: !p[3] && now > revealBlock + 256,
+    });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+const MIME: Record<string, string> = {
+  ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml",
+};
+
+Bun.serve({
+  port: PORT,
+  idleTimeout: 120,
+  async fetch(req) {
+    const url = new URL(req.url);
+    const p = url.pathname;
+
+    try {
+      if (p === "/api/status") {
+        const live = await isLive();
+        if (live && !(await deploymentValid(dep))) dep = null;
+        return json({
+          rpc: RPC, chainLive: live, deployed: !!dep, addresses: dep,
+          block: live ? Number(await pub.getBlockNumber()) : null,
+          accounts: wallets.map((w, i) => ({ name: ["deployer", "Alice", "Bob", "Carol"][i], address: w.account.address })),
+        });
+      }
+
+      if (p === "/api/deploy" && req.method === "POST") {
+        if (!(await isLive())) return json({ error: "Anvil tidak berjalan. Jalankan `bun run anvil` lebih dulu." }, 503);
+        dep = await deployAll();
+        return json({ ok: true, addresses: dep });
+      }
+
+      if (p === "/api/agents") return json(await listAgents());
+      if (p === "/api/pregnancies") return json(await listPregnancies());
+
+      if (p === "/api/relatedness") {
+        const a = BigInt(url.searchParams.get("a") ?? "0");
+        const b = BigInt(url.searchParams.get("b") ?? "0");
+        return json({ value: relatedness(a, b) });
+      }
+
+      if (p === "/api/breed" && req.method === "POST") {
+        if (!dep) return json({ error: "belum di-deploy" }, 400);
+        const { a, b, from } = (await req.json()) as { a: number; b: number; from: number };
+
+        // Induk hasil kelahiran belum pernah dipasang sebagai pejantan. Pasang
+        // otomatis atas nama pemiliknya supaya generasi kedua bisa dicoba.
+        for (const id of [a, b]) {
+          const listed = (await read(dep.hatchery, abis.hatchery, "studListed", [id])) as boolean;
+          if (listed) continue;
+          const owner = ((await read(dep.registry, abis.registry, "ownerOf", [id])) as string).toLowerCase();
+          const w = wallets.find((x) => x.account.address.toLowerCase() === owner);
+          if (w) await send(dep.hatchery, abis.hatchery, w, "listForStud", [id, 0n]);
+        }
+
+        const r = await send(dep.hatchery, abis.hatchery, wallets[from], "breed", [a, b]);
+        return json({ ok: true, block: Number(r.blockNumber) });
+      }
+
+      if (p === "/api/hatch" && req.method === "POST") {
+        if (!dep) return json({ error: "belum di-deploy" }, 400);
+        const { pid } = (await req.json()) as { pid: number };
+        const r = await send(dep.hatchery, abis.hatchery, wallets[1], "hatch", [pid]);
+        return json({ ok: true, block: Number(r.blockNumber) });
+      }
+
+      if (p === "/api/manifest" && req.method === "POST") {
+        // Menghitung manifest dari genome on-chain, lalu mencatat hash-nya
+        // kembali ke chain. Inilah yang membuat agent yang DIJALANKAN dapat
+        // dibuktikan sebagai agent yang TERCATAT — lihat PLAN.md §8.
+        if (!dep) return json({ error: "belum di-deploy" }, 400);
+        const { id } = (await req.json()) as { id: number };
+        const genome = (await read(dep.registry, abis.registry, "genomeOf", [id])) as bigint;
+        const hash = manifestHash(expand(genome, 0n));
+        const owner = ((await read(dep.registry, abis.registry, "ownerOf", [id])) as string).toLowerCase();
+        const w = wallets.find((x) => x.account.address.toLowerCase() === owner) ?? wallets[0];
+        await send(dep.registry, abis.registry, w, "setManifestHash", [id, hash]);
+        return json({ ok: true, hash: "0x" + hash.toString(16).padStart(16, "0") });
+      }
+
+      if (p === "/api/mine" && req.method === "POST") {
+        // Hanya untuk Anvil: mempercepat masa kehamilan saat menjajal UI.
+        await fetch(RPC, { method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "anvil_mine", params: ["0x6"] }) });
+        return json({ ok: true, block: Number(await pub.getBlockNumber()) });
+      }
+
+      if (p === "/api/arena") {
+        const f = "arena/results/latest.json";
+        return existsSync(f) ? json(JSON.parse(readFileSync(f, "utf8"))) : json({ empty: true });
+      }
+
+      if (p === "/api/founders") {
+        return json(FOUNDERS.map((f) => ({
+          id: f.id, name: f.name,
+          genome: "0x" + f.genome.toString(16).padStart(64, "0"),
+          traits: express(f.genome, 0n).map((t, i) => ({ name: LOCUS_NAMES[i], value: traitName(i, t) })),
+        })));
+      }
+
+      // berkas statis
+      const file = p === "/" ? "/index.html" : p;
+      const path = join("web", file);
+      if (existsSync(path)) {
+        const ext = file.slice(file.lastIndexOf("."));
+        return new Response(Bun.file(path), { headers: { "content-type": MIME[ext] ?? "text/plain" } });
+      }
+      return new Response("not found", { status: 404 });
+    } catch (e) {
+      return json({ error: (e as Error).message.slice(0, 400) }, 500);
+    }
+  },
+});
+
+console.log(`\n  Meiosis UI  →  http://localhost:${PORT}`);
+console.log(`  chain       →  ${RPC}`);
+console.log(`  ${dep ? "kontrak sudah ter-deploy" : "belum ter-deploy — pakai tombol Deploy di UI"}\n`);

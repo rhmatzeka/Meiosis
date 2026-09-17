@@ -17,7 +17,8 @@ Rencana lengkap: [PLAN.md](./PLAN.md) · Cara menguji: [TESTING.md](./TESTING.md
 | P1b — deploy Sepolia | menunggu ETH faucet |
 | P2 — runtime `expand()` + 12 modul skill | ✅ selesai |
 | P3 — sandbox, scorer, judge, arena | sebagian: pipa jalan, hybrid vigor belum terbukti |
-| P4 — orchestrator, indexer, web | belum |
+| P4 — web UI lokal | ✅ roster, kawinkan, silsilah, arena |
+| P4 — orchestrator & indexer | belum |
 
 ## Jalankan
 
@@ -29,6 +30,7 @@ bun run test:contracts    # 27 test, termasuk uji silang TS <-> Solidity
 bun test                  # 36 test runtime, termasuk 20 berkas acuan expand()
 
 bun run anvil             # di terminal terpisah
+bun run ui                # http://localhost:5173 — deploy, kawinkan, silsilah, arena
 bun run demo:local        # deploy -> mint -> breed -> hatch -> rakit agent
 bun run demo:runtime      # tiga agent, tugas identik, model sungguhan
 ```

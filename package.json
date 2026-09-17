@@ -15,6 +15,7 @@
     "test": "bun test runtime/",
     "test:contracts": "forge test --root contracts",
     "test:sandbox": "bun run scripts/test-sandbox.ts",
+    "ui": "bun run server/api.ts",
     "verify": "bun run scripts/verify.ts"
   },
   "devDependencies": {

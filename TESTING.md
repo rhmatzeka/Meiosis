@@ -45,15 +45,38 @@ bun run test:sandbox      # sandbox saja
 
 ---
 
-## 2. Dengan chain lokal — masih tanpa API key dan tanpa ETH
+## 2. Lewat UI — cara paling enak melihat semuanya
 
-Dua terminal.
+Dua terminal, lalu buka browser.
 
 ```bash
 # terminal 1
 bun run anvil
 
 # terminal 2
+bun run ui          # http://localhost:5173
+```
+
+Di halaman itu:
+
+1. **Klik "Deploy & mint generasi nol"** — sekali klik: empat kontrak ter-deploy,
+   empat founder ter-mint ke tiga pemilik berbeda, generasi nol disegel.
+2. **Tab Roster** — kartu tiap agent beserta trait yang terekspresi dan modul
+   skill yang aktif. Klik **"catat ke chain"** pada baris manifest; setelah itu
+   berubah jadi **✓ cocok**, artinya agent yang akan dijalankan runtime terbukti
+   agent yang tercatat di chain.
+3. **Tab Kawinkan** — pilih dua induk, lihat kekerabatan dan perbandingan
+   trait-nya, lalu klik Kawinkan. Muncul kartu kehamilan dengan hitung mundur
+   blok. Klik **"Majukan 6 blok"** untuk mempercepat, lalu **Tetaskan**.
+4. **Tab Silsilah** — pohon keluarga; anak muncul di generasi berikutnya.
+5. **Tab Arena** — hasil ronde terakhir, lengkap dengan rincian tiap baris rubrik.
+
+UI ini memakai kunci bawaan Anvil yang memang publik, jadi tidak perlu MetaMask.
+Untuk Sepolia nanti, `breed()` harus dipanggil dari wallet pengguna sendiri.
+
+### Tanpa UI
+
+```bash
 bun run demo:local
 ```
 
@@ -103,7 +126,7 @@ datang, bukan hanya totalnya.
 | `LineageRoyalty.sol` — royalti ke leluhur | Belum ditulis |
 | Orchestrator / watcher auto-hatch | Belum; `hatch()` masih manual |
 | Indexer & pohon keluarga | Belum |
-| Web UI | Belum |
+| Web UI | Ada untuk chain lokal; belum terhubung Sepolia |
 
 Dari tiga klaim proyek di `PLAN.md` §1: klaim 1 (pewarisan terverifikasi)
 **sudah terbukti dan bisa diuji sekarang**. Klaim 2 (anak mengungguli kedua

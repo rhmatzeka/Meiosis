@@ -57,6 +57,42 @@ for (const r of results) {
   }
 }
 
+// Simpan hasil supaya UI dan tinjauan berikutnya bisa membacanya tanpa
+// menjalankan ulang agent. Artefak per run tetap di outDir masing-masing.
+const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+const payload = {
+  ranAt: new Date().toISOString(),
+  provider: provider.name,
+  runsPerAgent: RUNS,
+  rubricHash,
+  jobId: "staking-landing",
+  agents: results.map((r) => ({
+    id: r.contestant.id,
+    label: r.contestant.label,
+    genome: r.contestant.genome.toString(),
+    seed: r.contestant.seed.toString(),
+    modules: r.modules,
+    median: r.median,
+    runs: r.runs.map((x) => ({
+      run: x.run,
+      total: x.total,
+      gated: x.deterministic.gated,
+      deterministic: x.deterministic.total,
+      max: x.deterministic.max,
+      lines: x.deterministic.lines,
+      metrics: x.deterministic.metrics,
+      judge: x.judgeScore,
+      files: x.files,
+      model: x.agentModel,
+      outDir: x.outDir,
+      error: x.error,
+    })),
+  })),
+};
+await Bun.write(`arena/results/${stamp}.json`, JSON.stringify(payload, null, 2));
+await Bun.write("arena/results/latest.json", JSON.stringify(payload, null, 2));
+console.log(`\n  hasil disimpan ke arena/results/${stamp}.json`);
+
 console.log(`\n\x1b[1mMEDIAN\x1b[0m  ${results.map((r) => `${r.contestant.label.split(" ")[0]}=${r.median}`).join("  ")}`);
 
 // Sebaran hanya bermakna di antara agent yang LOLOS gerbang. Agent yang kena
