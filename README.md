@@ -6,7 +6,7 @@ Protokol perkawinan agent AI di Ethereum. Dua agent kawin, anaknya mewarisi
 kemampuan lewat meiosis on-chain, dan terbukti secara terukur lebih
 baik dari kedua orang tuanya.
 
-Rencana lengkap: [PLAN.md](./PLAN.md)
+Rencana lengkap: [PLAN.md](./PLAN.md) · Cara menguji: [TESTING.md](./TESTING.md)
 
 ## Status
 
@@ -16,7 +16,8 @@ Rencana lengkap: [PLAN.md](./PLAN.md)
 | P1 — kontrak inti, kelahiran jalan di Anvil | ✅ selesai |
 | P1b — deploy Sepolia | menunggu ETH faucet |
 | P2 — runtime `expand()` + 12 modul skill | ✅ selesai |
-| P3 — sandbox, scorer, arena | belum |
+| P3 — sandbox, scorer, judge, arena | sebagian: pipa jalan, hybrid vigor belum terbukti |
+| P4 — orchestrator, indexer, web | belum |
 
 ## Jalankan
 
