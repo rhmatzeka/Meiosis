@@ -33,6 +33,51 @@ let dep: Deployment | null = loadDeployment();
 const checks = (): Checks =>
   JSON.parse(readFileSync("arena/jobs/staking-landing/checks.json", "utf8"));
 
+/**
+ * Job berjalan di latar dan melaporkan langkahnya saat itu juga.
+ *
+ * Versi pertama menunggu seluruh loop selesai baru membalas, dan di free tier
+ * itu berarti sepuluh menit layar diam tanpa tanda kehidupan — uji end-to-end
+ * pun habis waktunya menunggu. Sekarang POST membalas seketika dengan jobId,
+ * dan UI menarik kemajuannya sambil jalan.
+ */
+interface Job {
+  id: string;
+  status: "running" | "done" | "error";
+  startedAt: number;
+  task: string;
+  agents: Record<number, {
+    label?: string; modules?: string[]; tools?: string[]; model?: string;
+    steps: unknown[]; done: boolean; result?: unknown; error?: string;
+  }>;
+  error?: string;
+}
+const jobs = new Map<string, Job>();
+
+// Job lama dibuang supaya memori tidak menumpuk selama server hidup lama.
+const pruneJobs = () => {
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  for (const [k, j] of jobs) if (j.startedAt < cutoff) jobs.delete(k);
+};
+
+/** Ringkasan hasil sandbox yang dipakai baik mode agent maupun mode single. */
+function buildInfo(dir: string, sb: { typecheckOk: boolean; buildOk: boolean; rendersOk: boolean;
+  timedOut: boolean; durationMs: number; buildLog: string; render: unknown },
+  score: { total: number; max: number; gated: boolean; lines: unknown[] }) {
+  const r = sb.render as { axeViolations?: unknown[]; consoleErrors?: string[] } | null;
+  return {
+    dir,
+    typecheckOk: sb.typecheckOk, buildOk: sb.buildOk, rendersOk: sb.rendersOk,
+    timedOut: sb.timedOut, durationMs: sb.durationMs,
+    score: score.total, scoreMax: score.max, gated: score.gated, lines: score.lines,
+    axe: r?.axeViolations ?? [], consoleErrors: r?.consoleErrors ?? [],
+    shot: existsSync(`${dir}/out/desktop.png`) ? `/artifact/${dir}/out/desktop.png` : null,
+    shotMobile: existsSync(`${dir}/out/mobile.png`) ? `/artifact/${dir}/out/mobile.png` : null,
+    buildLog: sb.buildLog.split("\n").slice(-14).join("\n"),
+    files: [] as string[],
+  };
+}
+
 const abis = {
   registry: artifact("AgentRegistry").abi,
   genesis: artifact("Genesis").abi,
@@ -232,131 +277,105 @@ Bun.serve({
       }
 
       if (p === "/api/run" && req.method === "POST") {
-        /**
-         * Memberi tugas kepada agent yang benar-benar ada di chain.
-         *
-         * Genome dibaca dari kontrak, bukan dari berkas lokal. Agent dirakit
-         * dari genome itu, lalu dijalankan. Kalau beberapa agent dipilih,
-         * semuanya menerima tugas yang persis sama — sehingga satu-satunya
-         * yang berbeda di antara keluaran mereka adalah genome-nya.
-         */
         if (!dep) return json({ error: "belum di-deploy" }, 400);
-        const { ids, task, mock, build, mode } = (await req.json()) as
-          { ids: number[]; task: string; mock?: boolean; build?: boolean; mode?: "single" | "agent" };
+        const { ids, task, mock, mode, maxSteps } = (await req.json()) as {
+          ids: number[]; task: string; mock?: boolean;
+          mode?: "single" | "agent"; maxSteps?: number;
+        };
         if (!task?.trim()) return json({ error: "tugas kosong" }, 400);
         if (!ids?.length) return json({ error: "belum ada agent dipilih" }, 400);
 
-        const env = { ...process.env, MOCK_LLM: mock ? "1" : "0" };
-        const provider = mock ? undefined : getProvider(env);
-        const out = [];
+        pruneJobs();
+        const jobId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const job: Job = { id: jobId, status: "running", startedAt: Date.now(), task, agents: {} };
+        for (const id of ids) job.agents[id] = { steps: [], done: false };
+        jobs.set(jobId, job);
 
-        for (const id of ids) {
-          const genome = (await read(dep.registry, abis.registry, "genomeOf", [id])) as bigint;
-          const agent = materialize(genome, 0n, { id, provider, env });
-
-          /**
-           * Mode agent: tempat kerja nyata dan loop tool. Agent menulis,
-           * menjalankan pemeriksaan, membaca galatnya, lalu memperbaiki.
-           * Mode single hanya satu tanya-jawab — berguna untuk tugas yang
-           * memang tidak menghasilkan berkas, seperti meninjau kode.
-           */
-          if (mode === "agent" && !mock) {
-            const dir = `.runs/${Date.now()}-${id}`;
-            const ws = new Workspace(`${dir}/ws`);
-            try {
-              const loop = await runAgentLoop({
-                agent, provider: provider!, ws,
-                task: `${task}\n\n---\n\n${BUILD_CONTRACT}`,
-              });
-
-              // Pemeriksaan akhir yang lengkap: render dan skor, bukan mode cepat.
-              const sb = await ws.check({ outDir: `${dir}/out` });
-              const score = scoreDeterministic(sb, checks());
-
-              out.push({
-                id, ok: true, mode: "agent",
-                modules: agent.manifest.traits.filter((x) => x.module).map((x) => x.module),
-                tools: toolsFor(agent.manifest).map((x) => x.spec.name),
-                manifestHash: "0x" + agent.manifestHash.toString(16).padStart(16, "0"),
-                model: provider!.modelFor(agent.manifest.modelTier),
-                maxSteps: agent.manifest.params.maxSteps,
-                loop: {
-                  finished: loop.finished, reason: loop.reason, checks: loop.checks,
-                  steps: loop.steps, summary: loop.summary,
-                  durationMs: loop.durationMs,
-                  promptTokens: loop.totalPromptTokens, completionTokens: loop.totalCompletionTokens,
-                },
-                built: {
-                  dir, files: Object.keys(ws.snapshot()),
-                  typecheckOk: sb.typecheckOk, buildOk: sb.buildOk, rendersOk: sb.rendersOk,
-                  timedOut: sb.timedOut, durationMs: sb.durationMs,
-                  score: score.total, scoreMax: score.max, gated: score.gated, lines: score.lines,
-                  axe: sb.render?.axeViolations ?? [],
-                  consoleErrors: sb.render?.consoleErrors ?? [],
-                  shot: existsSync(`${dir}/out/desktop.png`) ? `/artifact/${dir}/out/desktop.png` : null,
-                  shotMobile: existsSync(`${dir}/out/mobile.png`) ? `/artifact/${dir}/out/mobile.png` : null,
-                  buildLog: sb.buildLog.split("\n").slice(-14).join("\n"),
-                },
-                output: loop.summary,
-              });
-            } catch (e) {
-              out.push({ id, ok: false, error: (e as Error).message.slice(0, 300) });
-            }
-            continue;
-          }
-
+        // Dijalankan tanpa ditunggu; kemajuannya diambil lewat /api/job.
+        void (async () => {
+          const env = { ...process.env, MOCK_LLM: mock ? "1" : "0" };
+          const provider = mock ? undefined : getProvider(env);
           try {
-            // Kalau hasilnya akan dibangun, agent harus tahu kontrak lingkungannya.
-            const fullTask = build ? `${task}\n\n---\n\n${BUILD_CONTRACT}` : task;
-            const r = await agent.run(fullTask);
+            for (const id of ids) {
+              const slot = job.agents[id];
+              try {
+                const genome = (await read(dep!.registry, abis.registry, "genomeOf", [id])) as bigint;
+                const agent = materialize(genome, 0n, { id, provider, env });
+                slot.modules = agent.manifest.traits.filter((x) => x.module).map((x) => x.module!);
+                slot.model = provider?.modelFor(agent.manifest.modelTier) ?? "mock";
 
-            /**
-             * Kalau agent menghasilkan berkas dan pengguna meminta build, kode
-             * itu benar-benar dibangun dan dirender di sandbox. Tanpa langkah
-             * ini, "memakai agent" berhenti di teks yang belum tentu jalan —
-             * dan kode yang tidak pernah dijalankan tidak membuktikan apa pun.
-             */
-            let built = null;
-            const files = parseAgentFiles(r.output);
-            if (build && Object.keys(files).length) {
-              const dir = `.runs/${Date.now()}-${id}`;
-              mkdirSync(dir, { recursive: true });
-              const sb = await runInSandbox(files, { timeoutMs: 300_000, outDir: `${dir}/out` });
-              const score = scoreDeterministic(sb, checks());
-              built = {
-                dir,
-                files: Object.keys(files),
-                typecheckOk: sb.typecheckOk, buildOk: sb.buildOk, rendersOk: sb.rendersOk,
-                timedOut: sb.timedOut,
-                durationMs: sb.durationMs,
-                score: score.total, scoreMax: score.max, gated: score.gated,
-                lines: score.lines,
-                axe: sb.render?.axeViolations ?? [],
-                consoleErrors: sb.render?.consoleErrors ?? [],
-                shot: existsSync(`${dir}/out/desktop.png`) ? `/artifact/${dir}/out/desktop.png` : null,
-                shotMobile: existsSync(`${dir}/out/mobile.png`) ? `/artifact/${dir}/out/mobile.png` : null,
-                buildLog: sb.buildLog.split("\n").slice(-14).join("\n"),
-              };
+                if (mode === "agent" && !mock) {
+                  slot.tools = toolsFor(agent.manifest).map((x) => x.spec.name);
+                  const dir = `.runs/${Date.now()}-${id}`;
+                  const ws = new Workspace(`${dir}/ws`);
+                  const loop = await runAgentLoop({
+                    agent, provider: provider!, ws,
+                    task: `${task}\n\n---\n\n${BUILD_CONTRACT}`,
+                    maxSteps: maxSteps ?? 10,
+                    onStep: (s) => slot.steps.push(s),
+                  });
+                  const sb = await ws.check({ outDir: `${dir}/out` });
+                  const score = scoreDeterministic(sb, checks());
+                  slot.result = {
+                    id, ok: true, mode: "agent", modules: slot.modules, tools: slot.tools,
+                    model: slot.model, maxSteps: agent.manifest.params.maxSteps,
+                    manifestHash: "0x" + agent.manifestHash.toString(16).padStart(16, "0"),
+                    loop: {
+                      finished: loop.finished, reason: loop.reason, checks: loop.checks,
+                      steps: loop.steps, summary: loop.summary, durationMs: loop.durationMs,
+                      promptTokens: loop.totalPromptTokens, completionTokens: loop.totalCompletionTokens,
+                    },
+                    built: buildInfo(dir, sb, score),
+                    output: loop.summary,
+                  };
+                } else {
+                  const r = await agent.run(`${task}\n\n---\n\n${BUILD_CONTRACT}`);
+                  const files = parseAgentFiles(r.output);
+                  let built = null;
+                  if (Object.keys(files).length) {
+                    const dir = `.runs/${Date.now()}-${id}`;
+                    mkdirSync(dir, { recursive: true });
+                    const sb = await runInSandbox(files, { timeoutMs: 300_000, outDir: `${dir}/out` });
+                    built = buildInfo(dir, sb, scoreDeterministic(sb, checks()));
+                  }
+                  slot.result = {
+                    id, ok: true, mode: "single", modules: slot.modules,
+                    manifestHash: r.manifestHash, model: r.model, provider: r.provider,
+                    toolsDeclared: r.toolsDeclared, toolsAvailable: r.toolsAvailable,
+                    promptTokens: r.promptTokens, completionTokens: r.completionTokens,
+                    durationMs: r.durationMs, mocked: r.mocked,
+                    built, output: r.output,
+                  };
+                }
+              } catch (e) {
+                slot.error = (e as Error).message.slice(0, 300);
+                slot.result = { id, ok: false, error: slot.error };
+              }
+              slot.done = true;
             }
-
-            out.push({
-              built,
-              id, ok: true,
-              modules: agent.manifest.traits.filter((x) => x.module).map((x) => x.module),
-              modelTier: agent.manifest.modelTier,
-              params: agent.manifest.params,
-              manifestHash: r.manifestHash,
-              model: r.model, provider: r.provider,
-              toolsDeclared: r.toolsDeclared, toolsAvailable: r.toolsAvailable,
-              promptTokens: r.promptTokens, completionTokens: r.completionTokens,
-              durationMs: r.durationMs, mocked: r.mocked,
-              output: r.output,
-            });
+            job.status = "done";
           } catch (e) {
-            out.push({ id, ok: false, error: (e as Error).message.slice(0, 300) });
+            job.status = "error";
+            job.error = (e as Error).message.slice(0, 300);
           }
-        }
-        return json({ results: out });
+        })();
+
+        return json({ jobId });
+      }
+
+      if (p.startsWith("/api/job/")) {
+        const j = jobs.get(p.slice("/api/job/".length));
+        if (!j) return json({ error: "job tidak ditemukan" }, 404);
+        return json({
+          id: j.id, status: j.status, error: j.error,
+          elapsedMs: Date.now() - j.startedAt,
+          agents: Object.entries(j.agents).map(([id, a]) => ({
+            id: Number(id), done: a.done, error: a.error,
+            modules: a.modules, tools: a.tools, model: a.model,
+            steps: a.steps, result: a.result,
+          })),
+          results: Object.values(j.agents).filter((a) => a.result).map((a) => a.result),
+        });
       }
 
       if (p === "/api/mine" && req.method === "POST") {

@@ -11,7 +11,11 @@ const esc = (s) => String(s).replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;
 const KEY_LOCI = ["SECURITY_INSTINCT", "AESTHETIC", "TEST_RIGOR", "STACK_AFFINITY", "DISCIPLINE_PRIMARY"];
 const GEN_COLOR = ["var(--g0)", "var(--child)", "var(--g1)", "var(--accent)"];
 
-let state = { status: null, agents: [], pregs: [], sel: [], runSel: [], runBusy: false, runOut: null };
+let state = {
+  status: null, agents: [], pregs: [], sel: [],
+  runSel: [], runBusy: false, runOut: null,
+  jobId: null, jobLive: null,
+};
 
 const TASK_CONTOH = [
   ["Komponen form", `Buat komponen React "StakeForm" dengan input jumlah dan tombol Stake.\nBalas dengan kode saja.`],
@@ -50,7 +54,7 @@ async function refresh() {
   }
   renderRoster(); renderBreed(); renderTree();
   // tab Jalankan hanya digambar ulang saat idle, agar hasil tidak hilang
-  if (!state.runBusy && !state.runOut) renderRun();
+  if (!state.runBusy && !state.runOut && !state.jobLive) renderRun();
 }
 
 function needChain() {
@@ -222,7 +226,7 @@ function renderRun() {
         <input type="checkbox" id="agentmode" checked /> <b>mode agent</b> (pakai tool, bangun, perbaiki sendiri)</label>
       <label class="gen" style="display:flex;gap:6px;align-items:center">
         <input type="checkbox" id="mock" /> mode tiruan (tanpa memakai kuota)</label>
-      <span class="gen">${state.runBusy ? "mode agent butuh 2–4 menit: beberapa putaran tool, lalu build dan render" : ""}</span>
+      <span class="gen">${state.runBusy ? "" : "mode agent: maksimal 10 langkah, lalu build dan render"}</span>
     </div>
   </div>`);
 
@@ -232,18 +236,56 @@ function renderRun() {
   panel.querySelector("#go-run").onclick = async () => {
     const task = panel.querySelector("#task").value.trim();
     if (!task) { alert("tugasnya masih kosong"); return; }
-    state.runBusy = true; state.runOut = null; renderRun();
-    const r = await post("/api/run", {
-      ids: state.runSel, task,
-      mock: panel.querySelector("#mock")?.checked,
-      build: true,
-      mode: panel.querySelector("#agentmode")?.checked ? "agent" : "single",
-    });
-    state.runBusy = false;
-    state.runOut = r.error ? { error: r.error } : r;
+
+    state.runBusy = true; state.runOut = null; state.jobLive = null;
+    const mode = panel.querySelector("#agentmode")?.checked ? "agent" : "single";
     renderRun();
+
+    const started = await post("/api/run", {
+      ids: state.runSel, task, mode,
+      mock: panel.querySelector("#mock")?.checked,
+    });
+    if (started.error) { state.runBusy = false; state.runOut = { error: started.error }; renderRun(); return; }
+
+    state.jobId = started.jobId;
+    // Tarik kemajuannya sambil jalan, supaya langkah agent terlihat saat terjadi
+    // dan bukan setelah sepuluh menit layar diam.
+    const poll = async () => {
+      const j = await api(`/api/job/${state.jobId}`);
+      if (j.error) { state.runBusy = false; state.runOut = { error: j.error }; renderRun(); return; }
+      state.jobLive = j;
+      if (j.status === "running") { renderRun(); setTimeout(poll, 1500); return; }
+      state.runBusy = false;
+      state.jobLive = null;
+      state.runOut = { results: j.results };
+      renderRun();
+    };
+    poll();
   };
   box.append(panel);
+
+  // Kemajuan langsung selagi job berjalan.
+  if (state.jobLive) {
+    for (const a of state.jobLive.agents) {
+      const ag = state.agents.find((x) => x.id === a.id);
+      const last = a.steps[a.steps.length - 1];
+      box.append(el(`<div class="card mt">
+        <h3>${esc(ag?.name ?? "#" + a.id)}
+          <span class="gen">${a.done ? "selesai" : `berjalan · ${a.steps.length} langkah`}${a.model ? " · " + esc(a.model) : ""}</span></h3>
+        ${a.tools ? `<div class="traits">${a.tools.map((t) => `<span class="trait">${esc(t)}</span>`).join("")}</div>` : ""}
+        ${a.steps.length ? `<div class="mt" style="border:1px solid var(--line);border-radius:8px;overflow:hidden">
+          ${a.steps.slice(-8).map((s) => `<div style="display:flex;gap:10px;padding:6px 11px;border-bottom:1px solid var(--line);font-size:12px">
+            <span class="mono" style="color:var(--faint);min-width:20px">${s.step}</span>
+            <span class="mono"><b>${esc(s.tool ?? s.kind)}</b></span>
+            <span class="gen mono" style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((s.result ?? s.text ?? "").split("\n")[0].slice(0, 90))}</span>
+          </div>`).join("")}
+        </div>` : `<div class="gen mt">menunggu langkah pertama…</div>`}
+        ${!a.done && last?.tool === "run_check" ? `<div class="gen mt">membangun di sandbox, ~50 detik…</div>` : ""}
+      </div>`));
+    }
+    box.append(el(`<div class="gen mt">berjalan ${Math.round(state.jobLive.elapsedMs / 1000)} detik · halaman menarik kemajuan tiap 1,5 detik</div>`));
+    return;
+  }
 
   if (!state.runOut) return;
   if (state.runOut.error) { box.append(el(`<div class="note bad">${esc(state.runOut.error)}</div>`)); return; }
