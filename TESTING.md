@@ -79,6 +79,11 @@ Di halaman itu:
    #1 menjawab 171 token dan langsung menunjuk XSS; #2 menjawab 562 token
    dengan tabel lima masalah dan menaruh XSS di urutan kedua.
 
+   Centang **bangun & render hasilnya** (aktif secara bawaan) supaya kode yang
+   ditulis agent benar-benar dibangun di sandbox, dirender dengan Chromium, lalu
+   ditampilkan sebagai screenshot desktop dan ponsel berikut skornya. Tanpa ini
+   kamu hanya melihat teks yang belum tentu jalan.
+
    Centang **mode tiruan** kalau hanya ingin menguji alurnya tanpa memakai kuota.
 
 5. **Tab Silsilah** — pohon keluarga; anak muncul di generasi berikutnya.

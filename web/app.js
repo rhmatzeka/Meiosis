@@ -219,8 +219,10 @@ function renderRun() {
       <button class="act" id="go-run" ${state.runSel.length && !state.runBusy ? "" : "disabled"}>
         ${state.runBusy ? "menjalankan…" : `Jalankan di ${state.runSel.length} agent`}</button>
       <label class="gen" style="display:flex;gap:6px;align-items:center">
+        <input type="checkbox" id="build" checked /> bangun &amp; render hasilnya</label>
+      <label class="gen" style="display:flex;gap:6px;align-items:center">
         <input type="checkbox" id="mock" /> mode tiruan (tanpa memakai kuota)</label>
-      <span class="gen">${state.runBusy ? "satu agent 30–60 detik, antre kuota gratis" : ""}</span>
+      <span class="gen">${state.runBusy ? "generasi 30–60 detik, build di sandbox ~10 detik lagi" : ""}</span>
     </div>
   </div>`);
 
@@ -231,7 +233,11 @@ function renderRun() {
     const task = panel.querySelector("#task").value.trim();
     if (!task) { alert("tugasnya masih kosong"); return; }
     state.runBusy = true; state.runOut = null; renderRun();
-    const r = await post("/api/run", { ids: state.runSel, task, mock: panel.querySelector("#mock")?.checked });
+    const r = await post("/api/run", {
+      ids: state.runSel, task,
+      mock: panel.querySelector("#mock")?.checked,
+      build: panel.querySelector("#build")?.checked,
+    });
     state.runBusy = false;
     state.runOut = r.error ? { error: r.error } : r;
     renderRun();
@@ -253,10 +259,47 @@ function renderRun() {
           ? `genome memberi <b>${r.toolsDeclared.join(", ")}</b>, runtime menyediakan <b>${r.toolsAvailable.length ? r.toolsAvailable.join(", ") : "belum ada"}</b>`
           : "tidak ada"}</dd>
       </dl>
-      <pre style="background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:12px;
-        overflow:auto;max-height:460px;font-size:12px;line-height:1.5"><code>${esc(r.output)}</code></pre>
+      ${r.built ? buildBlock(r.built) : ""}
+      <details ${r.built ? "" : "open"} class="mt">
+        <summary class="gen" style="cursor:pointer">keluaran mentah agent</summary>
+        <pre style="background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:12px;
+          overflow:auto;max-height:420px;font-size:12px;line-height:1.5"><code>${esc(r.output)}</code></pre>
+      </details>
     </div>`));
   }
+}
+
+/** Hasil build sandbox: status, skor, dan tampilan halaman yang sungguh dirender. */
+function buildBlock(b) {
+  const ok = (v) => v ? '<span style="color:var(--ok)">✓</span>' : '<span style="color:var(--bad)">✗</span>';
+  const gate = b.rendersOk;
+  return `
+    <div class="row mt" style="gap:14px">
+      <span class="pill">${ok(b.typecheckOk)} typecheck</span>
+      <span class="pill">${ok(b.buildOk)} build</span>
+      <span class="pill">${ok(b.rendersOk)} render</span>
+      <span class="pill">${b.gated ? "kena gerbang" : `skor ${b.score}/${b.scoreMax}`}</span>
+      <span class="gen">${b.files.length} berkas · ${(b.durationMs / 1000).toFixed(1)}s di sandbox</span>
+    </div>
+    ${gate && b.shot ? `
+      <div class="row mt" style="align-items:flex-start;gap:14px">
+        <div style="flex:3;min-width:280px">
+          <div class="gen">desktop 1280px</div>
+          <img src="${b.shot}" style="width:100%;border:1px solid var(--line);border-radius:8px;margin-top:4px" />
+        </div>
+        <div style="flex:1;min-width:130px">
+          <div class="gen">ponsel 390px</div>
+          ${b.shotMobile ? `<img src="${b.shotMobile}" style="width:100%;border:1px solid var(--line);border-radius:8px;margin-top:4px" />` : ""}
+        </div>
+      </div>` : `
+      <div class="note bad mt">Halaman tidak berhasil dirender.
+        ${b.consoleErrors.length ? `${b.consoleErrors.length} galat konsol. ` : ""}
+        <pre class="mono" style="margin-top:8px;white-space:pre-wrap;font-size:11px">${esc(b.buildLog)}</pre></div>`}
+    ${b.lines?.length ? `<table class="mt"><tbody>${b.lines.map((l) => `<tr>
+      <td>${esc(l.key)}</td>
+      <td style="width:110px"><div class="bar"><i style="width:${Math.round((l.points / l.max) * 100)}%"></i></div></td>
+      <td class="num">${l.points}/${l.max}</td>
+      <td class="gen">${esc(l.detail)}</td></tr>`).join("")}</tbody></table>` : ""}`;
 }
 
 // --- silsilah ---

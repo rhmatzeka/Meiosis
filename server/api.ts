@@ -17,9 +17,18 @@ import { FOUNDERS } from "../packages/shared/src/founders";
 import { expand, manifestHash } from "../runtime/genome/expand";
 import { materialize } from "../runtime/materialize";
 import { getProvider } from "../runtime/providers";
+import { parseAgentFiles } from "../arena/parse-output";
+import { BUILD_CONTRACT } from "../arena/build-contract";
+import { runInSandbox } from "../sandbox/run";
+import { scoreDeterministic, type Checks } from "../arena/scorers/deterministic";
+import { mkdirSync, cpSync } from "node:fs";
 
 const PORT = Number(process.env.UI_PORT ?? 5173);
 let dep: Deployment | null = loadDeployment();
+
+/** Rubrik arena dipakai ulang supaya skor di tab Jalankan sebanding dengan skor ronde. */
+const checks = (): Checks =>
+  JSON.parse(readFileSync("arena/jobs/staking-landing/checks.json", "utf8"));
 
 const abis = {
   registry: artifact("AgentRegistry").abi,
@@ -229,7 +238,8 @@ Bun.serve({
          * yang berbeda di antara keluaran mereka adalah genome-nya.
          */
         if (!dep) return json({ error: "belum di-deploy" }, 400);
-        const { ids, task, mock } = (await req.json()) as { ids: number[]; task: string; mock?: boolean };
+        const { ids, task, mock, build } = (await req.json()) as
+          { ids: number[]; task: string; mock?: boolean; build?: boolean };
         if (!task?.trim()) return json({ error: "tugas kosong" }, 400);
         if (!ids?.length) return json({ error: "belum ada agent dipilih" }, 400);
 
@@ -241,8 +251,41 @@ Bun.serve({
           const genome = (await read(dep.registry, abis.registry, "genomeOf", [id])) as bigint;
           const agent = materialize(genome, 0n, { id, provider, env });
           try {
-            const r = await agent.run(task);
+            // Kalau hasilnya akan dibangun, agent harus tahu kontrak lingkungannya.
+            const fullTask = build ? `${task}\n\n---\n\n${BUILD_CONTRACT}` : task;
+            const r = await agent.run(fullTask);
+
+            /**
+             * Kalau agent menghasilkan berkas dan pengguna meminta build, kode
+             * itu benar-benar dibangun dan dirender di sandbox. Tanpa langkah
+             * ini, "memakai agent" berhenti di teks yang belum tentu jalan —
+             * dan kode yang tidak pernah dijalankan tidak membuktikan apa pun.
+             */
+            let built = null;
+            const files = parseAgentFiles(r.output);
+            if (build && Object.keys(files).length) {
+              const dir = `.runs/${Date.now()}-${id}`;
+              mkdirSync(dir, { recursive: true });
+              const sb = await runInSandbox(files, { timeoutMs: 300_000, outDir: `${dir}/out` });
+              const score = scoreDeterministic(sb, checks());
+              built = {
+                dir,
+                files: Object.keys(files),
+                typecheckOk: sb.typecheckOk, buildOk: sb.buildOk, rendersOk: sb.rendersOk,
+                timedOut: sb.timedOut,
+                durationMs: sb.durationMs,
+                score: score.total, scoreMax: score.max, gated: score.gated,
+                lines: score.lines,
+                axe: sb.render?.axeViolations ?? [],
+                consoleErrors: sb.render?.consoleErrors ?? [],
+                shot: existsSync(`${dir}/out/desktop.png`) ? `/artifact/${dir}/out/desktop.png` : null,
+                shotMobile: existsSync(`${dir}/out/mobile.png`) ? `/artifact/${dir}/out/mobile.png` : null,
+                buildLog: sb.buildLog.split("\n").slice(-14).join("\n"),
+              };
+            }
+
             out.push({
+              built,
               id, ok: true,
               modules: agent.manifest.traits.filter((x) => x.module).map((x) => x.module),
               modelTier: agent.manifest.modelTier,
@@ -279,6 +322,18 @@ Bun.serve({
           genome: "0x" + f.genome.toString(16).padStart(64, "0"),
           traits: express(f.genome, 0n).map((t, i) => ({ name: LOCUS_NAMES[i], value: traitName(i, t) })),
         })));
+      }
+
+      // Artefak hasil run: screenshot dan berkas keluaran sandbox.
+      if (p.startsWith("/artifact/")) {
+        const rel = decodeURIComponent(p.slice("/artifact/".length));
+        // hanya boleh dari .runs/, tidak boleh keluar lewat ".."
+        if (!rel.startsWith(".runs/") || rel.includes("..")) return new Response("terlarang", { status: 403 });
+        if (!existsSync(rel)) return new Response("not found", { status: 404 });
+        const ext = rel.slice(rel.lastIndexOf("."));
+        return new Response(Bun.file(rel), {
+          headers: { "content-type": ext === ".png" ? "image/png" : "text/plain" },
+        });
       }
 
       // Berkas statis, selalu disajikan segar.
