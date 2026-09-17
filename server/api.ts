@@ -281,12 +281,22 @@ Bun.serve({
         })));
       }
 
-      // berkas statis
+      // Berkas statis, selalu disajikan segar.
+      //
+      // Tanpa header ini browser menyimpan app.js lama dan tab baru tidak
+      // pernah muncul walau server sudah mengirim versi terbaru — persis yang
+      // terjadi saat tab Jalankan ditambahkan. Selama UI masih sering berubah,
+      // caching hanya menimbulkan kebingungan yang sulit dilacak.
       const file = p === "/" ? "/index.html" : p;
       const path = join("web", file);
       if (existsSync(path)) {
         const ext = file.slice(file.lastIndexOf("."));
-        return new Response(Bun.file(path), { headers: { "content-type": MIME[ext] ?? "text/plain" } });
+        return new Response(Bun.file(path), {
+          headers: {
+            "content-type": MIME[ext] ?? "text/plain",
+            "cache-control": "no-store, must-revalidate",
+          },
+        });
       }
       return new Response("not found", { status: 404 });
     } catch (e) {
