@@ -5,12 +5,14 @@
     "packages/*"
   ],
   "scripts": {
+    "analyze:litter": "bun run scripts/analyze-litter.ts",
     "anvil": "anvil --block-time 2",
     "arena": "bun run scripts/discrimination-test.ts",
     "demo:local": "bun run scripts/demo-local.ts",
     "demo:runtime": "bun run scripts/demo-runtime.ts",
     "gen-golden": "bun run scripts/gen-golden.ts",
     "gene-sim": "bun run scripts/gene-sim.ts",
+    "litter": "bun run scripts/litter.ts",
     "setup": "bun install && forge install foundry-rs/forge-std --no-git --root contracts",
     "test": "bun test runtime/",
     "test:contracts": "forge test --root contracts",

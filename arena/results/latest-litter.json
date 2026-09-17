@@ -1,0 +1,954 @@
+{
+  "ranAt": "2026-09-17T12:37:16.546Z",
+  "provider": "groq",
+  "rubricHash": "0x47c3f179941d9aec6b736251f401e417e27b2bbc0c2bd3e0345d85b0849eac54",
+  "kind": "litter",
+  "agents": [
+    {
+      "id": 1,
+      "label": "G0 Solidity Smith",
+      "genome": "898986188447109786281449978140613829300451454314710650573552409362137473",
+      "seed": "0",
+      "modules": [
+        "discipline-code",
+        "stack-solidity",
+        "aesthetic-plain",
+        "test-rigor-high",
+        "security-instinct-high",
+        "verbosity-terse",
+        "persistence-high"
+      ],
+      "median": 83.8,
+      "runs": [
+        {
+          "run": 1,
+          "total": 83.8,
+          "gated": false,
+          "deterministic": 57.8,
+          "lines": [
+            {
+              "key": "rendersOk",
+              "points": 10,
+              "max": 10,
+              "detail": "halaman merender isi tanpa galat"
+            },
+            {
+              "key": "typecheckOk",
+              "points": 5,
+              "max": 5,
+              "detail": "tsc bersih"
+            },
+            {
+              "key": "securityFindings",
+              "points": 10,
+              "max": 10,
+              "detail": "0 temuan"
+            },
+            {
+              "key": "inputRobustness",
+              "points": 4,
+              "max": 10,
+              "detail": "2/5: validasiAngka, batasNilai"
+            },
+            {
+              "key": "axeViolations",
+              "points": 10,
+              "max": 10,
+              "detail": "0 pelanggaran a11y"
+            },
+            {
+              "key": "a11yPositives",
+              "points": 1.3,
+              "max": 5,
+              "detail": "1/4: landmarkSemantik"
+            },
+            {
+              "key": "designQuality",
+              "points": 13.9,
+              "max": 15,
+              "detail": "4 tingkat, rasio 2.5x; 4 warna, 1 jenis huruf; 100% kelipatan 8px"
+            },
+            {
+              "key": "bundleKb",
+              "points": 3.6,
+              "max": 5,
+              "detail": "325 kB"
+            }
+          ],
+          "metrics": {
+            "rendersOk": true,
+            "typecheckOk": true,
+            "buildOk": true,
+            "securityFindings": 0,
+            "axeViolations": 0,
+            "bundleKb": 325,
+            "mobileNoOverflow": true,
+            "validasiAngka": true,
+            "batasNilai": true,
+            "stateGalat": false,
+            "tombolNonaktif": false,
+            "cegahSubmitDefault": false,
+            "labelTerkait": false,
+            "tipeTombol": false,
+            "landmarkSemantik": true,
+            "fokusTerlihat": false,
+            "consoleErrors": 0
+          },
+          "judge": {
+            "visualHierarchy": 8,
+            "designCoherence": 9,
+            "copyClarity": 9,
+            "alasan": "Hierarki tipografi jelas, konsistensi visual tinggi, dan teks menjelaskan manfaat staking secara singkat dan mudah dipahami.",
+            "total": 26,
+            "model": "openai/gpt-oss-120b"
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "label": "G1 Pixel Sense",
+      "genome": "448627256827513229064516093401258271235180669641617969225449482792108417",
+      "seed": "0",
+      "modules": [
+        "discipline-design",
+        "stack-react",
+        "aesthetic-high"
+      ],
+      "median": 88.2,
+      "runs": [
+        {
+          "run": 1,
+          "total": 88.2,
+          "gated": false,
+          "deterministic": 64.2,
+          "lines": [
+            {
+              "key": "rendersOk",
+              "points": 10,
+              "max": 10,
+              "detail": "halaman merender isi tanpa galat"
+            },
+            {
+              "key": "typecheckOk",
+              "points": 5,
+              "max": 5,
+              "detail": "tsc bersih"
+            },
+            {
+              "key": "securityFindings",
+              "points": 10,
+              "max": 10,
+              "detail": "0 temuan"
+            },
+            {
+              "key": "inputRobustness",
+              "points": 8,
+              "max": 10,
+              "detail": "4/5: validasiAngka, batasNilai, stateGalat, cegahSubmitDefault"
+            },
+            {
+              "key": "axeViolations",
+              "points": 10,
+              "max": 10,
+              "detail": "0 pelanggaran a11y"
+            },
+            {
+              "key": "a11yPositives",
+              "points": 3.8,
+              "max": 5,
+              "detail": "3/4: labelTerkait, tipeTombol, landmarkSemantik"
+            },
+            {
+              "key": "designQuality",
+              "points": 13.8,
+              "max": 15,
+              "detail": "4 tingkat, rasio 2.3x; 6 warna, 2 jenis huruf; 100% kelipatan 8px"
+            },
+            {
+              "key": "bundleKb",
+              "points": 3.6,
+              "max": 5,
+              "detail": "327 kB"
+            }
+          ],
+          "metrics": {
+            "rendersOk": true,
+            "typecheckOk": true,
+            "buildOk": true,
+            "securityFindings": 0,
+            "axeViolations": 0,
+            "bundleKb": 327,
+            "mobileNoOverflow": true,
+            "validasiAngka": true,
+            "batasNilai": true,
+            "stateGalat": true,
+            "tombolNonaktif": false,
+            "cegahSubmitDefault": true,
+            "labelTerkait": true,
+            "tipeTombol": true,
+            "landmarkSemantik": true,
+            "fokusTerlihat": false,
+            "consoleErrors": 0
+          },
+          "judge": {
+            "visualHierarchy": 8,
+            "designCoherence": 7,
+            "copyClarity": 9,
+            "alasan": "Hierarki tipografi dan spasi jelas, palet warna dan font cukup konsisten, dan teks menjelaskan manfaat staking dengan ringkas dan tanpa jargon.",
+            "total": 24,
+            "model": "openai/gpt-oss-120b"
+          }
+        }
+      ]
+    },
+    {
+      "id": 100,
+      "label": "Anak 1",
+      "genome": "448620411422906418174492710150066010016445112539493976398601402573816193",
+      "seed": "108380519916508984479684470589297531653890354108397903934999847246954057399605",
+      "modules": [
+        "discipline-code",
+        "stack-solidity",
+        "test-rigor-high",
+        "security-instinct-high",
+        "verbosity-terse"
+      ],
+      "median": 79.6,
+      "runs": [
+        {
+          "run": 1,
+          "total": 79.6,
+          "gated": false,
+          "deterministic": 57.6,
+          "lines": [
+            {
+              "key": "rendersOk",
+              "points": 10,
+              "max": 10,
+              "detail": "halaman merender isi tanpa galat"
+            },
+            {
+              "key": "typecheckOk",
+              "points": 5,
+              "max": 5,
+              "detail": "tsc bersih"
+            },
+            {
+              "key": "securityFindings",
+              "points": 10,
+              "max": 10,
+              "detail": "0 temuan"
+            },
+            {
+              "key": "inputRobustness",
+              "points": 6,
+              "max": 10,
+              "detail": "3/5: validasiAngka, batasNilai, cegahSubmitDefault"
+            },
+            {
+              "key": "axeViolations",
+              "points": 8.8,
+              "max": 10,
+              "detail": "1 pelanggaran a11y"
+            },
+            {
+              "key": "a11yPositives",
+              "points": 2.5,
+              "max": 5,
+              "detail": "2/4: tipeTombol, landmarkSemantik"
+            },
+            {
+              "key": "designQuality",
+              "points": 11.7,
+              "max": 15,
+              "detail": "4 tingkat, rasio 2.2x; 6 warna, 2 jenis huruf; 60% kelipatan 8px"
+            },
+            {
+              "key": "bundleKb",
+              "points": 3.6,
+              "max": 5,
+              "detail": "326 kB"
+            }
+          ],
+          "metrics": {
+            "rendersOk": true,
+            "typecheckOk": true,
+            "buildOk": true,
+            "securityFindings": 0,
+            "axeViolations": 1,
+            "bundleKb": 326,
+            "mobileNoOverflow": true,
+            "validasiAngka": true,
+            "batasNilai": true,
+            "stateGalat": false,
+            "tombolNonaktif": false,
+            "cegahSubmitDefault": true,
+            "labelTerkait": false,
+            "tipeTombol": true,
+            "landmarkSemantik": true,
+            "fokusTerlihat": false,
+            "consoleErrors": 0
+          },
+          "judge": {
+            "visualHierarchy": 8,
+            "designCoherence": 5,
+            "copyClarity": 9,
+            "alasan": "Hierarki tipografi jelas dengan ukuran font bertahap, konsistensi warna baik namun variasi font dan latar belakang mengurangi koherensi, sementara teks menjelaskan manfaat secara ringkas dan jelas.",
+            "total": 22,
+            "model": "openai/gpt-oss-120b"
+          }
+        }
+      ]
+    },
+    {
+      "id": 101,
+      "label": "Anak 2",
+      "genome": "450372702643979541203959366763146078040681274671045114219689696859160961",
+      "seed": "75586849994244071713619964578969130928287225494360810245917999482602591704549",
+      "modules": [
+        "discipline-code",
+        "stack-solidity",
+        "test-rigor-high",
+        "security-instinct-high",
+        "verbosity-terse"
+      ],
+      "median": 78.9,
+      "runs": [
+        {
+          "run": 1,
+          "total": 78.9,
+          "gated": false,
+          "deterministic": 55.9,
+          "lines": [
+            {
+              "key": "rendersOk",
+              "points": 10,
+              "max": 10,
+              "detail": "halaman merender isi tanpa galat"
+            },
+            {
+              "key": "typecheckOk",
+              "points": 5,
+              "max": 5,
+              "detail": "tsc bersih"
+            },
+            {
+              "key": "securityFindings",
+              "points": 10,
+              "max": 10,
+              "detail": "0 temuan"
+            },
+            {
+              "key": "inputRobustness",
+              "points": 6,
+              "max": 10,
+              "detail": "3/5: validasiAngka, batasNilai, stateGalat"
+            },
+            {
+              "key": "axeViolations",
+              "points": 8.8,
+              "max": 10,
+              "detail": "1 pelanggaran a11y"
+            },
+            {
+              "key": "a11yPositives",
+              "points": 1.3,
+              "max": 5,
+              "detail": "1/4: landmarkSemantik"
+            },
+            {
+              "key": "designQuality",
+              "points": 11.2,
+              "max": 15,
+              "detail": "4 tingkat, rasio 2.2x; 5 warna, 2 jenis huruf; 50% kelipatan 8px"
+            },
+            {
+              "key": "bundleKb",
+              "points": 3.6,
+              "max": 5,
+              "detail": "325 kB"
+            }
+          ],
+          "metrics": {
+            "rendersOk": true,
+            "typecheckOk": true,
+            "buildOk": true,
+            "securityFindings": 0,
+            "axeViolations": 1,
+            "bundleKb": 325,
+            "mobileNoOverflow": true,
+            "validasiAngka": true,
+            "batasNilai": true,
+            "stateGalat": true,
+            "tombolNonaktif": false,
+            "cegahSubmitDefault": false,
+            "labelTerkait": false,
+            "tipeTombol": false,
+            "landmarkSemantik": true,
+            "fokusTerlihat": false,
+            "consoleErrors": 0
+          },
+          "judge": {
+            "visualHierarchy": 8,
+            "designCoherence": 6,
+            "copyClarity": 9,
+            "alasan": "Hierarki tipografi jelas, palet warna terbatas namun penggunaan dua jenis font mengurangi konsistensi, sementara teks menjelaskan manfaat secara singkat dan jelas.",
+            "total": 23,
+            "model": "openai/gpt-oss-120b"
+          }
+        }
+      ]
+    },
+    {
+      "id": 102,
+      "label": "Anak 3",
+      "genome": "448620411422498406657473547204534737356525600277878854529398174040359297",
+      "seed": "63967986388895760743459971240401339985362072486520846635579207570324521418103",
+      "modules": [
+        "discipline-design",
+        "stack-solidity",
+        "aesthetic-high",
+        "test-rigor-high",
+        "security-instinct-high",
+        "verbosity-terse"
+      ],
+      "median": 72.5,
+      "runs": [
+        {
+          "run": 1,
+          "total": 72.5,
+          "gated": false,
+          "deterministic": 53.5,
+          "lines": [
+            {
+              "key": "rendersOk",
+              "points": 10,
+              "max": 10,
+              "detail": "halaman merender isi tanpa galat"
+            },
+            {
+              "key": "typecheckOk",
+              "points": 5,
+              "max": 5,
+              "detail": "tsc bersih"
+            },
+            {
+              "key": "securityFindings",
+              "points": 10,
+              "max": 10,
+              "detail": "0 temuan"
+            },
+            {
+              "key": "inputRobustness",
+              "points": 2,
+              "max": 10,
+              "detail": "1/5: validasiAngka"
+            },
+            {
+              "key": "axeViolations",
+              "points": 10,
+              "max": 10,
+              "detail": "0 pelanggaran a11y"
+            },
+            {
+              "key": "a11yPositives",
+              "points": 2.5,
+              "max": 5,
+              "detail": "2/4: labelTerkait, landmarkSemantik"
+            },
+            {
+              "key": "designQuality",
+              "points": 10.4,
+              "max": 15,
+              "detail": "4 tingkat, rasio 1.9x; 7 warna, 2 jenis huruf; 80% kelipatan 4px"
+            },
+            {
+              "key": "bundleKb",
+              "points": 3.6,
+              "max": 5,
+              "detail": "327 kB"
+            }
+          ],
+          "metrics": {
+            "rendersOk": true,
+            "typecheckOk": true,
+            "buildOk": true,
+            "securityFindings": 0,
+            "axeViolations": 0,
+            "bundleKb": 327,
+            "mobileNoOverflow": true,
+            "validasiAngka": true,
+            "batasNilai": false,
+            "stateGalat": false,
+            "tombolNonaktif": false,
+            "cegahSubmitDefault": false,
+            "labelTerkait": true,
+            "tipeTombol": false,
+            "landmarkSemantik": true,
+            "fokusTerlihat": false,
+            "consoleErrors": 0
+          },
+          "judge": {
+            "visualHierarchy": 6,
+            "designCoherence": 5,
+            "copyClarity": 8,
+            "alasan": "Hierarki visual cukup ada dengan ukuran font yang bervariasi, namun warna dan font yang beragam mengurangi konsistensi, sementara teksnya jelas dan menjelaskan manfaat staking dengan singkat.",
+            "total": 19,
+            "model": "openai/gpt-oss-120b"
+          }
+        }
+      ]
+    },
+    {
+      "id": 103,
+      "label": "Anak 4",
+      "genome": "450372807955863198244126901735642489046001784445990555975637861702730113",
+      "seed": "113124345734104205268171359878215136979041753819190734361686995921192081552813",
+      "modules": [
+        "discipline-code",
+        "stack-react",
+        "aesthetic-high",
+        "test-rigor-high",
+        "security-instinct-high",
+        "verbosity-terse"
+      ],
+      "median": 86.9,
+      "runs": [
+        {
+          "run": 1,
+          "total": 86.9,
+          "gated": false,
+          "deterministic": 63.9,
+          "lines": [
+            {
+              "key": "rendersOk",
+              "points": 10,
+              "max": 10,
+              "detail": "halaman merender isi tanpa galat"
+            },
+            {
+              "key": "typecheckOk",
+              "points": 5,
+              "max": 5,
+              "detail": "tsc bersih"
+            },
+            {
+              "key": "securityFindings",
+              "points": 10,
+              "max": 10,
+              "detail": "0 temuan"
+            },
+            {
+              "key": "inputRobustness",
+              "points": 10,
+              "max": 10,
+              "detail": "5/5: validasiAngka, batasNilai, stateGalat, tombolNonaktif, cegahSubmitDefault"
+            },
+            {
+              "key": "axeViolations",
+              "points": 10,
+              "max": 10,
+              "detail": "0 pelanggaran a11y"
+            },
+            {
+              "key": "a11yPositives",
+              "points": 3.8,
+              "max": 5,
+              "detail": "3/4: labelTerkait, tipeTombol, landmarkSemantik"
+            },
+            {
+              "key": "designQuality",
+              "points": 11.5,
+              "max": 15,
+              "detail": "4 tingkat, rasio 2.0x; 7 warna, 2 jenis huruf; 100% kelipatan 4px"
+            },
+            {
+              "key": "bundleKb",
+              "points": 3.6,
+              "max": 5,
+              "detail": "327 kB"
+            }
+          ],
+          "metrics": {
+            "rendersOk": true,
+            "typecheckOk": true,
+            "buildOk": true,
+            "securityFindings": 0,
+            "axeViolations": 0,
+            "bundleKb": 327,
+            "mobileNoOverflow": true,
+            "validasiAngka": true,
+            "batasNilai": true,
+            "stateGalat": true,
+            "tombolNonaktif": true,
+            "cegahSubmitDefault": true,
+            "labelTerkait": true,
+            "tipeTombol": true,
+            "landmarkSemantik": true,
+            "fokusTerlihat": false,
+            "consoleErrors": 0
+          },
+          "judge": {
+            "visualHierarchy": 8,
+            "designCoherence": 6,
+            "copyClarity": 9,
+            "alasan": "Hierarki tipografi jelas dengan ukuran font bertahap, namun variasi warna, latar, dan dua jenis font mengurangi koherensi visual, sementara teksnya sangat jelas dan ringkas.",
+            "total": 23,
+            "model": "openai/gpt-oss-120b"
+          }
+        }
+      ]
+    },
+    {
+      "id": 104,
+      "label": "Anak 5",
+      "genome": "450372702645586479248218357038688040133022437273569687548103400412578177",
+      "seed": "7816086567093390724227644988479309183995276107305959678274420086862489142155",
+      "modules": [
+        "discipline-design",
+        "stack-react",
+        "aesthetic-high",
+        "test-rigor-high",
+        "security-instinct-high",
+        "verbosity-terse"
+      ],
+      "median": 82.9,
+      "runs": [
+        {
+          "run": 1,
+          "total": 82.9,
+          "gated": false,
+          "deterministic": 61.9,
+          "lines": [
+            {
+              "key": "rendersOk",
+              "points": 10,
+              "max": 10,
+              "detail": "halaman merender isi tanpa galat"
+            },
+            {
+              "key": "typecheckOk",
+              "points": 5,
+              "max": 5,
+              "detail": "tsc bersih"
+            },
+            {
+              "key": "securityFindings",
+              "points": 10,
+              "max": 10,
+              "detail": "0 temuan"
+            },
+            {
+              "key": "inputRobustness",
+              "points": 8,
+              "max": 10,
+              "detail": "4/5: validasiAngka, batasNilai, stateGalat, cegahSubmitDefault"
+            },
+            {
+              "key": "axeViolations",
+              "points": 10,
+              "max": 10,
+              "detail": "0 pelanggaran a11y"
+            },
+            {
+              "key": "a11yPositives",
+              "points": 3.8,
+              "max": 5,
+              "detail": "3/4: labelTerkait, tipeTombol, landmarkSemantik"
+            },
+            {
+              "key": "designQuality",
+              "points": 11.5,
+              "max": 15,
+              "detail": "5 tingkat, rasio 2.5x; 3 warna, 2 jenis huruf; 38% kelipatan 4px"
+            },
+            {
+              "key": "bundleKb",
+              "points": 3.6,
+              "max": 5,
+              "detail": "325 kB"
+            }
+          ],
+          "metrics": {
+            "rendersOk": true,
+            "typecheckOk": true,
+            "buildOk": true,
+            "securityFindings": 0,
+            "axeViolations": 0,
+            "bundleKb": 325,
+            "mobileNoOverflow": true,
+            "validasiAngka": true,
+            "batasNilai": true,
+            "stateGalat": true,
+            "tombolNonaktif": false,
+            "cegahSubmitDefault": true,
+            "labelTerkait": true,
+            "tipeTombol": true,
+            "landmarkSemantik": true,
+            "fokusTerlihat": false,
+            "consoleErrors": 0
+          },
+          "judge": {
+            "visualHierarchy": 7,
+            "designCoherence": 5,
+            "copyClarity": 9,
+            "alasan": "Hierarki tipografi cukup jelas, namun variasi spasi dan dua jenis font mengurangi konsistensi visual, sementara teks menjelaskan manfaat staking dengan ringkas dan jelas.",
+            "total": 21,
+            "model": "openai/gpt-oss-120b"
+          }
+        }
+      ]
+    },
+    {
+      "id": 105,
+      "label": "Anak 6",
+      "genome": "448620306110614749617306012232038326351205090502933403478095145094775169",
+      "seed": "62571770211194800656686673806674281514344378818764566405333565205333657145922",
+      "modules": [
+        "discipline-design",
+        "stack-solidity",
+        "test-rigor-high",
+        "security-instinct-high",
+        "verbosity-terse"
+      ],
+      "median": 79.4,
+      "runs": [
+        {
+          "run": 1,
+          "total": 79.4,
+          "gated": false,
+          "deterministic": 56.4,
+          "lines": [
+            {
+              "key": "rendersOk",
+              "points": 10,
+              "max": 10,
+              "detail": "halaman merender isi tanpa galat"
+            },
+            {
+              "key": "typecheckOk",
+              "points": 5,
+              "max": 5,
+              "detail": "tsc bersih"
+            },
+            {
+              "key": "securityFindings",
+              "points": 10,
+              "max": 10,
+              "detail": "0 temuan"
+            },
+            {
+              "key": "inputRobustness",
+              "points": 4,
+              "max": 10,
+              "detail": "2/5: validasiAngka, batasNilai"
+            },
+            {
+              "key": "axeViolations",
+              "points": 8.8,
+              "max": 10,
+              "detail": "1 pelanggaran a11y"
+            },
+            {
+              "key": "a11yPositives",
+              "points": 1.3,
+              "max": 5,
+              "detail": "1/4: landmarkSemantik"
+            },
+            {
+              "key": "designQuality",
+              "points": 13.7,
+              "max": 15,
+              "detail": "4 tingkat, rasio 2.2x; 6 warna, 2 jenis huruf; 100% kelipatan 4px"
+            },
+            {
+              "key": "bundleKb",
+              "points": 3.6,
+              "max": 5,
+              "detail": "325 kB"
+            }
+          ],
+          "metrics": {
+            "rendersOk": true,
+            "typecheckOk": true,
+            "buildOk": true,
+            "securityFindings": 0,
+            "axeViolations": 1,
+            "bundleKb": 325,
+            "mobileNoOverflow": true,
+            "validasiAngka": true,
+            "batasNilai": true,
+            "stateGalat": false,
+            "tombolNonaktif": false,
+            "cegahSubmitDefault": false,
+            "labelTerkait": false,
+            "tipeTombol": false,
+            "landmarkSemantik": true,
+            "fokusTerlihat": false,
+            "consoleErrors": 0
+          },
+          "judge": {
+            "visualHierarchy": 8,
+            "designCoherence": 6,
+            "copyClarity": 9,
+            "alasan": "Hierarki tipografi jelas, desain agak beragam karena dua font dan tiga warna, sementara teks menjelaskan manfaat dan cara kerja secara ringkas.",
+            "total": 23,
+            "model": "openai/gpt-oss-120b"
+          }
+        }
+      ]
+    },
+    {
+      "id": 106,
+      "label": "Anak 7",
+      "genome": "448620411424105344701732537480076699448866762880401048227751602270929281",
+      "seed": "26015777460181070147506418360222523641302043418477980503537244962327212780159",
+      "modules": [
+        "discipline-design",
+        "stack-react",
+        "aesthetic-high",
+        "test-rigor-high",
+        "security-instinct-high",
+        "verbosity-terse"
+      ],
+      "median": 0,
+      "runs": [
+        {
+          "run": 1,
+          "total": 0,
+          "gated": true,
+          "deterministic": 0,
+          "lines": [
+            {
+              "key": "gate",
+              "points": 0,
+              "max": 70,
+              "detail": "build gagal"
+            }
+          ],
+          "metrics": {
+            "rendersOk": false,
+            "typecheckOk": false,
+            "buildOk": false,
+            "securityFindings": 0,
+            "axeViolations": 0,
+            "bundleKb": 0,
+            "mobileNoOverflow": false,
+            "validasiAngka": true,
+            "batasNilai": true,
+            "stateGalat": true,
+            "tombolNonaktif": false,
+            "cegahSubmitDefault": true,
+            "labelTerkait": true,
+            "tipeTombol": true,
+            "landmarkSemantik": true,
+            "fokusTerlihat": false,
+            "consoleErrors": 0
+          },
+          "judge": null
+        }
+      ]
+    },
+    {
+      "id": 107,
+      "label": "Anak 8",
+      "genome": "450372807956271209761146064681173848110933319585674633146320144715383169",
+      "seed": "15367469291950729979262152015683979654482576784072489611947096649871563157872",
+      "modules": [
+        "discipline-code",
+        "stack-solidity",
+        "aesthetic-high",
+        "test-rigor-high",
+        "security-instinct-high",
+        "verbosity-terse"
+      ],
+      "median": 78.4,
+      "runs": [
+        {
+          "run": 1,
+          "total": 78.4,
+          "gated": false,
+          "deterministic": 56.4,
+          "lines": [
+            {
+              "key": "rendersOk",
+              "points": 10,
+              "max": 10,
+              "detail": "halaman merender isi tanpa galat"
+            },
+            {
+              "key": "typecheckOk",
+              "points": 5,
+              "max": 5,
+              "detail": "tsc bersih"
+            },
+            {
+              "key": "securityFindings",
+              "points": 10,
+              "max": 10,
+              "detail": "0 temuan"
+            },
+            {
+              "key": "inputRobustness",
+              "points": 6,
+              "max": 10,
+              "detail": "3/5: validasiAngka, batasNilai, stateGalat"
+            },
+            {
+              "key": "axeViolations",
+              "points": 8.8,
+              "max": 10,
+              "detail": "1 pelanggaran a11y"
+            },
+            {
+              "key": "a11yPositives",
+              "points": 1.3,
+              "max": 5,
+              "detail": "1/4: landmarkSemantik"
+            },
+            {
+              "key": "designQuality",
+              "points": 11.7,
+              "max": 15,
+              "detail": "4 tingkat, rasio 2.2x; 8 warna, 1 jenis huruf; 100% kelipatan 4px"
+            },
+            {
+              "key": "bundleKb",
+              "points": 3.6,
+              "max": 5,
+              "detail": "327 kB"
+            }
+          ],
+          "metrics": {
+            "rendersOk": true,
+            "typecheckOk": true,
+            "buildOk": true,
+            "securityFindings": 0,
+            "axeViolations": 1,
+            "bundleKb": 327,
+            "mobileNoOverflow": true,
+            "validasiAngka": true,
+            "batasNilai": true,
+            "stateGalat": true,
+            "tombolNonaktif": false,
+            "cegahSubmitDefault": false,
+            "labelTerkait": false,
+            "tipeTombol": false,
+            "landmarkSemantik": true,
+            "fokusTerlihat": false,
+            "consoleErrors": 0
+          },
+          "judge": {
+            "visualHierarchy": 8,
+            "designCoherence": 6,
+            "copyClarity": 8,
+            "alasan": "Hierarki tipografi jelas dengan ukuran font beragam, konsistensi tipografi baik namun terlalu banyak warna/background mengurangi koherensi, sementara teks menjelaskan manfaat staking secara ringkas da",
+            "total": 22,
+            "model": "openai/gpt-oss-120b"
+          }
+        }
+      ]
+    }
+  ]
+}

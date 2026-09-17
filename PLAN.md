@@ -1433,6 +1433,92 @@ model gratis tidak memadai, jalankan ulang dengan RUNS=3 lalu ulangi sekali lagi
 dengan model berbayar dan bandingkan sebarannya — itulah cara membedakan
 "modelnya kurang patuh" dari "jobnya kurang membedakan", persis seperti di §24.
 
+### 22.2c Sebaran 8 anakan — 17 Sep 2026
+
+Delapan anak dari G0 × G1 dengan seed berbeda, plus kedua induk, satu run
+masing-masing di sesi yang sama.
+
+```
+G0 Solidity Smith   83,8
+G1 Pixel Sense      88,2
+─────────────────────────
+Anak 4              86,9
+Anak 5              82,9
+Anak 1              79,6
+Anak 6              79,4
+Anak 2              78,9
+Anak 8              78,4
+Anak 3              72,5
+Anak 7              gagal di gerbang
+```
+
+**0 dari 7 anak melewati kedua induk. 6 dari 7 di bawah keduanya.**
+Rata-rata anak 79,8 — di bawah G0 maupun G1.
+
+Ini bukan sekadar "belum terbukti". Ini kebalikan dari hybrid vigor, dan dengan
+n=8 ia jauh lebih meyakinkan daripada hasil n=1 dan n=3 sebelumnya. Penyebabnya
+ditelusuri ke tiga kesalahan rancangan, semuanya milik kita sendiri.
+
+#### 1. `stack-solidity` adalah beban, bukan bekal
+
+Job arena adalah landing page React. G0 membawa modul `stack-solidity` yang
+memerintahkan "bangun dengan Solidity dan Foundry". Anak yang mewarisinya
+menerima instruksi yang sama sekali tidak relevan dengan tugasnya.
+
+| anak | n | rata-rata |
+|---|---|---|
+| mewarisi `stack-react` | 2 | **84,9** |
+| mewarisi `stack-solidity` | 5 | **77,8** |
+
+Selisih 7,1 poin, dan itu menjelaskan hampir seluruh defisit anakan.
+
+Hybrid vigor mensyaratkan spesialisasi kedua induk sama-sama berguna untuk
+tugasnya. Mengawinkan spesialis Solidity dengan spesialis React lalu memberi
+tugas React bukan menguji hibrida — ia hanya mengencerkan induk yang cocok.
+
+#### 2. Modul keamanan dan metrik keamanan mengukur hal berbeda
+
+| baris | G0 | G1 | anak |
+|---|---|---|---|
+| inputRobustness | **4,0** | **8,0** | 6,0 |
+
+G0 membawa `security-instinct-high`; G1 tidak membawa modul keamanan sama
+sekali. Hasilnya terbalik dari yang diharapkan.
+
+Sebabnya: prompt `security-instinct-high` seluruhnya berbicara tentang XSS,
+`eval`, dan rahasia di klien. Sementara `inputRobustness` mengukur ketahanan
+formulir — validasi angka, batas nilai, state galat, tombol nonaktif. Keduanya
+tidak beririsan.
+
+Yang justru menghasilkan poin itu adalah `discipline-design` milik G1, yang
+memuat kalimat "rancang juga keadaan kosong, memuat, dan galat". Metriknya
+mengukur dengan benar; modulnya yang tidak mengajarkan hal yang diukur.
+
+#### 3. `designQuality` tidak membedakan estetika sama sekali
+
+| baris | G0 (`aesthetic-plain`) | G1 (`aesthetic-high`) |
+|---|---|---|
+| designQuality | **13,9** | **13,8** |
+
+G0 diperintahkan secara eksplisit untuk TIDAK menghabiskan usaha pada penghalusan
+visual, dan tetap menyamai G1. Skala tipografi, jumlah warna, dan ritme spasi
+ternyata dihasilkan model mana pun secara wajar, jadi metrik ini mengukur
+kompetensi dasar, bukan trait yang dimaksud.
+
+#### Yang harus diperbaiki sebelum ronde berikutnya
+
+1. **Selaraskan founder dengan job.** Untuk job React, G0 seharusnya spesialis
+   keamanan dan korektness *di React*, bukan di Solidity. Atau tambahkan job
+   Solidity supaya `stack-solidity` punya arena tempat ia berguna.
+2. **Selaraskan modul dengan metrik.** Perluas `security-instinct-high` agar
+   mencakup validasi masukan tak tepercaya pada formulir — itu memang bagian
+   dari insting keamanan, dan itulah yang diukur.
+3. **Buat `designQuality` benar-benar membedakan.** Ukur hal yang hanya muncul
+   bila estetika digarap sungguh-sungguh, bukan yang muncul dari kompetensi dasar.
+
+Ketiganya membuat hasil ronde berikutnya tidak bisa dibandingkan langsung dengan
+yang ini. Itu wajar dan harus dinyatakan: ini ronde kalibrasi, bukan ronde bukti.
+
 ### 22.2b Perkiraan biaya
 
 | Pos | Perkiraan |

@@ -11,4 +11,5 @@ deployments/*.local.json
 contracts/lib/
 arena/results/*.json
 !arena/results/latest.json
+!arena/results/latest-litter.json
 deployments/anvil.json
