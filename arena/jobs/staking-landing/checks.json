@@ -1,0 +1,21 @@
+{
+  "jobId": "staking-landing",
+  "rubricVersion": 1,
+  "gate": {
+    "field": "rendersOk",
+    "note": "Halaman yang lolos build tapi merender kosong atau melempar galat konsol mendapat total 0. vite build TIDAK memeriksa tipe, sehingga build berhasil bukan bukti apa pun."
+  },
+  "deterministic": {
+    "rendersOk":        { "points": 15 },
+    "typecheckOk":      { "points": 10 },
+    "securityFindings": { "points": 15, "zeroAt": 0, "worstAt": 5 },
+    "axeViolations":    { "points": 15, "zeroAt": 0, "worstAt": 8 },
+    "mobileNoOverflow": { "points": 5 },
+    "bundleKb":         { "points": 10, "bestAt": 220, "worstAt": 600 }
+  },
+  "judge": {
+    "visualHierarchy":  { "points": 10 },
+    "designCoherence":  { "points": 10 },
+    "copyClarity":      { "points": 10 }
+  }
+}

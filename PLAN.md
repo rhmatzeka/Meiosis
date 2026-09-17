@@ -588,8 +588,15 @@ kontrak, bukan menghasilkan dua anak.
 diskor. Artinya kita mengeksekusi kode yang ditulis mesin, tanpa ditinjau
 manusia.** Ini tidak boleh berjalan di laptop kerja.
 
-Jawabannya adalah VPS. Bukan kompromi karena laptop lemah — ia memang pilihan
-yang lebih benar:
+**Pembaruan 17 Sep:** Docker Engine kini terpasang langsung di WSL2 di laptop,
+dan sandbox terbukti berjalan di sana — Chromium 3,4 detik dan vite build 1,9
+detik dalam batas 2 GB. Jadi P3 dapat dikerjakan sepenuhnya di laptop, dan sewa
+VPS ditunda.
+
+VPS tetap dibutuhkan nanti, tapi alasannya bukan lagi sandbox melainkan watcher
+auto-`hatch` yang harus hidup 24/7. Itu baru mendesak setelah deploy Sepolia.
+
+Alasan aslinya, yang tetap berlaku untuk tahap berikutnya:
 
 - Docker Engine berjalan native di Linux, tanpa beban Docker Desktop sama sekali.
 - Watcher auto-`hatch` harus hidup 24/7. Laptop yang tidur akan melewatkan jendela
@@ -654,8 +661,10 @@ ufw allow 22 && ufw allow 80 && ufw allow 443 && ufw enable
 | Aspek | Ketentuan |
 |---|---|
 | Isolasi | Container Docker, satu per run, dibuang setelah selesai |
-| User | Non-root |
-| Filesystem | `/work` read-write dan ephemeral; tidak ada mount dari host |
+| User | Non-root, `no-new-privileges` |
+| Masuk-keluar | `docker cp`, **tanpa bind mount sama sekali** — tidak ada direktori host yang terlihat |
+| Filesystem | `/work` read-write dan fana. `--read-only` sempat dipakai lalu dilepas: vite perlu menulis konfigurasi sementara di sebelah `vite.config.ts` |
+| Proses | `--pids-limit 256` |
 | Jaringan | `--network none` saat build & eksekusi; dependensi sudah ada di image |
 | Waktu | Batas keras 5 menit per run, lalu container dibunuh |
 | Memori | `--memory 2g --cpus 2` |
@@ -740,23 +749,32 @@ ganti jobnya.
 
 | Cek | Poin | Catatan |
 |---|---|---|
-| Build berhasil | 20 | **Gerbang** — gagal build = total 0 |
-| Temuan `eslint-plugin-security` + audit dep | 15 | Poin penuh jika nol temuan high |
-| Pelanggaran `axe-core` | 15 | Skala terhadap jumlah pelanggaran serius |
-| Heuristik performa statis | 10 | Gambar tak teroptimasi, resource blocking, ukuran CSS |
+| Halaman merender isi tanpa galat konsol | 15 | **Gerbang** — gagal di sini, total 0 |
+| `tsc --noEmit` lolos | 10 | |
+| Temuan `eslint-plugin-security` + audit dep | 15 | Poin penuh jika nol temuan |
+| Pelanggaran `axe-core` | 15 | Diskalakan terhadap jumlah pelanggaran |
+| Tanpa scroll horizontal di lebar 390px | 5 | |
 | Ukuran bundle | 10 | Di bawah ambang di `checks.json` |
 
+**Gerbangnya bukan "build berhasil", dan ini temuan nyata dari P3.** `vite build`
+tidak memeriksa tipe: kode yang merujuk variabel tak ada tetap lolos build, lalu
+merender halaman kosong dengan empat galat konsol. Memakai keberhasilan build
+sebagai gerbang berarti memberi 20 poin kepada halaman yang sepenuhnya rusak.
+
+Yang jujur adalah menanyakan hasil akhirnya: apakah halamannya benar-benar
+merender isi, tanpa melempar galat. Itu diukur di `rendersOk`, dan build hanyalah
+salah satu syarat menuju ke sana.
+
 **Catatan: Lighthouse sengaja tidak dipakai.** Ia menjalankan Chromium berkali-kali
-dengan throttling dan itulah komponen yang memaksa VPS 8 GB. Heuristik statis di
-atas memeriksa hal yang sebagian besar sama, berjalan dalam hitungan detik, dan
-justru lebih reproducible karena tidak bergantung pada beban mesin saat diukur.
+dengan throttling dan itulah komponen yang memaksa kebutuhan RAM membengkak.
+Heuristik statis memeriksa hal yang sebagian besar sama, berjalan dalam hitungan
+detik, dan justru lebih reproducible karena tidak bergantung pada beban mesin.
 
-`axe-core` dijalankan di atas **jsdom**, bukan Chromium. Sedikit kurang akurat
-untuk kasus tepi, tapi cukup untuk membedakan agent yang peduli aksesibilitas
-dari yang tidak — dan itulah yang perlu diukur di sini.
-
-Chromium tetap dipakai, tapi hanya untuk satu hal: **screenshot** yang diberikan
-ke judge. Satu halaman statis, sekali render.
+**`axe-core` dijalankan di dalam container lewat Chromium**, bukan jsdom di host.
+Rancangan awal keliru: halaman React baru punya DOM setelah JavaScript-nya
+dieksekusi, dan mengeksekusi kode buatan mesin hanya boleh terjadi di dalam
+sandbox. Chromium yang sudah ada di image sekaligus mengambil screenshot untuk
+judge, jadi tidak ada biaya tambahan.
 
 **Judge LLM, 30 poin** (subjektif):
 
