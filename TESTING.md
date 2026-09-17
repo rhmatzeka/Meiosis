@@ -34,6 +34,22 @@ Kalau docker tidak jalan, langkah sandbox dilewati dan sisanya tetap berjalan.
 Kalau pergeserannya memang dimaksud, jalankan `bun run gen-golden` dan masukkan
 hasilnya ke commit yang sama.
 
+### Uji UI lewat browser sungguhan
+
+```bash
+bun run ui          # terminal lain
+bun run e2e         # ~20 detik, tanpa kuota model
+bun run e2e:full    # termasuk menjalankan agent, ~5 menit
+```
+
+Browser dijalankan di dalam container sandbox — Chromium dan playwright sudah
+ada di sana, jadi tidak perlu memasang apa pun di host.
+
+Memeriksa API saja tidak cukup: halaman bisa mati karena satu galat JavaScript
+sementara seluruh endpoint tetap sehat. Uji ini memuat halaman, mengumpulkan
+galat konsol, menekan tombolnya seperti manusia, lalu menunggu hasilnya muncul
+di DOM.
+
 Perintah satuan, kalau mau memisah:
 
 ```bash

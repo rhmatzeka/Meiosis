@@ -10,6 +10,8 @@
     "arena": "bun run scripts/discrimination-test.ts",
     "demo:local": "bun run scripts/demo-local.ts",
     "demo:runtime": "bun run scripts/demo-runtime.ts",
+    "e2e": "bun run scripts/e2e.ts",
+    "e2e:full": "bun run scripts/e2e.ts --full",
     "gen-golden": "bun run scripts/gen-golden.ts",
     "gene-sim": "bun run scripts/gene-sim.ts",
     "litter": "bun run scripts/litter.ts",

@@ -14,3 +14,4 @@ arena/results/*.json
 !arena/results/latest-litter.json
 deployments/anvil.json
 .runs/
+e2e/last-run.png
