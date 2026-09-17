@@ -71,8 +71,19 @@ try {
     await page.waitForTimeout(1000);
     ok("tombol berubah jadi sibuk", (await page.textContent("#go-run"))?.includes("menjalankan"));
 
-    await page.waitForSelector("#run .card pre, #run .card img, #run table", { timeout: 600_000 });
-    await page.waitForTimeout(2000);
+    // Tunggu job selesai lewat state, bukan lewat selector. Kalau render hasil
+    // melempar galat, selector tidak akan pernah muncul dan penyebab aslinya
+    // tersembunyi di balik timeout — itu persis yang terjadi sebelumnya.
+    // Tanda tangannya (fn, arg, options) — opsi WAJIB di argumen ketiga.
+    // Menaruhnya di argumen kedua membuatnya diperlakukan sebagai argumen
+    // fungsi, dan timeout diam-diam jatuh ke bawaan 30 detik.
+    await page.waitForFunction(
+      () => { const s = (window as unknown as { __state?: { runBusy: boolean } }).__state; return s !== undefined && s.runBusy === false; },
+      undefined,
+      { timeout: 600_000, polling: 2000 },
+    );
+    await page.waitForTimeout(1500);
+    ok("tanpa galat JavaScript saat render hasil", consoleErrors.length === 0, consoleErrors.slice(-2).join(" | "));
 
     const body = await page.textContent("#tab-run");
     ok("jejak langkah tampil", /list_files|read_file|write_file/.test(body ?? ""));

@@ -294,20 +294,27 @@ function renderRun() {
     const a = state.agents.find((x) => x.id === r.id);
     if (!r.ok) { box.append(el(`<div class="note bad"><b>#${r.id}</b> gagal: ${esc(r.error)}</div>`)); continue; }
     box.append(el(`<div class="card mt">
-      <h3>${esc(a?.name ?? "#" + r.id)} <span class="gen">${esc(r.model)} · ${r.promptTokens}+${r.completionTokens} token · ${(r.durationMs / 1000).toFixed(1)}s${r.mocked ? " · TIRUAN" : ""}</span></h3>
-      <div class="traits">${r.modules.map((m) => `<span class="trait">${esc(m)}</span>`).join("")}</div>
+      <h3>${esc(a?.name ?? "#" + r.id)} <span class="gen">${esc(r.model ?? "-")}${
+        r.loop
+          ? ` · ${r.loop.promptTokens}+${r.loop.completionTokens} token · ${(r.loop.durationMs / 1000).toFixed(0)}s`
+          : ` · ${r.promptTokens ?? 0}+${r.completionTokens ?? 0} token · ${((r.durationMs ?? 0) / 1000).toFixed(1)}s`
+      }${r.mocked ? " · TIRUAN" : ""}</span></h3>
+      <div class="traits">${(r.modules ?? []).map((m) => `<span class="trait">${esc(m)}</span>`).join("")}</div>
       <dl class="kv">
-        <dt>manifest</dt><dd class="mono">${esc(r.manifestHash)}</dd>
-        <dt>tool</dt><dd>${r.toolsDeclared.length
-          ? `genome memberi <b>${r.toolsDeclared.join(", ")}</b>, runtime menyediakan <b>${r.toolsAvailable.length ? r.toolsAvailable.join(", ") : "belum ada"}</b>`
-          : "tidak ada"}</dd>
+        <dt>manifest</dt><dd class="mono">${esc(r.manifestHash ?? "-")}</dd>
+        ${r.loop
+          ? `<dt>tool</dt><dd>${(r.tools ?? []).join(", ") || "tidak ada"}</dd>
+             <dt>batas langkah</dt><dd>genome memberi ${r.maxSteps ?? "-"}, UI membatasi 10</dd>`
+          : `<dt>tool</dt><dd>${(r.toolsDeclared ?? []).length
+              ? `genome memberi <b>${r.toolsDeclared.join(", ")}</b>, runtime menyediakan <b>${(r.toolsAvailable ?? []).length ? r.toolsAvailable.join(", ") : "belum ada"}</b>`
+              : "tidak ada"}</dd>`}
       </dl>
       ${r.loop ? loopBlock(r.loop, r) : ""}
       ${r.built ? buildBlock(r.built) : ""}
       <details ${r.built ? "" : "open"} class="mt">
         <summary class="gen" style="cursor:pointer">${r.loop ? "ringkasan agent" : "keluaran mentah agent"}</summary>
         <pre style="background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:12px;
-          overflow:auto;max-height:420px;font-size:12px;line-height:1.5"><code>${esc(r.output)}</code></pre>
+          overflow:auto;max-height:420px;font-size:12px;line-height:1.5"><code>${esc(r.output ?? "")}</code></pre>
       </details>
     </div>`));
   }
@@ -349,7 +356,7 @@ function buildBlock(b) {
       <span class="pill">${ok(b.buildOk)} build</span>
       <span class="pill">${ok(b.rendersOk)} render</span>
       <span class="pill">${b.gated ? "kena gerbang" : `skor ${b.score}/${b.scoreMax}`}</span>
-      <span class="gen">${b.files.length} berkas · ${(b.durationMs / 1000).toFixed(1)}s di sandbox</span>
+      <span class="gen">${(b.files ?? []).length} berkas · ${((b.durationMs ?? 0) / 1000).toFixed(1)}s di sandbox</span>
     </div>
     ${gate && b.shot ? `
       <div class="row mt" style="align-items:flex-start;gap:14px">
@@ -363,7 +370,7 @@ function buildBlock(b) {
         </div>
       </div>` : `
       <div class="note bad mt">Halaman tidak berhasil dirender.
-        ${b.consoleErrors.length ? `${b.consoleErrors.length} galat konsol. ` : ""}
+        ${(b.consoleErrors ?? []).length ? `${b.consoleErrors.length} galat konsol. ` : ""}
         <pre class="mono" style="margin-top:8px;white-space:pre-wrap;font-size:11px">${esc(b.buildLog)}</pre></div>`}
     ${b.lines?.length ? `<table class="mt"><tbody>${b.lines.map((l) => `<tr>
       <td>${esc(l.key)}</td>
@@ -471,6 +478,9 @@ if (initial) {
   const b = document.querySelector(`nav button[data-tab="${initial}"]`);
   if (b) b.click();
 }
+
+// Dibuka untuk uji end-to-end; tidak dipakai logika halaman.
+window.__state = state;
 
 refresh();
 setInterval(refresh, 4000);
