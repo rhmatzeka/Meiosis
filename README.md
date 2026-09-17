@@ -13,15 +13,35 @@ Rencana lengkap: [PLAN.md](./PLAN.md)
 | Fase | Status |
 |---|---|
 | P0 — GeneLib, fuzz test, simulator gen | ✅ selesai |
-| P1 — kontrak inti, deploy Sepolia | belum |
+| P1 — kontrak inti, kelahiran jalan di Anvil | ✅ selesai |
+| P1b — deploy Sepolia | menunggu ETH faucet |
+| P2 — runtime `expand()` + modul skill | belum |
 
 ## Jalankan
 
 ```bash
 bun run setup            # bun install + forge-std
 bun run gene-sim          # simulasi 10.000 perkawinan G0 x G1
-bun run test:contracts    # 9 test, termasuk uji silang TS <-> Solidity
+bun run test:contracts    # 27 test, termasuk uji silang TS <-> Solidity
+
+bun run anvil             # di terminal terpisah
+bun run demo:local        # deploy -> mint -> breed -> hatch -> verifikasi
 ```
+
+`demo:local` menjalankan seluruh alur kelahiran lalu membaca genome anak dari
+chain dan menghitungnya ulang dari nol dengan implementasi TypeScript. Kalau
+keduanya sama, seorang anak terbukti sah keturunan kedua parent-nya tanpa perlu
+mempercayai siapa pun.
+
+## Kontrak
+
+| Kontrak | Isi |
+|---|---|
+| `GeneLib.sol` | `meiosis`, `express`, `relatedness` — semuanya `pure` |
+| `AgentRegistry.sol` | ERC-721, genome + silsilah, dipadatkan ke 2 storage slot |
+| `Genesis.sol` | mint generasi nol, `seal()` mengunci selamanya |
+| `Hatchery.sol` | commit–reveal, cooldown, stud fee, `reroll()` |
+| `SkillRegistry.sol` | trait → modul skill, append-only |
 
 `gene-sim` juga menulis ulang `contracts/test/Vectors.sol`. Jalankan ia lebih
 dulu setiap kali model genetik berubah, lalu jalankan test kontrak — kalau

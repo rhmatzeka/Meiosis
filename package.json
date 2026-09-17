@@ -7,7 +7,9 @@
   "scripts": {
     "gene-sim": "bun run scripts/gene-sim.ts",
     "test:contracts": "forge test --root contracts",
-    "setup": "bun install && forge install foundry-rs/forge-std --no-git --root contracts"
+    "setup": "bun install && forge install foundry-rs/forge-std --no-git --root contracts",
+    "anvil": "anvil --block-time 2",
+    "demo:local": "bun run scripts/demo-local.ts"
   },
   "devDependencies": {
     "typescript": "^5.6.0"
