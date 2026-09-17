@@ -18,6 +18,8 @@ export interface ChatResult {
   model: string;
   promptTokens: number;
   completionTokens: number;
+  /** Terisi bila penyedia tidak sanggup memenuhi maxTokens yang diminta genome. */
+  maxTokensClamped?: { requested: number; used: number };
 }
 
 export interface Provider {

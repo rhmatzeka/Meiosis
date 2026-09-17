@@ -1,17 +1,20 @@
 {
   "jobId": "staking-landing",
-  "rubricVersion": 1,
+  "rubricVersion": 2,
   "gate": {
     "field": "rendersOk",
     "note": "Halaman yang lolos build tapi merender kosong atau melempar galat konsol mendapat total 0. vite build TIDAK memeriksa tipe, sehingga build berhasil bukan bukti apa pun."
   },
+  "changelog": "v2: ditambah cek positif dan skor desain terukur. v1 hanya berisi cek lantai — setiap agent melewatinya dengan nilai sempurna, sehingga rubrik tidak membedakan siapa pun.",
   "deterministic": {
-    "rendersOk":        { "points": 15 },
-    "typecheckOk":      { "points": 10 },
-    "securityFindings": { "points": 15, "zeroAt": 0, "worstAt": 5 },
-    "axeViolations":    { "points": 15, "zeroAt": 0, "worstAt": 8 },
-    "mobileNoOverflow": { "points": 5 },
-    "bundleKb":         { "points": 10, "bestAt": 220, "worstAt": 600 }
+    "rendersOk":        { "points": 10 },
+    "typecheckOk":      { "points": 5 },
+    "securityFindings": { "points": 10, "zeroAt": 0, "worstAt": 4 },
+    "inputRobustness":  { "points": 10, "keys": ["validasiAngka", "batasNilai", "stateGalat", "tombolNonaktif", "cegahSubmitDefault"] },
+    "axeViolations":    { "points": 10, "zeroAt": 0, "worstAt": 8 },
+    "a11yPositives":    { "points": 5, "keys": ["labelTerkait", "tipeTombol", "landmarkSemantik", "fokusTerlihat"] },
+    "designQuality":    { "points": 15 },
+    "bundleKb":         { "points": 5, "bestAt": 220, "worstAt": 600 }
   },
   "judge": {
     "visualHierarchy":  { "points": 10 },

@@ -70,6 +70,60 @@ try {
   });
 
   const text = await page.evaluate(() => document.body.innerText.slice(0, 4000));
+
+  /**
+   * Fakta visual, diekstrak sebagai angka.
+   *
+   * Judge di free tier Groq tidak bisa melihat gambar — model yang tersedia
+   * hanya teks. Alih-alih memaksakan penilaian buta, kita ukur hal-hal yang
+   * justru menentukan kesan visual, lalu sajikan sebagai fakta. Ini lebih
+   * reproducible daripada menilai screenshot, meski memang kehilangan hal yang
+   * hanya bisa dilihat mata. Screenshot tetap disimpan untuk ditinjau manusia.
+   */
+  const visual = await page.evaluate(() => {
+    const els = Array.from(document.querySelectorAll("body *")) as HTMLElement[];
+    const fontSizes = new Set<number>();
+    const colors = new Set<string>();
+    const backgrounds = new Set<string>();
+    const spacings = new Set<number>();
+    const families = new Set<string>();
+
+    for (const el of els.slice(0, 600)) {
+      const s = getComputedStyle(el);
+      const fs = Math.round(parseFloat(s.fontSize));
+      if (fs) fontSizes.add(fs);
+      if (s.color) colors.add(s.color);
+      if (s.backgroundColor && s.backgroundColor !== "rgba(0, 0, 0, 0)") backgrounds.add(s.backgroundColor);
+      if (s.fontFamily) families.add(s.fontFamily.split(",")[0].trim().replace(/["']/g, ""));
+      for (const v of [s.paddingTop, s.paddingLeft, s.marginBottom, s.gap]) {
+        const n = Math.round(parseFloat(v));
+        if (n > 0) spacings.add(n);
+      }
+    }
+
+    const headings = ["h1", "h2", "h3", "h4"].map((h) => ({
+      tag: h,
+      count: document.querySelectorAll(h).length,
+      texts: Array.from(document.querySelectorAll(h)).slice(0, 5).map((e) => (e.textContent ?? "").trim().slice(0, 80)),
+    }));
+
+    return {
+      distinctFontSizes: [...fontSizes].sort((a, b) => a - b),
+      distinctTextColors: colors.size,
+      distinctBackgrounds: backgrounds.size,
+      fontFamilies: [...families].slice(0, 5),
+      distinctSpacings: [...spacings].sort((a, b) => a - b).slice(0, 14),
+      headings,
+      counts: {
+        button: document.querySelectorAll("button").length,
+        input: document.querySelectorAll("input").length,
+        table: document.querySelectorAll("table").length,
+        img: document.querySelectorAll("img").length,
+        landmark: document.querySelectorAll("main,nav,header,footer,section,article").length,
+        inlineStyled: document.querySelectorAll("[style]").length,
+      },
+    };
+  });
   const domNodes = await page.evaluate(() => document.querySelectorAll("*").length);
   // deteksi scroll horizontal di lebar ponsel
   await page.setViewportSize({ width: 390, height: 844 });
@@ -82,6 +136,7 @@ try {
     axeViolations: axe.violations,
     domNodes,
     horizontalOverflowOnMobile: overflows,
+    visual,
     text,
   }, null, 2));
 

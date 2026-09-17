@@ -24,12 +24,17 @@ export function getProvider(env: Record<string, string | undefined> = process.en
         name: "groq",
         baseUrl: "https://api.groq.com/openai/v1",
         apiKey: req(env.GROQ_API_KEY, "GROQ_API_KEY"),
+        // qwen3.8-27b sengaja TIDAK dipakai: di free tier ia dibatasi OTPM 1.000
+        // token keluaran per menit, dan request yang perkiraan keluarannya
+        // melampaui itu ditolak langsung, bukan diantrekan. Satu landing page
+        // butuh 1.500-3.000 token. Kedua model gpt-oss tidak kena batas itu.
         models: {
           strong: env.TIER_STRONG ?? "openai/gpt-oss-120b",
-          balanced: env.TIER_BALANCED ?? "qwen/qwen3.8-27b",
+          balanced: env.TIER_BALANCED ?? "openai/gpt-oss-120b",
           fast: env.TIER_FAST ?? "openai/gpt-oss-20b",
         },
         maxRpm, maxTpm,
+        maxOutputTokens: Number(env.MAX_OUTPUT_TOKENS ?? 6000),
       });
 
     case "openrouter":

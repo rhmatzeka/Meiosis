@@ -12,6 +12,15 @@ export interface CompatConfig {
   models: Record<ModelTier, string>;
   maxRpm: number;
   maxTpm: number;
+  /**
+   * Batas token keluaran per request yang diterima penyedia.
+   *
+   * Genome boleh meminta 8.000 token; kalau penyedia menolaknya, itu urusan
+   * penyedia dan diselesaikan DI SINI. Menurunkan angka di genome demi menuruti
+   * batas free tier akan mengubah manifestHash setiap agent yang pernah lahir.
+   * Lihat PLAN.md §8.1.
+   */
+  maxOutputTokens?: number;
 }
 
 const RETRIABLE = new Set([408, 429, 500, 502, 503, 504]);
@@ -31,15 +40,19 @@ export class OpenAICompatProvider implements Provider {
 
   async chat(tier: ModelTier, req: ChatRequest): Promise<ChatResult> {
     const model = this.modelFor(tier);
+    const cap = this.cfg.maxOutputTokens ?? Number.POSITIVE_INFINITY;
+    const maxTokens = Math.min(req.maxTokens, cap);
+    const clamped = maxTokens < req.maxTokens;
+
     // perkiraan kasar 4 karakter per token, cukup untuk menjaga jatah
     const estIn = Math.ceil((req.system.length + req.messages.reduce((s, m) => s + m.content.length, 0)) / 4);
-    await this.limiter.acquire(estIn + req.maxTokens);
+    await this.limiter.acquire(estIn + maxTokens);
 
     const body = JSON.stringify({
       model,
       messages: [{ role: "system", content: req.system }, ...req.messages],
       temperature: req.temperature,
-      max_tokens: req.maxTokens,
+      max_tokens: maxTokens,
     });
 
     let lastErr = "";
@@ -62,6 +75,7 @@ export class OpenAICompatProvider implements Provider {
           model,
           promptTokens: usage.prompt_tokens,
           completionTokens: usage.completion_tokens,
+          maxTokensClamped: clamped ? { requested: req.maxTokens, used: maxTokens } : undefined,
         };
       }
 

@@ -23,10 +23,22 @@ Ketentuan:
 - Halaman harus ter-build, lolos `tsc --noEmit`, dan benar-benar merender isi.
 - Harus terbaca di lebar 390px tanpa scroll horizontal.
 
-Balas dengan berkas-berkas lengkap. Untuk tiap berkas, tulis jalurnya sebagai
-heading lalu isinya dalam blok kode:
+## Format jawaban
+
+Tugas ini sekali jalan. Kamu tidak punya tool, tidak bisa membaca berkas, dan
+tidak bisa menjalankan perintah. Seluruh jawabanmu adalah teks balasan ini.
+
+Untuk tiap berkas, tulis jalurnya sebagai heading lalu isinya dalam blok kode.
+Tidak ada teks lain sebelum berkas pertama.
 
 ## src/App.tsx
 ```tsx
-...
+export default function App() {
+  return <main>…</main>;
+}
+```
+
+## src/styles.css
+```css
+…
 ```

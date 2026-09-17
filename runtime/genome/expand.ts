@@ -47,7 +47,19 @@ export interface Manifest {
 const TIERS: ModelTier[] = ["fast", "balanced", "strong"];
 const TEMPERATURE = [0.2, 0.5, 0.9];   // L13 CREATIVITY
 const MAX_STEPS = [8, 20, 40];          // L14 PERSISTENCE
-const MAX_TOKENS = [2000, 4000, 8000];  // L11 VERBOSITY
+/**
+ * L11 VERBOSITY.
+ *
+ * Lantainya dinaikkan dari 2.000 setelah uji diskriminasi pertama: anak G0 x G1
+ * terpotong persis di 2.000 token, berkas terakhirnya tidak utuh, dan build
+ * gagal. Ia kalah karena kehabisan ruang, bukan karena kemampuannya.
+ *
+ * Verbositas adalah GAYA, dan gaya itu sudah disampaikan lewat modul prompt
+ * verbosity-terse. Anggaran token adalah KAPASITAS. Mencampur keduanya membuat
+ * agent yang ringkas tidak sanggup menyelesaikan tugas besar — dan itu menilai
+ * anggaran, bukan menilai agent.
+ */
+const MAX_TOKENS = [4000, 6000, 8000];
 
 const pick = <T,>(table: T[], i: number): T => table[Math.min(i, table.length - 1)];
 

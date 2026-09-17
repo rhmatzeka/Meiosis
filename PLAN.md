@@ -747,34 +747,46 @@ ganti jobnya.
 
 **Deterministik, 70 poin** (reproducible oleh siapa pun):
 
-| Cek | Poin | Catatan |
+| Cek | Poin | Jenis |
 |---|---|---|
-| Halaman merender isi tanpa galat konsol | 15 | **Gerbang** — gagal di sini, total 0 |
-| `tsc --noEmit` lolos | 10 | |
-| Temuan `eslint-plugin-security` + audit dep | 15 | Poin penuh jika nol temuan |
-| Pelanggaran `axe-core` | 15 | Diskalakan terhadap jumlah pelanggaran |
-| Tanpa scroll horizontal di lebar 390px | 5 | |
-| Ukuran bundle | 10 | Di bawah ambang di `checks.json` |
+| Halaman merender isi tanpa galat konsol | 10 | **Gerbang** — gagal di sini, total 0 |
+| `tsc --noEmit` lolos | 5 | lantai |
+| Temuan `eslint-plugin-security` + pola berbahaya | 10 | lantai |
+| **Ketahanan input** — validasi angka, batas nilai, state galat, tombol nonaktif, preventDefault | 10 | **positif, bertingkat** |
+| Pelanggaran `axe-core` | 10 | lantai |
+| **Aksesibilitas disengaja** — label terkait, tipe tombol, landmark, fokus terlihat | 5 | **positif, bertingkat** |
+| **Kualitas desain** — skala tipografi, disiplin palet, ritme spasi | 15 | **positif, bertingkat** |
+| Ukuran bundle | 5 | lantai |
+
+**Kenapa ada cek positif: rubrik v1 gagal total dalam membedakan.** Versi pertama
+hanya berisi cek lantai — build, nol pelanggaran, nol temuan. Pada uji
+diskriminasi pertama, G0 dan G1 mendapat **67,2/70 yang identik baris per baris**,
+padahal genome-nya berlawanan. Model yang layak melewati semua cek lantai apa pun
+genome-nya, sehingga agent berfokus estetika tidak punya satu pun jalan objektif
+untuk membuktikan keunggulannya.
+
+v2 menambahkan tiga ukuran yang menanyakan "seberapa tinggi", bukan "apakah ada
+yang salah". Kualitas desain dihitung dari fakta yang memang bisa diukur —
+rasio skala tipografi, jumlah warna, persentase spasi yang merupakan kelipatan
+satu satuan dasar — sehingga estetika punya jalur poin yang tidak bergantung
+pada judge.
 
 **Gerbangnya bukan "build berhasil", dan ini temuan nyata dari P3.** `vite build`
 tidak memeriksa tipe: kode yang merujuk variabel tak ada tetap lolos build, lalu
-merender halaman kosong dengan empat galat konsol. Memakai keberhasilan build
-sebagai gerbang berarti memberi 20 poin kepada halaman yang sepenuhnya rusak.
-
-Yang jujur adalah menanyakan hasil akhirnya: apakah halamannya benar-benar
-merender isi, tanpa melempar galat. Itu diukur di `rendersOk`, dan build hanyalah
-salah satu syarat menuju ke sana.
-
-**Catatan: Lighthouse sengaja tidak dipakai.** Ia menjalankan Chromium berkali-kali
-dengan throttling dan itulah komponen yang memaksa kebutuhan RAM membengkak.
-Heuristik statis memeriksa hal yang sebagian besar sama, berjalan dalam hitungan
-detik, dan justru lebih reproducible karena tidak bergantung pada beban mesin.
+merender halaman kosong dengan empat galat konsol. Gerbang lama akan memberi
+poin penuh kepada halaman yang sepenuhnya rusak.
 
 **`axe-core` dijalankan di dalam container lewat Chromium**, bukan jsdom di host.
-Rancangan awal keliru: halaman React baru punya DOM setelah JavaScript-nya
-dieksekusi, dan mengeksekusi kode buatan mesin hanya boleh terjadi di dalam
-sandbox. Chromium yang sudah ada di image sekaligus mengambil screenshot untuk
-judge, jadi tidak ada biaya tambahan.
+Halaman React baru punya DOM setelah JavaScript-nya dieksekusi, dan itu hanya
+boleh terjadi di dalam sandbox. Chromium yang sudah ada untuk screenshot
+sekaligus dipakai, jadi tanpa biaya tambahan.
+
+**Judge menilai dari fakta terukur, bukan screenshot.** Model teks di free tier
+tidak bisa melihat gambar. Memaksakan penilaian visual tanpa gambar akan jadi
+tebakan, jadi judge menerima skala tipografi, jumlah warna, ritme spasi, dan
+teks halaman sebagai angka. Lebih reproducible, meski kehilangan hal yang hanya
+bisa dilihat mata. Screenshot tetap disimpan untuk ditinjau manusia, dan ini
+layak ditinjau ulang kalau nanti ada model vision.
 
 **Judge LLM, 30 poin** (subjektif):
 
@@ -1333,7 +1345,7 @@ adalah pipa saluran, bukan kualitas landing page. Free tier lebih dari cukup, da
 | Penyedia | Batas | Cocok untuk |
 |---|---|---|
 | **Gemini Flash** | Model Flash generasi kini gratis tanpa kartu; batasnya tidak lagi dipublikasikan dan hanya terlihat di AI Studio | **Builder.** Konteks besar, batas paling longgar |
-| **Groq** | 30 RPM, 1.000 RPD, **8.000 TPM**, model gpt-oss & Qwen | **Judge.** Lihat alasannya di bawah |
+| **Groq** | 30 RPM, 1.000 RPD, 8.000 TPM — dan **OTPM per model**, lihat di bawah | Builder & judge, asal modelnya tepat |
 | **OpenRouter** | 20 RPM, **50 RPD** — naik ke 1.000 RPD setelah sekali beli kredit $10 | Cadangan & variasi model |
 
 #### Yang membatasi bukan RPM, melainkan TPM
@@ -1346,12 +1358,20 @@ Akibatnya:
 
 - **OpenRouter free 50 RPD tidak cukup untuk satu eksekusi pun.** Kalau mau
   memakainya, beli kredit $10 sekali agar naik ke 1.000 RPD.
-- **Batas 8.000 TPM di Groq lebih mengikat daripada 1.000 RPD-nya.** Begitu
-  konteks agent tumbuh melewati 8 ribu token, kamu praktis terthrottle ke sekitar
-  satu request per menit. Untuk membangun landing page ini terlalu sempit.
-- **Groq justru sangat cocok untuk judge**, karena judge hanya menerima screenshot
-  dan rubrik — prompt pendek, konteks tidak tumbuh, dan kualitasnya memadai untuk
-  menilai. Pasangan yang masuk akal: **builder di Gemini, judge di Groq**.
+- **Yang benar-benar mengikat adalah OTPM per model, dan itu tidak sama untuk
+  semua model.** Diukur 17 Sep: `qwen/qwen3.8-27b` dibatasi **1.000 token
+  keluaran per menit**, sedangkan `openai/gpt-oss-20b` dan `openai/gpt-oss-120b`
+  tidak kena batas itu sampai 6.000 token sekali pun.
+- Yang membuatnya berbahaya: request yang perkiraan keluarannya melampaui OTPM
+  **ditolak langsung dengan 429**, bukan diantrekan. Rate limiter tidak dapat
+  menolongmu; yang bisa hanyalah menurunkan `max_tokens`. Satu landing page butuh
+  1.500-3.000 token keluaran, jadi qwen sama sekali tidak terpakai untuk tugas ini.
+- Maka pemetaan tier memakai **gpt-oss-120b untuk strong dan balanced,
+  gpt-oss-20b untuk fast**. Tier fast dan balanced memang jadi berdekatan; itu
+  keterbatasan penyedia, dan ia hidup di konfigurasi penyedia, bukan di genome.
+- Clamp `max_tokens` dilakukan di lapisan penyedia dan dicatat di kuitansi run.
+  Menurunkan angka di genome demi menuruti batas free tier akan mengubah
+  `manifestHash` setiap agent yang pernah lahir — persis yang dicegah §8.1.
 
 Tanpa token bucket dan retry 429 di §15.4, pipeline akan gagal di tengah ronde
 dan kamu kehilangan seluruh hasilnya. Bangun itu di P2, bukan saat sudah kepepet.
@@ -1382,6 +1402,36 @@ mengumpul  → beralih ke model berbayar untuk semua ronde skoring
 ```
 
 Uji ini murah dan menjawab pertanyaan yang menentukan seluruh anggaranmu.
+
+### 22.2a Hasil uji diskriminasi pertama — 17 Sep 2026
+
+Dijalankan lebih awal dari jadwal, n=1 per agent, penyedia Groq free tier.
+
+| Agent | Deterministik | Judge | Total |
+|---|---|---|---|
+| G0 Solidity Smith | 61,4/70 | 23/30 | **79,4** |
+| G1 Pixel Sense | 64,2/70 | 21/30 | **85,2** |
+| Anak G0 × G1 | 61,1/70 | 23/30 | **84,1** |
+
+**Sebaran 5,8 poin — di bawah ambang 8. Verdict: MENGUMPUL.**
+
+Dan lebih penting: **anak tidak mengungguli kedua parent.** Ia di antara
+keduanya, dan G1 memimpin.
+
+Yang lebih mengganggu adalah arahnya. G0 membawa `security-instinct-high` tapi
+mendapat **6/10** pada ketahanan input, sementara G1 yang sama sekali tidak
+membawa modul keamanan mendapat **8/10**. G0 juga membawa `aesthetic-plain` tapi
+skor desainnya 11,7 — tidak jauh di bawah G1 yang 13,8. Pengaruh genome terlihat,
+tapi lemah dan tidak konsisten dengan arah yang diprediksikan.
+
+Ini risiko §22.2 yang benar-benar terjadi: **model gratis tidak cukup patuh pada
+system prompt untuk membuat perbedaan genome terlihat jelas di keluaran.**
+
+Catatan penting sebelum menarik kesimpulan: ini n=1. Median tiga run dapat
+mengubah gambarannya, dan itu memang yang diwajibkan §11.3. Sebelum menyimpulkan
+model gratis tidak memadai, jalankan ulang dengan RUNS=3 lalu ulangi sekali lagi
+dengan model berbayar dan bandingkan sebarannya — itulah cara membedakan
+"modelnya kurang patuh" dari "jobnya kurang membedakan", persis seperti di §24.
 
 ### 22.2b Perkiraan biaya
 

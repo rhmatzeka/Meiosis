@@ -24,6 +24,6 @@ WORKDIR /work
 COPY --chown=runner:runner template/package.json ./
 RUN bun install && chown -R runner:runner /work
 COPY --chown=runner:runner template/ ./
-COPY --chown=runner:runner render.ts entrypoint.sh /work/
+COPY --chown=runner:runner render.ts analyze.ts entrypoint.sh /work/
 USER runner
 ENTRYPOINT ["/work/entrypoint.sh"]
