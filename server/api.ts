@@ -19,6 +19,9 @@ import { materialize } from "../runtime/materialize";
 import { getProvider } from "../runtime/providers";
 import { parseAgentFiles } from "../arena/parse-output";
 import { BUILD_CONTRACT } from "../arena/build-contract";
+import { Workspace } from "../runtime/tools/workspace";
+import { runAgentLoop } from "../runtime/agent-loop";
+import { toolsFor } from "../runtime/tools";
 import { runInSandbox } from "../sandbox/run";
 import { scoreDeterministic, type Checks } from "../arena/scorers/deterministic";
 import { mkdirSync, cpSync } from "node:fs";
@@ -238,8 +241,8 @@ Bun.serve({
          * yang berbeda di antara keluaran mereka adalah genome-nya.
          */
         if (!dep) return json({ error: "belum di-deploy" }, 400);
-        const { ids, task, mock, build } = (await req.json()) as
-          { ids: number[]; task: string; mock?: boolean; build?: boolean };
+        const { ids, task, mock, build, mode } = (await req.json()) as
+          { ids: number[]; task: string; mock?: boolean; build?: boolean; mode?: "single" | "agent" };
         if (!task?.trim()) return json({ error: "tugas kosong" }, 400);
         if (!ids?.length) return json({ error: "belum ada agent dipilih" }, 400);
 
@@ -250,6 +253,58 @@ Bun.serve({
         for (const id of ids) {
           const genome = (await read(dep.registry, abis.registry, "genomeOf", [id])) as bigint;
           const agent = materialize(genome, 0n, { id, provider, env });
+
+          /**
+           * Mode agent: tempat kerja nyata dan loop tool. Agent menulis,
+           * menjalankan pemeriksaan, membaca galatnya, lalu memperbaiki.
+           * Mode single hanya satu tanya-jawab — berguna untuk tugas yang
+           * memang tidak menghasilkan berkas, seperti meninjau kode.
+           */
+          if (mode === "agent" && !mock) {
+            const dir = `.runs/${Date.now()}-${id}`;
+            const ws = new Workspace(`${dir}/ws`);
+            try {
+              const loop = await runAgentLoop({
+                agent, provider: provider!, ws,
+                task: `${task}\n\n---\n\n${BUILD_CONTRACT}`,
+              });
+
+              // Pemeriksaan akhir yang lengkap: render dan skor, bukan mode cepat.
+              const sb = await ws.check({ outDir: `${dir}/out` });
+              const score = scoreDeterministic(sb, checks());
+
+              out.push({
+                id, ok: true, mode: "agent",
+                modules: agent.manifest.traits.filter((x) => x.module).map((x) => x.module),
+                tools: toolsFor(agent.manifest).map((x) => x.spec.name),
+                manifestHash: "0x" + agent.manifestHash.toString(16).padStart(16, "0"),
+                model: provider!.modelFor(agent.manifest.modelTier),
+                maxSteps: agent.manifest.params.maxSteps,
+                loop: {
+                  finished: loop.finished, reason: loop.reason, checks: loop.checks,
+                  steps: loop.steps, summary: loop.summary,
+                  durationMs: loop.durationMs,
+                  promptTokens: loop.totalPromptTokens, completionTokens: loop.totalCompletionTokens,
+                },
+                built: {
+                  dir, files: Object.keys(ws.snapshot()),
+                  typecheckOk: sb.typecheckOk, buildOk: sb.buildOk, rendersOk: sb.rendersOk,
+                  timedOut: sb.timedOut, durationMs: sb.durationMs,
+                  score: score.total, scoreMax: score.max, gated: score.gated, lines: score.lines,
+                  axe: sb.render?.axeViolations ?? [],
+                  consoleErrors: sb.render?.consoleErrors ?? [],
+                  shot: existsSync(`${dir}/out/desktop.png`) ? `/artifact/${dir}/out/desktop.png` : null,
+                  shotMobile: existsSync(`${dir}/out/mobile.png`) ? `/artifact/${dir}/out/mobile.png` : null,
+                  buildLog: sb.buildLog.split("\n").slice(-14).join("\n"),
+                },
+                output: loop.summary,
+              });
+            } catch (e) {
+              out.push({ id, ok: false, error: (e as Error).message.slice(0, 300) });
+            }
+            continue;
+          }
+
           try {
             // Kalau hasilnya akan dibangun, agent harus tahu kontrak lingkungannya.
             const fullTask = build ? `${task}\n\n---\n\n${BUILD_CONTRACT}` : task;

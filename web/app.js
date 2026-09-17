@@ -219,10 +219,10 @@ function renderRun() {
       <button class="act" id="go-run" ${state.runSel.length && !state.runBusy ? "" : "disabled"}>
         ${state.runBusy ? "menjalankan…" : `Jalankan di ${state.runSel.length} agent`}</button>
       <label class="gen" style="display:flex;gap:6px;align-items:center">
-        <input type="checkbox" id="build" checked /> bangun &amp; render hasilnya</label>
+        <input type="checkbox" id="agentmode" checked /> <b>mode agent</b> (pakai tool, bangun, perbaiki sendiri)</label>
       <label class="gen" style="display:flex;gap:6px;align-items:center">
         <input type="checkbox" id="mock" /> mode tiruan (tanpa memakai kuota)</label>
-      <span class="gen">${state.runBusy ? "generasi 30–60 detik, build di sandbox ~10 detik lagi" : ""}</span>
+      <span class="gen">${state.runBusy ? "mode agent butuh 2–4 menit: beberapa putaran tool, lalu build dan render" : ""}</span>
     </div>
   </div>`);
 
@@ -236,7 +236,8 @@ function renderRun() {
     const r = await post("/api/run", {
       ids: state.runSel, task,
       mock: panel.querySelector("#mock")?.checked,
-      build: panel.querySelector("#build")?.checked,
+      build: true,
+      mode: panel.querySelector("#agentmode")?.checked ? "agent" : "single",
     });
     state.runBusy = false;
     state.runOut = r.error ? { error: r.error } : r;
@@ -259,14 +260,41 @@ function renderRun() {
           ? `genome memberi <b>${r.toolsDeclared.join(", ")}</b>, runtime menyediakan <b>${r.toolsAvailable.length ? r.toolsAvailable.join(", ") : "belum ada"}</b>`
           : "tidak ada"}</dd>
       </dl>
+      ${r.loop ? loopBlock(r.loop, r) : ""}
       ${r.built ? buildBlock(r.built) : ""}
       <details ${r.built ? "" : "open"} class="mt">
-        <summary class="gen" style="cursor:pointer">keluaran mentah agent</summary>
+        <summary class="gen" style="cursor:pointer">${r.loop ? "ringkasan agent" : "keluaran mentah agent"}</summary>
         <pre style="background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:12px;
           overflow:auto;max-height:420px;font-size:12px;line-height:1.5"><code>${esc(r.output)}</code></pre>
       </details>
     </div>`));
   }
+}
+
+/** Jejak langkah agent: tiap pemanggilan tool dan hasilnya. */
+function loopBlock(l, r) {
+  const icon = { tool: "▸", finish: "✓", message: "💬", limit: "⏹", error: "✗" };
+  const color = { finish: "var(--ok)", error: "var(--bad)", limit: "var(--warn)" };
+  return `
+    <div class="row mt" style="gap:12px">
+      <span class="pill">${l.steps.length} langkah</span>
+      <span class="pill">${l.checks} kali run_check</span>
+      <span class="pill">${l.finished ? '<span style="color:var(--ok)">selesai</span>' : '<span style="color:var(--warn)">' + esc(l.reason) + "</span>"}</span>
+      <span class="gen">${l.promptTokens}+${l.completionTokens} token · ${(l.durationMs / 1000).toFixed(0)}s</span>
+      <span class="gen">tool: ${r.tools?.join(", ") ?? "-"}</span>
+    </div>
+    <div class="mt" style="border:1px solid var(--line);border-radius:8px;overflow:hidden">
+      ${l.steps.map((s) => `
+        <div style="display:flex;gap:10px;padding:7px 11px;border-bottom:1px solid var(--line);font-size:12px">
+          <span class="mono" style="color:var(--faint);min-width:22px">${s.step}</span>
+          <span style="color:${color[s.kind] ?? "var(--accent)"};min-width:14px">${icon[s.kind] ?? "·"}</span>
+          <div style="min-width:0;flex:1">
+            <span class="mono"><b>${esc(s.tool ?? s.kind)}</b>${s.args ? `<span style="color:var(--faint)">(${esc(s.args.slice(0, 90))}${s.args.length > 90 ? "…" : ""})</span>` : ""}</span>
+            ${s.result ? `<div class="gen mono" style="white-space:pre-wrap;margin-top:2px">${esc(s.result.split("\n").slice(0, 4).join("\n").slice(0, 320))}</div>` : ""}
+            ${s.text ? `<div class="gen" style="margin-top:2px">${esc(s.text.slice(0, 220))}</div>` : ""}
+          </div>
+        </div>`).join("")}
+    </div>`;
 }
 
 /** Hasil build sandbox: status, skor, dan tampilan halaman yang sungguh dirender. */

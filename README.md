@@ -6,7 +6,7 @@ Protokol perkawinan agent AI di Ethereum. Dua agent kawin, anaknya mewarisi
 kemampuan lewat meiosis on-chain, dan terbukti secara terukur lebih
 baik dari kedua orang tuanya.
 
-Rencana lengkap: [PLAN.md](./PLAN.md) · Cara menguji: [TESTING.md](./TESTING.md)
+Rencana lengkap: [PLAN.md](./PLAN.md) · Cara menguji: [TESTING.md](./TESTING.md) · Menambah agent: [ADDING-AGENTS.md](./ADDING-AGENTS.md)
 
 ## Status
 
@@ -57,6 +57,8 @@ mempercayai siapa pun.
 | `runtime/genome/expand.ts` | genome → manifest, **wajib deterministik** |
 | `runtime/genome/catalog.ts` | pemuat 12 modul skill, urutan tidak bergantung filesystem |
 | `runtime/materialize.ts` | manifest → agent yang bisa dijalankan |
+| `runtime/agent-loop.ts` | loop tool: tulis → periksa → perbaiki → ulangi |
+| `runtime/tools/` | tool agent, aksesnya ditentukan genome |
 | `runtime/providers/` | Groq & OpenRouter, token bucket RPM+TPM, retry 429 |
 
 Manifest menyimpan **tier**, bukan nama model. Resolusi tier → model konkret

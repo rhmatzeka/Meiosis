@@ -48,11 +48,39 @@ export class OpenAICompatProvider implements Provider {
     const estIn = Math.ceil((req.system.length + req.messages.reduce((s, m) => s + m.content.length, 0)) / 4);
     await this.limiter.acquire(estIn + maxTokens);
 
+    // Pesan diterjemahkan ke bentuk OpenAI: tool call hidup di assistant,
+    // hasilnya dikembalikan sebagai pesan ber-role "tool".
+    const messages: Record<string, unknown>[] = [{ role: "system", content: req.system }];
+    for (const m of req.messages) {
+      if (m.role === "tool") {
+        messages.push({ role: "tool", tool_call_id: m.toolCallId, content: m.content });
+      } else if (m.toolCalls?.length) {
+        messages.push({
+          role: m.role, content: m.content || null,
+          tool_calls: m.toolCalls.map((c) => ({
+            id: c.id, type: "function",
+            function: { name: c.name, arguments: c.arguments },
+          })),
+        });
+      } else {
+        messages.push({ role: m.role, content: m.content });
+      }
+    }
+
     const body = JSON.stringify({
       model,
-      messages: [{ role: "system", content: req.system }, ...req.messages],
+      messages,
       temperature: req.temperature,
       max_tokens: maxTokens,
+      ...(req.tools?.length
+        ? {
+            tools: req.tools.map((t) => ({
+              type: "function",
+              function: { name: t.name, description: t.description, parameters: t.parameters },
+            })),
+            tool_choice: "auto",
+          }
+        : {}),
     });
 
     let lastErr = "";
@@ -65,14 +93,25 @@ export class OpenAICompatProvider implements Provider {
 
       if (res.ok) {
         const j = (await res.json()) as {
-          choices: { message: { content: string } }[];
+          choices: {
+            message: {
+              content: string | null;
+              tool_calls?: { id: string; function: { name: string; arguments: string } }[];
+            };
+            finish_reason?: string;
+          }[];
           usage?: { prompt_tokens: number; completion_tokens: number };
         };
         const usage = j.usage ?? { prompt_tokens: estIn, completion_tokens: 0 };
         this.limiter.record(usage.prompt_tokens + usage.completion_tokens);
+        const choice = j.choices[0];
         return {
-          text: j.choices[0]?.message?.content ?? "",
+          text: choice?.message?.content ?? "",
           model,
+          toolCalls: choice?.message?.tool_calls?.map((c) => ({
+            id: c.id, name: c.function.name, arguments: c.function.arguments,
+          })),
+          finishReason: choice?.finish_reason,
           promptTokens: usage.prompt_tokens,
           completionTokens: usage.completion_tokens,
           maxTokensClamped: clamped ? { requested: req.maxTokens, used: maxTokens } : undefined,

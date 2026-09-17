@@ -77,7 +77,11 @@ const sh = async (args: string[], timeoutMs?: number) => {
 
 export async function runInSandbox(
   files: Record<string, string>,
-  opts: { timeoutMs?: number; memory?: string; cpus?: string; outDir?: string } = {},
+  opts: {
+    timeoutMs?: number; memory?: string; cpus?: string; outDir?: string;
+    /** Lewati render Chromium. Dipakai saat agent beriterasi — lihat agent-loop.ts. */
+    quick?: boolean;
+  } = {},
 ): Promise<SandboxResult> {
   const timeoutMs = opts.timeoutMs ?? 300_000;
   const started = performance.now();
@@ -101,6 +105,7 @@ export async function runInSandbox(
       "--cpus", opts.cpus ?? "2",
       "--pids-limit", "256",
       "--tmpfs", "/tmp:rw,size=256m",
+      ...(opts.quick ? ["-e", "SKIP_RENDER=1"] : []),
       "--security-opt", "no-new-privileges",
       IMAGE,
     ]);

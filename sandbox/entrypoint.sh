@@ -39,6 +39,14 @@ fi
 echo "--- analisis ---"
 bun run /work/analyze.ts >> /work/out/build.log 2>&1 || true
 
+# Saat agent sedang beriterasi, render dilewati: Chromium adalah bagian
+# termahal, dan yang dibutuhkan agent di tengah loop hanyalah tahu apakah
+# kodenya lolos typecheck dan build.
+if [ "${SKIP_RENDER:-0}" = "1" ]; then
+  echo "--- render dilewati (mode cepat) ---"
+  exit 0
+fi
+
 echo "--- render ---"
 bun run /work/render.ts >> /work/out/build.log 2>&1 || true
 tail -3 /work/out/build.log

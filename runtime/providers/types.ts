@@ -1,8 +1,26 @@
 export type ModelTier = "fast" | "balanced" | "strong";
 
+export interface ToolSpec {
+  name: string;
+  description: string;
+  /** JSON Schema untuk argumen */
+  parameters: Record<string, unknown>;
+}
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  /** Argumen mentah; loop yang mem-parse dan memvalidasinya. */
+  arguments: string;
+}
+
 export interface ChatMessage {
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
+  /** Diisi pada pesan assistant yang meminta pemanggilan tool. */
+  toolCalls?: ToolCall[];
+  /** Diisi pada pesan role "tool": menjawab toolCall dengan id ini. */
+  toolCallId?: string;
 }
 
 export interface ChatRequest {
@@ -10,6 +28,8 @@ export interface ChatRequest {
   messages: ChatMessage[];
   temperature: number;
   maxTokens: number;
+  /** Kalau diisi, model boleh meminta pemanggilan tool. */
+  tools?: ToolSpec[];
 }
 
 export interface ChatResult {
@@ -18,6 +38,9 @@ export interface ChatResult {
   model: string;
   promptTokens: number;
   completionTokens: number;
+  /** Terisi bila model meminta tool dijalankan, bukan menjawab langsung. */
+  toolCalls?: ToolCall[];
+  finishReason?: string;
   /** Terisi bila penyedia tidak sanggup memenuhi maxTokens yang diminta genome. */
   maxTokensClamped?: { requested: number; used: number };
 }
