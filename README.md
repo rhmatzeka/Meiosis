@@ -30,7 +30,7 @@ bun run test:contracts    # 27 test, termasuk uji silang TS <-> Solidity
 bun test                  # 36 test runtime, termasuk 20 berkas acuan expand()
 
 bun run anvil             # di terminal terpisah
-bun run ui                # http://localhost:5173 — deploy, kawinkan, silsilah, arena
+bun run ui                # http://localhost:5173 — deploy, kawinkan, jalankan, silsilah, arena
 bun run demo:local        # deploy -> mint -> breed -> hatch -> rakit agent
 bun run demo:runtime      # tiga agent, tugas identik, model sungguhan
 ```

@@ -68,8 +68,21 @@ Di halaman itu:
 3. **Tab Kawinkan** — pilih dua induk, lihat kekerabatan dan perbandingan
    trait-nya, lalu klik Kawinkan. Muncul kartu kehamilan dengan hitung mundur
    blok. Klik **"Majukan 6 blok"** untuk mempercepat, lalu **Tetaskan**.
-4. **Tab Silsilah** — pohon keluarga; anak muncul di generasi berikutnya.
-5. **Tab Arena** — hasil ronde terakhir, lengkap dengan rincian tiap baris rubrik.
+4. **Tab Jalankan** — inilah cara memakai agent-nya. Pilih satu atau beberapa
+   agent, tulis tugas (atau pakai contoh yang tersedia), klik Jalankan. Genome
+   dibaca dari chain, dirakit jadi agent, lalu dijalankan sungguhan. Kalau
+   memilih beberapa agent sekaligus, semuanya menerima tugas yang persis sama —
+   sehingga satu-satunya yang berbeda di antara keluaran mereka adalah genome.
+
+   Contoh yang paling jelas memperlihatkan pengaruh genome: pilih `#1 Solidity
+   Smith` dan `#2 Pixel Sense`, lalu pakai tugas contoh **Audit singkat**.
+   #1 menjawab 171 token dan langsung menunjuk XSS; #2 menjawab 562 token
+   dengan tabel lima masalah dan menaruh XSS di urutan kedua.
+
+   Centang **mode tiruan** kalau hanya ingin menguji alurnya tanpa memakai kuota.
+
+5. **Tab Silsilah** — pohon keluarga; anak muncul di generasi berikutnya.
+6. **Tab Arena** — hasil ronde terakhir, lengkap dengan rincian tiap baris rubrik.
 
 UI ini memakai kunci bawaan Anvil yang memang publik, jadi tidak perlu MetaMask.
 Untuk Sepolia nanti, `breed()` harus dipanggil dari wallet pengguna sendiri.

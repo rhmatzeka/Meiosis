@@ -11,13 +11,20 @@ const esc = (s) => String(s).replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;
 const KEY_LOCI = ["SECURITY_INSTINCT", "AESTHETIC", "TEST_RIGOR", "STACK_AFFINITY", "DISCIPLINE_PRIMARY"];
 const GEN_COLOR = ["var(--g0)", "var(--child)", "var(--g1)", "var(--accent)"];
 
-let state = { status: null, agents: [], pregs: [], sel: [] };
+let state = { status: null, agents: [], pregs: [], sel: [], runSel: [], runBusy: false, runOut: null };
+
+const TASK_CONTOH = [
+  ["Komponen form", `Buat komponen React "StakeForm" dengan input jumlah dan tombol Stake.\nBalas dengan kode saja.`],
+  ["Landing page", `Buat landing page untuk dApp staking bernama Epoch: hero, cara kerja, tabel APY.\nBalas dengan kode saja.`],
+  ["Audit singkat", `Tinjau potongan kode ini dan sebutkan masalahnya:\n\nfunction Balance({ html }) { return <div dangerouslySetInnerHTML={{__html: html}} /> }`],
+];
 
 // --- tab ---
 document.querySelectorAll("nav button").forEach((b) => b.onclick = () => {
   document.querySelectorAll("nav button").forEach((x) => x.classList.toggle("active", x === b));
-  ["roster", "breed", "tree", "arena"].forEach((t) => $("#tab-" + t).classList.toggle("hidden", t !== b.dataset.tab));
+  ["roster", "breed", "run", "tree", "arena"].forEach((t) => $("#tab-" + t).classList.toggle("hidden", t !== b.dataset.tab));
   if (b.dataset.tab === "arena") renderArena();
+  if (b.dataset.tab === "run") renderRun();
 });
 
 $("#btn-theme").onclick = () => {
@@ -42,6 +49,8 @@ async function refresh() {
     state.agents = []; state.pregs = [];
   }
   renderRoster(); renderBreed(); renderTree();
+  // tab Jalankan hanya digambar ulang saat idle, agar hasil tidak hilang
+  if (!state.runBusy && !state.runOut) renderRun();
 }
 
 function needChain() {
@@ -178,6 +187,75 @@ async function renderBreed() {
       state.sel = []; await refresh();
     };
     box.append(panel);
+  }
+}
+
+// --- jalankan ---
+function renderRun() {
+  const box = $("#run"); box.innerHTML = "";
+  const n = needChain(); if (n) { box.append(n); return; }
+
+  const picker = el(`<div><p class="sub">Pilih satu atau lebih agent:</p><div class="grid" id="rpick"></div></div>`);
+  state.agents.forEach((a) => picker.querySelector("#rpick").append(
+    agentCard(a, {
+      sel: state.runSel.includes(a.id),
+      onClick: (x) => {
+        const i = state.runSel.indexOf(x.id);
+        if (i >= 0) state.runSel.splice(i, 1); else state.runSel.push(x.id);
+        renderRun();
+      },
+    })));
+  box.append(picker);
+
+  const panel = el(`<div class="card mt">
+    <div class="row">
+      <b>Tugas</b>
+      ${TASK_CONTOH.map((t, i) => `<button class="act ghost" style="padding:3px 9px;font-size:12px" data-eg="${i}">${t[0]}</button>`).join("")}
+    </div>
+    <textarea id="task" rows="5" style="width:100%;margin-top:10px;background:var(--panel-2);color:var(--text);
+      border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit;resize:vertical"
+      placeholder="Tulis tugas untuk agent…"></textarea>
+    <div class="row mt">
+      <button class="act" id="go-run" ${state.runSel.length && !state.runBusy ? "" : "disabled"}>
+        ${state.runBusy ? "menjalankan…" : `Jalankan di ${state.runSel.length} agent`}</button>
+      <label class="gen" style="display:flex;gap:6px;align-items:center">
+        <input type="checkbox" id="mock" /> mode tiruan (tanpa memakai kuota)</label>
+      <span class="gen">${state.runBusy ? "satu agent 30–60 detik, antre kuota gratis" : ""}</span>
+    </div>
+  </div>`);
+
+  panel.querySelectorAll("[data-eg]").forEach((b) => b.onclick = () => {
+    panel.querySelector("#task").value = TASK_CONTOH[Number(b.dataset.eg)][1];
+  });
+  panel.querySelector("#go-run").onclick = async () => {
+    const task = panel.querySelector("#task").value.trim();
+    if (!task) { alert("tugasnya masih kosong"); return; }
+    state.runBusy = true; state.runOut = null; renderRun();
+    const r = await post("/api/run", { ids: state.runSel, task, mock: panel.querySelector("#mock")?.checked });
+    state.runBusy = false;
+    state.runOut = r.error ? { error: r.error } : r;
+    renderRun();
+  };
+  box.append(panel);
+
+  if (!state.runOut) return;
+  if (state.runOut.error) { box.append(el(`<div class="note bad">${esc(state.runOut.error)}</div>`)); return; }
+
+  for (const r of state.runOut.results) {
+    const a = state.agents.find((x) => x.id === r.id);
+    if (!r.ok) { box.append(el(`<div class="note bad"><b>#${r.id}</b> gagal: ${esc(r.error)}</div>`)); continue; }
+    box.append(el(`<div class="card mt">
+      <h3>${esc(a?.name ?? "#" + r.id)} <span class="gen">${esc(r.model)} · ${r.promptTokens}+${r.completionTokens} token · ${(r.durationMs / 1000).toFixed(1)}s${r.mocked ? " · TIRUAN" : ""}</span></h3>
+      <div class="traits">${r.modules.map((m) => `<span class="trait">${esc(m)}</span>`).join("")}</div>
+      <dl class="kv">
+        <dt>manifest</dt><dd class="mono">${esc(r.manifestHash)}</dd>
+        <dt>tool</dt><dd>${r.toolsDeclared.length
+          ? `genome memberi <b>${r.toolsDeclared.join(", ")}</b>, runtime menyediakan <b>${r.toolsAvailable.length ? r.toolsAvailable.join(", ") : "belum ada"}</b>`
+          : "tidak ada"}</dd>
+      </dl>
+      <pre style="background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:12px;
+        overflow:auto;max-height:460px;font-size:12px;line-height:1.5"><code>${esc(r.output)}</code></pre>
+    </div>`));
   }
 }
 

@@ -15,6 +15,8 @@ import {
 import { express, relatedness, LOCUS_NAMES, traitName, LOCUS_COUNT } from "../packages/shared/src/genome";
 import { FOUNDERS } from "../packages/shared/src/founders";
 import { expand, manifestHash } from "../runtime/genome/expand";
+import { materialize } from "../runtime/materialize";
+import { getProvider } from "../runtime/providers";
 
 const PORT = Number(process.env.UI_PORT ?? 5173);
 let dep: Deployment | null = loadDeployment();
@@ -215,6 +217,48 @@ Bun.serve({
         const w = wallets.find((x) => x.account.address.toLowerCase() === owner) ?? wallets[0];
         await send(dep.registry, abis.registry, w, "setManifestHash", [id, hash]);
         return json({ ok: true, hash: "0x" + hash.toString(16).padStart(16, "0") });
+      }
+
+      if (p === "/api/run" && req.method === "POST") {
+        /**
+         * Memberi tugas kepada agent yang benar-benar ada di chain.
+         *
+         * Genome dibaca dari kontrak, bukan dari berkas lokal. Agent dirakit
+         * dari genome itu, lalu dijalankan. Kalau beberapa agent dipilih,
+         * semuanya menerima tugas yang persis sama — sehingga satu-satunya
+         * yang berbeda di antara keluaran mereka adalah genome-nya.
+         */
+        if (!dep) return json({ error: "belum di-deploy" }, 400);
+        const { ids, task, mock } = (await req.json()) as { ids: number[]; task: string; mock?: boolean };
+        if (!task?.trim()) return json({ error: "tugas kosong" }, 400);
+        if (!ids?.length) return json({ error: "belum ada agent dipilih" }, 400);
+
+        const env = { ...process.env, MOCK_LLM: mock ? "1" : "0" };
+        const provider = mock ? undefined : getProvider(env);
+        const out = [];
+
+        for (const id of ids) {
+          const genome = (await read(dep.registry, abis.registry, "genomeOf", [id])) as bigint;
+          const agent = materialize(genome, 0n, { id, provider, env });
+          try {
+            const r = await agent.run(task);
+            out.push({
+              id, ok: true,
+              modules: agent.manifest.traits.filter((x) => x.module).map((x) => x.module),
+              modelTier: agent.manifest.modelTier,
+              params: agent.manifest.params,
+              manifestHash: r.manifestHash,
+              model: r.model, provider: r.provider,
+              toolsDeclared: r.toolsDeclared, toolsAvailable: r.toolsAvailable,
+              promptTokens: r.promptTokens, completionTokens: r.completionTokens,
+              durationMs: r.durationMs, mocked: r.mocked,
+              output: r.output,
+            });
+          } catch (e) {
+            out.push({ id, ok: false, error: (e as Error).message.slice(0, 300) });
+          }
+        }
+        return json({ results: out });
       }
 
       if (p === "/api/mine" && req.method === "POST") {

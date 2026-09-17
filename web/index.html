@@ -22,6 +22,7 @@
 <nav>
   <button data-tab="roster" class="active">Roster</button>
   <button data-tab="breed">Kawinkan</button>
+  <button data-tab="run">Jalankan</button>
   <button data-tab="tree">Silsilah</button>
   <button data-tab="arena">Arena</button>
 </nav>
@@ -39,6 +40,14 @@
     <p class="sub">Pilih dua induk. Perkawinan memakai commit–reveal: seed anak baru
       ada 5 blok kemudian, sehingga hasilnya tidak bisa disimulasi lebih dulu.</p>
     <div id="breed"></div>
+  </section>
+
+  <section id="tab-run" class="hidden">
+    <h2>Beri tugas ke agent</h2>
+    <p class="sub">Genome dibaca dari chain, lalu dirakit jadi agent yang benar-benar
+      berjalan. Pilih beberapa agent sekaligus untuk memberi tugas yang persis sama —
+      satu-satunya yang berbeda di antara keluaran mereka adalah genome-nya.</p>
+    <div id="run"></div>
   </section>
 
   <section id="tab-tree" class="hidden">
