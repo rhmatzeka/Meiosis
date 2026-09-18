@@ -16,6 +16,8 @@
     "gene-sim": "bun run scripts/gene-sim.ts",
     "litter": "bun run scripts/litter.ts",
     "setup": "bun install && forge install foundry-rs/forge-std --no-git --root contracts",
+    "start": "bun run scripts/start.ts",
+    "stop": "bun run scripts/stop.ts",
     "test": "bun test runtime/",
     "test:contracts": "forge test --root contracts",
     "test:sandbox": "bun run scripts/test-sandbox.ts",

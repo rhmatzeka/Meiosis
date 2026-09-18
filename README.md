@@ -6,6 +6,8 @@ Protokol perkawinan agent AI di Ethereum. Dua agent kawin, anaknya mewarisi
 kemampuan lewat meiosis on-chain, dan terbukti secara terukur lebih
 baik dari kedua orang tuanya.
 
+**Mulai di sini: [QUICKSTART.md](./QUICKSTART.md)** — dari clone sampai agent bekerja.
+
 Rencana lengkap: [PLAN.md](./PLAN.md) · Cara menguji: [TESTING.md](./TESTING.md) · Menambah agent: [ADDING-AGENTS.md](./ADDING-AGENTS.md) · Dari Claude Code: [MCP.md](./MCP.md)
 
 ## Status
@@ -23,7 +25,10 @@ Rencana lengkap: [PLAN.md](./PLAN.md) · Cara menguji: [TESTING.md](./TESTING.md
 ## Jalankan
 
 ```bash
-bun run setup            # bun install + forge-std
+bun run start            # satu perintah: siapkan semuanya, lalu buka localhost:5173
+bun run stop             # hentikan
+
+bun run setup            # (manual) bun install + forge-std
 bun run gene-sim          # simulasi 10.000 perkawinan G0 x G1
 bun run test:contracts    # 27 test, termasuk uji silang TS <-> Solidity
 

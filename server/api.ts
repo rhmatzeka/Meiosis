@@ -148,6 +148,20 @@ async function deployAll(): Promise<Deployment> {
     await send(hatchery, abis.hatchery, wallets[owners[i]], "listForStud", [i + 1, 0n]);
   }
 
+  /**
+   * Catat manifestHash tiap founder saat itu juga.
+   *
+   * Hash ini turunan murni dari genome yang sudah ada di chain, jadi tidak ada
+   * alasan menunggu pengguna mengkliknya satu per satu. Membiarkannya kosong
+   * berarti klaim paling penting proyek ini — bahwa agent yang dijalankan
+   * terbukti agent yang tercatat — tidak terlihat sama sekali di menit pertama.
+   */
+  for (let id = 1; id <= 4; id++) {
+    const genome = (await read(registry, abis.registry, "genomeOf", [id])) as bigint;
+    const hash = manifestHash(expand(genome, 0n));
+    await send(registry, abis.registry, wallets[owners[id - 1]], "setManifestHash", [id, hash]);
+  }
+
   const out: Deployment = { registry, genesis, hatchery, skills, block: Number(await pub.getBlockNumber()) };
   saveDeployment(out);
   return out;
@@ -279,6 +293,16 @@ Bun.serve({
         if (!dep) return json({ error: "belum di-deploy" }, 400);
         const { pid } = (await req.json()) as { pid: number };
         const r = await send(dep.hatchery, abis.hatchery, wallets[1], "hatch", [pid]);
+
+        // Anak yang baru lahir langsung dicatat manifest-nya, sama seperti founder.
+        try {
+          const id = Number(await read(dep.registry, abis.registry, "totalMinted"));
+          const genome = (await read(dep.registry, abis.registry, "genomeOf", [id])) as bigint;
+          const owner = ((await read(dep.registry, abis.registry, "ownerOf", [id])) as string).toLowerCase();
+          const w = wallets.find((x) => x.account.address.toLowerCase() === owner) ?? wallets[0];
+          await send(dep.registry, abis.registry, w, "setManifestHash", [id, manifestHash(expand(genome, 0n))]);
+        } catch { /* pencatatan manifest bukan alasan menggagalkan kelahiran */ }
+
         return json({ ok: true, block: Number(r.blockNumber) });
       }
 
