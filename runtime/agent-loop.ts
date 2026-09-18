@@ -61,6 +61,10 @@ export async function runAgentLoop(opts: {
   task: string;
   maxSteps?: number;
   maxChecks?: number;
+  /** Menghubungkan agent ini ke agent lain. Lihat tools/index.ts. */
+  consult?: (agentId: number, question: string) => Promise<string>;
+  depth?: number;
+  maxDepth?: number;
   onStep?: (s: LoopStep) => void;
 }): Promise<LoopResult> {
   const started = performance.now();
@@ -71,7 +75,10 @@ export async function runAgentLoop(opts: {
   const hasCheck = byName.has("run_check");
 
   const maxSteps = Math.min(opts.maxSteps ?? agent.manifest.params.maxSteps, 24);
-  const ctx: ToolContext = { ws, checks: 0, maxChecks: opts.maxChecks ?? 4 };
+  const ctx: ToolContext = {
+    ws, checks: 0, maxChecks: opts.maxChecks ?? 4,
+    consult: opts.consult, depth: opts.depth ?? 0, maxDepth: opts.maxDepth ?? 1,
+  };
 
   const system = `${agent.systemPrompt}\n\n---\n\n${PREAMBLE}${
     hasCheck ? "" : "\n\nCatatan: kamu TIDAK punya run_check, jadi kodemu tidak bisa diuji. Tulis sekali dengan hati-hati."

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "meiosis": {
+      "command": "bun",
+      "args": ["run", "mcp/server.ts"],
+      "env": {
+        "MEIOSIS_API": "http://127.0.0.1:5173"
+      }
+    }
+  }
+}

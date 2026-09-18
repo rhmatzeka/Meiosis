@@ -313,6 +313,24 @@ Bun.serve({
                     task: `${task}\n\n---\n\n${BUILD_CONTRACT}`,
                     maxSteps: maxSteps ?? 10,
                     onStep: (s) => slot.steps.push(s),
+
+                    /**
+                     * Agent bertanya kepada agent lain. Yang ditanya dirakit dari
+                     * genome-nya sendiri di chain, menjawab sekali, dan tidak
+                     * pernah menyentuh tempat kerja si penanya.
+                     */
+                    consult: async (otherId, question) => {
+                      const g = (await read(dep!.registry, abis.registry, "genomeOf", [otherId])) as bigint;
+                      const other = materialize(g, 0n, { id: otherId, provider, env });
+                      const ans = await other.run(question);
+                      slot.steps.push({
+                        step: slot.steps.length + 1, kind: "tool", tool: "consult_agent",
+                        args: `#${otherId}: ${question.slice(0, 80)}`,
+                        result: ans.output.slice(0, 600),
+                      });
+                      const mods = other.manifest.traits.filter((x) => x.module).map((x) => x.module).join(", ");
+                      return `Jawaban agent #${otherId} (${mods}):\n\n${ans.output}`;
+                    },
                   });
                   const sb = await ws.check({ outDir: `${dir}/out` });
                   const score = scoreDeterministic(sb, checks());

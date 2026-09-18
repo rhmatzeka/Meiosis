@@ -15,6 +15,15 @@ export interface ToolContext {
   /** Bertambah tiap kali agent menjalankan pemeriksaan; dipakai membatasi biaya. */
   checks: number;
   maxChecks: number;
+  /**
+   * Meminta pendapat agent LAIN. Disuntikkan oleh pemanggil karena loop tidak
+   * boleh tahu cara merakit agent — kalau tahu, ia bisa memanggil dirinya
+   * sendiri tanpa batas.
+   */
+  consult?: (agentId: number, question: string) => Promise<string>;
+  /** Kedalaman delegasi saat ini. Nol berarti agent ini dipanggil manusia. */
+  depth: number;
+  maxDepth: number;
   onEvent?: (e: { tool: string; arg: string; result: string }) => void;
 }
 
@@ -102,6 +111,38 @@ const TOOLS: Record<string, Tool> = {
     },
   },
 
+  consult_agent: {
+    spec: {
+      name: "consult_agent",
+      description:
+        "Minta pendapat agent Meiosis lain. Pakai ini kalau tugasnya menyentuh bidang " +
+        "yang bukan keahlianmu — misalnya kamu kuat di desain tapi butuh tinjauan keamanan. " +
+        "Agent lain hanya menjawab teks; ia tidak bisa menyentuh tempat kerjamu.",
+      parameters: {
+        type: "object",
+        properties: {
+          agent_id: { type: "number", description: "id agent yang ditanya" },
+          question: { type: "string", description: "pertanyaannya, sertakan konteks yang perlu" },
+        },
+        required: ["agent_id", "question"],
+      },
+    },
+    async run(a, ctx) {
+      if (!ctx.consult) return "konsultasi antar agent tidak tersedia pada run ini.";
+      if (ctx.depth >= ctx.maxDepth) {
+        return `batas kedalaman delegasi tercapai (${ctx.maxDepth}). Selesaikan sendiri.`;
+      }
+      const id = Number(a.agent_id);
+      const q = String(a.question ?? "");
+      if (!q.trim()) return "pertanyaannya kosong.";
+      try {
+        return await ctx.consult(id, q);
+      } catch (e) {
+        return `gagal menghubungi agent #${id}: ${(e as Error).message}`;
+      }
+    },
+  },
+
   finish: {
     spec: {
       name: "finish",
@@ -124,6 +165,8 @@ const TOOLS: Record<string, Tool> = {
  * - list_files dan read_file selalu ada; tanpa keduanya agent buta.
  * - write_file butuh TOOL_TIER minimal standard.
  * - run_check butuh TOOL_TIER full ATAU MCP_SET_A yang memuat build.
+ * - consult_agent butuh MCP_SET_B yang memuat jaringan. Agent yang tidak
+ *   membawanya bekerja sendirian, dan itu konsekuensi genomenya.
  *
  * Agent dengan TOOL_TIER basic tetap bisa bekerja, tapi hanya sekali jalan —
  * dan itu memang konsekuensi genomenya, bukan keterbatasan sistem.
@@ -136,6 +179,10 @@ export function toolsFor(manifest: Manifest): Tool[] {
   const out: Tool[] = [TOOLS.list_files, TOOLS.read_file];
   if (tier >= 1) out.push(TOOLS.write_file);
   if (tier >= 2 || mcpA === 1 || mcpA === 3) out.push(TOOLS.run_check);
+
+  const mcpB = trait(LOCUS.MCP_SET_B); // 0 none, 1 web, 2 data, 3 web+data
+  if (mcpB >= 1) out.push(TOOLS.consult_agent);
+
   out.push(TOOLS.finish);
   return out;
 }
