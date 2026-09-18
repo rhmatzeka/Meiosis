@@ -91,6 +91,18 @@ const TOOLS: Record<string, Tool> = {
         return `batas pemeriksaan tercapai (${ctx.maxChecks}). Selesaikan dengan kode yang ada sekarang.`;
       }
       ctx.checks++;
+
+      // Di direktori nyata, yang dijalankan adalah perintah milik pengguna.
+      if (ctx.ws.mode === "attached") {
+        const c = await ctx.ws.runCheckCommand();
+        return [
+          `perintah: ${ctx.ws.checkCommand ?? "(tidak ada)"}`,
+          c.ok ? "LOLOS" : "GAGAL",
+          "",
+          c.output.slice(-2500),
+        ].join("\n");
+      }
+
       const r = await ctx.ws.check({ quick: true });
 
       if (r.timedOut) return "pemeriksaan melewati batas waktu.";

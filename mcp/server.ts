@@ -76,7 +76,20 @@ const TOOLS = [
       type: "object",
       properties: {
         agent_id: { type: "number" },
-        task: { type: "string", description: "tugas coding; proyeknya Vite + React + TypeScript" },
+        task: { type: "string", description: "tugas codingnya" },
+        workdir: {
+          type: "string",
+          description:
+            "Direktori nyata tempat agent bekerja, relatif terhadap folder proyek Meiosis. " +
+            "Kalau dikosongkan, agent memakai kerangka Vite + React bawaan dan hasilnya " +
+            "dibangun serta diberi skor rubrik.",
+        },
+        check_command: {
+          type: "string",
+          description:
+            "Perintah yang dijalankan agent untuk memeriksa pekerjaannya di direktori nyata, " +
+            'misalnya "bun test" atau "npx tsc --noEmit". Dijalankan di dalam sandbox, bukan di host.',
+        },
       },
       required: ["agent_id", "task"],
     },
@@ -132,6 +145,7 @@ async function call(name: string, args: Json): Promise<Json> {
     case "meiosis_run": {
       const { jobId } = (await post("/api/run", {
         ids: [args.agent_id], task: args.task, mode: "agent",
+        workdir: args.workdir, checkCommand: args.check_command,
       })) as { jobId: string };
       const j = (await waitJob(jobId)) as { results?: Record<string, unknown>[] };
       const r = j.results?.[0];
@@ -140,6 +154,21 @@ async function call(name: string, args: Json): Promise<Json> {
       const loop = r.loop as { steps: { step: number; tool?: string; kind: string }[]; finished: boolean; reason: string; checks: number };
       const b = r.built as Record<string, unknown>;
       const jejak = loop.steps.map((s) => `${s.step}. ${s.tool ?? s.kind}`).join("\n");
+
+      if (b?.attached) {
+        return text([
+          `agent #${r.id} (${(r.modules as string[]).join(", ")})`,
+          `bekerja di ${b.dir}`,
+          ``,
+          `LANGKAH:`, jejak,
+          ``,
+          `PEMERIKSAAN (${b.checkCommand ?? "tidak ada"}): ${b.checkOk ? "LOLOS" : "GAGAL"}`,
+          String(b.checkOutput ?? "").slice(-1500),
+          ``,
+          `Berkas sudah diubah langsung di direktori itu.`,
+        ].join("\n"));
+      }
+
       const lines = (b.lines as { key: string; points: number; max: number; detail: string }[])
         .map((l) => `  ${l.key}: ${l.points}/${l.max} — ${l.detail}`).join("\n");
 

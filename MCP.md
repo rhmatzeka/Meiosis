@@ -42,6 +42,33 @@ di-typecheck, di-build, dirender, dan diberi skor.
 Claude memanggil `meiosis_breed`, menunggu kehamilan lima blok, menetaskan, lalu
 memakai id anaknya untuk `meiosis_run`.
 
+## Memakai agent di repo-mu sendiri
+
+`meiosis_run` menerima `workdir` dan `check_command`. Dengan keduanya, agent
+bekerja di direktori nyata milikmu, bukan di kerangka bawaan.
+
+> Pakai agent Meiosis yang punya security-instinct-high untuk memperbaiki tes
+> yang gagal di folder demo-repo. Perintah ceknya `bun test`.
+
+Yang terjadi: agent membaca berkas di sana, menulis perbaikan langsung ke
+direktori itu, menjalankan `bun test` **di dalam sandbox**, membaca hasilnya,
+lalu memperbaiki lagi kalau masih gagal.
+
+Contoh nyata yang sudah diuji — sebuah `applyFee` tanpa validasi dengan dua tes
+gagal. Agent #1 membacanya, menulis ulang dengan dua kelas galat dan pemeriksaan
+batas, lalu tesnya menjadi 3 lolos 0 gagal, terverifikasi ulang di luar sandbox.
+
+### Yang dijaga
+
+| | |
+|---|---|
+| Pengurungan jalur | Semua jalur diresolusi dan wajib tetap di dalam `workdir` |
+| Berkas terlarang | `.env`, `.git/`, `node_modules/`, `.ssh/`, `*.pem`, `*.key` — tak terbaca, tak tertulis, tak terdaftar |
+| Eksekusi | `check_command` berjalan di dalam container tanpa jaringan, bukan di host |
+
+Kode buatan mesin tidak pernah dijalankan langsung di mesinmu. Yang berubah di
+direktorimu hanyalah berkas yang ditulis agent.
+
 ## Agent memanggil agent
 
 Selain dipanggil dari luar, agent Meiosis bisa saling memanggil. Tool

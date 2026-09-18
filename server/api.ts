@@ -24,7 +24,7 @@ import { runAgentLoop } from "../runtime/agent-loop";
 import { toolsFor } from "../runtime/tools";
 import { runInSandbox } from "../sandbox/run";
 import { scoreDeterministic, type Checks } from "../arena/scorers/deterministic";
-import { mkdirSync, cpSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 
 const PORT = Number(process.env.UI_PORT ?? 5173);
 let dep: Deployment | null = loadDeployment();
@@ -53,6 +53,26 @@ interface Job {
   error?: string;
 }
 const jobs = new Map<string, Job>();
+const JOB_DIR = ".runs/jobs";
+
+/**
+ * Job juga ditulis ke disk. Menyimpannya hanya di memori berarti satu restart
+ * server menghapus hasil yang sudah dibayar dengan kuota dan waktu — dan itu
+ * sempat terjadi pada perbandingan induk vs anak.
+ */
+const saveJob = (j: Job) => {
+  try {
+    mkdirSync(JOB_DIR, { recursive: true });
+    writeFileSync(`${JOB_DIR}/${j.id}.json`, JSON.stringify(j));
+  } catch { /* penyimpanan bukan jalur kritis */ }
+};
+
+const loadJob = (id: string): Job | null => {
+  try {
+    const f = `${JOB_DIR}/${id}.json`;
+    return existsSync(f) ? (JSON.parse(readFileSync(f, "utf8")) as Job) : null;
+  } catch { return null; }
+};
 
 // Job lama dibuang supaya memori tidak menumpuk selama server hidup lama.
 const pruneJobs = () => {
@@ -278,9 +298,13 @@ Bun.serve({
 
       if (p === "/api/run" && req.method === "POST") {
         if (!dep) return json({ error: "belum di-deploy" }, 400);
-        const { ids, task, mock, mode, maxSteps } = (await req.json()) as {
+        const { ids, task, mock, mode, maxSteps, workdir, checkCommand } = (await req.json()) as {
           ids: number[]; task: string; mock?: boolean;
           mode?: "single" | "agent"; maxSteps?: number;
+          /** Direktori nyata tempat agent bekerja. Kosong = kerangka bawaan. */
+          workdir?: string;
+          /** Perintah pemeriksaan untuk direktori nyata, mis. "bun test". */
+          checkCommand?: string;
         };
         if (!task?.trim()) return json({ error: "tugas kosong" }, 400);
         if (!ids?.length) return json({ error: "belum ada agent dipilih" }, 400);
@@ -290,6 +314,7 @@ Bun.serve({
         const job: Job = { id: jobId, status: "running", startedAt: Date.now(), task, agents: {} };
         for (const id of ids) job.agents[id] = { steps: [], done: false };
         jobs.set(jobId, job);
+        saveJob(job);
 
         // Dijalankan tanpa ditunggu; kemajuannya diambil lewat /api/job.
         void (async () => {
@@ -307,7 +332,9 @@ Bun.serve({
                 if (mode === "agent" && !mock) {
                   slot.tools = toolsFor(agent.manifest).map((x) => x.spec.name);
                   const dir = `.runs/${Date.now()}-${id}`;
-                  const ws = new Workspace(`${dir}/ws`);
+                  const ws = workdir
+                    ? new Workspace(workdir, { attach: true, checkCommand })
+                    : new Workspace(`${dir}/ws`);
                   const loop = await runAgentLoop({
                     agent, provider: provider!, ws,
                     task: `${task}\n\n---\n\n${BUILD_CONTRACT}`,
@@ -332,8 +359,24 @@ Bun.serve({
                       return `Jawaban agent #${otherId} (${mods}):\n\n${ans.output}`;
                     },
                   });
-                  const sb = await ws.check({ outDir: `${dir}/out` });
-                  const score = scoreDeterministic(sb, checks());
+                  // Di direktori nyata, build dan skor rubrik tidak berlaku —
+                  // proyeknya belum tentu Vite + React. Yang dilaporkan adalah
+                  // hasil perintah pemeriksaan milik pengguna.
+                  let built: unknown = null;
+                  if (ws.mode === "attached") {
+                    const c = await ws.runCheckCommand();
+                    built = {
+                      dir: workdir, attached: true, files: Object.keys(ws.snapshot()).slice(0, 80),
+                      checkCommand, checkOk: c.ok, checkOutput: c.output.slice(-3000),
+                      typecheckOk: c.ok, buildOk: c.ok, rendersOk: c.ok,
+                      score: 0, scoreMax: 0, gated: false, lines: [],
+                      axe: [], consoleErrors: [], shot: null, shotMobile: null,
+                      buildLog: c.output.slice(-1500), durationMs: 0, timedOut: false,
+                    };
+                  } else {
+                    const sb = await ws.check({ outDir: `${dir}/out` });
+                    built = buildInfo(dir, sb, scoreDeterministic(sb, checks()));
+                  }
                   slot.result = {
                     id, ok: true, mode: "agent", modules: slot.modules, tools: slot.tools,
                     model: slot.model, maxSteps: agent.manifest.params.maxSteps,
@@ -343,7 +386,7 @@ Bun.serve({
                       steps: loop.steps, summary: loop.summary, durationMs: loop.durationMs,
                       promptTokens: loop.totalPromptTokens, completionTokens: loop.totalCompletionTokens,
                     },
-                    built: buildInfo(dir, sb, score),
+                    built,
                     output: loop.summary,
                   };
                 } else {
@@ -370,11 +413,14 @@ Bun.serve({
                 slot.result = { id, ok: false, error: slot.error };
               }
               slot.done = true;
+              saveJob(job);
             }
             job.status = "done";
+            saveJob(job);
           } catch (e) {
             job.status = "error";
             job.error = (e as Error).message.slice(0, 300);
+            saveJob(job);
           }
         })();
 
@@ -382,7 +428,8 @@ Bun.serve({
       }
 
       if (p.startsWith("/api/job/")) {
-        const j = jobs.get(p.slice("/api/job/".length));
+        const jid = p.slice("/api/job/".length);
+        const j = jobs.get(jid) ?? loadJob(jid);
         if (!j) return json({ error: "job tidak ditemukan" }, 404);
         return json({
           id: j.id, status: j.status, error: j.error,

@@ -15,3 +15,4 @@ arena/results/*.json
 deployments/anvil.json
 .runs/
 e2e/last-run.png
+demo-repo/

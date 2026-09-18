@@ -152,3 +152,61 @@ export async function runInSandbox(
     rmSync(stage, { recursive: true, force: true });
   }
 }
+
+/**
+ * Menjalankan perintah bebas atas sekumpulan berkas, di dalam container yang
+ * sama terisolasinya.
+ *
+ * Dipakai ketika agent bekerja di direktori nyata milik pengguna, yang belum
+ * tentu proyek Vite + React. Perintah pemeriksaannya ditentukan pengguna —
+ * misalnya `bun test` atau `npm run build` — tapi tetap dieksekusi di dalam
+ * sandbox, bukan di host. Kode buatan mesin tidak pernah dijalankan langsung
+ * di mesin siapa pun.
+ */
+export async function runCommandInSandbox(
+  files: Record<string, string>,
+  command: string,
+  opts: { timeoutMs?: number; memory?: string; cpus?: string } = {},
+): Promise<{ code: number; output: string; timedOut: boolean; durationMs: number }> {
+  const started = performance.now();
+  const stage = mkdtempSync(join(tmpdir(), "meiosis-cmd-"));
+
+  try {
+    for (const [rel, content] of Object.entries(files)) {
+      const p = normalize(rel);
+      if (p.startsWith("/") || p.includes("..")) throw new Error(`jalur tidak aman: ${rel}`);
+      const dest = join(stage, p);
+      mkdirSync(dirname(dest), { recursive: true });
+      writeFileSync(dest, content, "utf8");
+    }
+
+    const created = await sh([
+      "docker", "create",
+      "--network", "none",
+      "--memory", opts.memory ?? "2g",
+      "--cpus", opts.cpus ?? "2",
+      "--pids-limit", "256",
+      "--tmpfs", "/tmp:rw,size=256m",
+      "--security-opt", "no-new-privileges",
+      "--entrypoint", "sh",
+      IMAGE, "-c", `cd /work && ${command} 2>&1 | tail -80`,
+    ]);
+    if (created.code !== 0) throw new Error(`docker create gagal: ${created.err}`);
+    const cid = created.out.trim();
+
+    try {
+      await sh(["docker", "cp", `${stage}/.`, `${cid}:/work/`]);
+      const run = await sh(["docker", "start", "-a", cid], opts.timeoutMs ?? 300_000);
+      return {
+        code: run.code,
+        output: (run.out + run.err).slice(-6000),
+        timedOut: run.killed,
+        durationMs: Math.round(performance.now() - started),
+      };
+    } finally {
+      await sh(["docker", "rm", "-f", cid]);
+    }
+  } finally {
+    rmSync(stage, { recursive: true, force: true });
+  }
+}
