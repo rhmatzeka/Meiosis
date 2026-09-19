@@ -53,7 +53,8 @@ console.log("\n\x1b[1mMEIOSIS — demo kelahiran di Anvil\x1b[0m");
 step("1. Deploy");
 const reg = await deploy("AgentRegistry");
 const gen = await deploy("Genesis", [reg.address]);
-const hat = await deploy("Hatchery", [reg.address]);
+const roy = await deploy("LineageRoyalty", [reg.address]);
+const hat = await deploy("Hatchery", [reg.address, roy.address]);
 const skl = await deploy("SkillRegistry");
 ok(`AgentRegistry  ${reg.address}`);
 ok(`Genesis        ${gen.address}`);
@@ -76,7 +77,6 @@ ok("Genesis disegel — generasi nol terkunci selamanya");
 
 step("3. Bob memasang G1 sebagai pejantan");
 await send(hat, bob, "listForStud", [2n, parseEther("0.01")]);
-const bobBefore = await pub.getBalance({ address: bob.account.address });
 ok("G1 Pixel Sense, biaya kawin 0,01 ETH");
 
 step("4. Alice mengawinkan G0 x G1");
@@ -86,8 +86,8 @@ const preg = (await read(hat, "pregnancies", [pid])) as unknown[];
 const revealBlock = Number(preg[2]);
 ok(`Kehamilan #${pid} dibuat di blok ${bred.blockNumber}`);
 ok(`Seed baru ada di blok ${revealBlock} — belum bisa disimulasi sekarang`);
-const bobAfter = await pub.getBalance({ address: bob.account.address });
-ok(`Bob menerima ${formatEther(bobAfter - bobBefore)} ETH`);
+const owed = (await read(roy, "pending", [bob.account.address])) as bigint;
+ok(`Bob dikreditkan ${formatEther(owed)} ETH di LineageRoyalty, siap ditarik`);
 
 step("5. Menunggu masa kehamilan");
 // Ini persis yang akan dikerjakan watcher di orchestrator: tunggu sampai

@@ -6,6 +6,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {AgentRegistry} from "./AgentRegistry.sol";
 import {GeneLib} from "./GeneLib.sol";
+import {LineageRoyalty} from "./LineageRoyalty.sol";
 
 /**
  * @title Hatchery
@@ -26,6 +27,13 @@ contract Hatchery is Ownable, ReentrancyGuard {
     uint32 public constant BLOCKHASH_WINDOW = 256;
 
     AgentRegistry public immutable registry;
+
+    /// @dev Stud fee tidak dikirim langsung ke pemilik, melainkan lewat royalti,
+    ///      supaya leluhur sang pejantan ikut kebagian. Lihat LineageRoyalty.
+    LineageRoyalty public immutable royalty;
+
+    bytes32 private constant STUD_MEMO = "stud";
+
     uint32 public baseCooldownBlocks = 10;
 
     struct Pregnancy {
@@ -66,8 +74,9 @@ contract Hatchery is Ownable, ReentrancyGuard {
     error OnCooldown(uint64 id, uint256 readyAt);
     error NotOwner(uint64 id);
 
-    constructor(AgentRegistry registry_) Ownable(msg.sender) {
+    constructor(AgentRegistry registry_, LineageRoyalty royalty_) Ownable(msg.sender) {
         registry = registry_;
+        royalty = royalty_;
     }
 
     // ---------------------------------------------------------------
@@ -116,8 +125,8 @@ contract Hatchery is Ownable, ReentrancyGuard {
         _requireOffCooldown(a);
         _requireOffCooldown(b);
 
-        (address ownerA, uint256 costA) = _accessCost(a);
-        (address ownerB, uint256 costB) = _accessCost(b);
+        uint256 costA = _accessCost(a);
+        uint256 costB = _accessCost(b);
         uint256 due = costA + costB;
         if (msg.value < due) revert InsufficientFee(due, msg.value);
 
@@ -134,8 +143,8 @@ contract Hatchery is Ownable, ReentrancyGuard {
         });
         emit Pregnant(pid, a, b, msg.sender, reveal);
 
-        if (costA > 0) Address.sendValue(payable(ownerA), costA);
-        if (costB > 0) Address.sendValue(payable(ownerB), costB);
+        if (costA > 0) royalty.pay{value: costA}(a, STUD_MEMO);
+        if (costB > 0) royalty.pay{value: costB}(b, STUD_MEMO);
         uint256 refund = msg.value - due;
         if (refund > 0) Address.sendValue(payable(msg.sender), refund);
     }
@@ -189,10 +198,9 @@ contract Hatchery is Ownable, ReentrancyGuard {
         if (block.number < ready) revert OnCooldown(id, ready);
     }
 
-    function _accessCost(uint64 id) internal view returns (address owner_, uint256 cost) {
-        owner_ = registry.ownerOf(id);
-        if (owner_ == msg.sender) return (owner_, 0);
+    function _accessCost(uint64 id) internal view returns (uint256) {
+        if (registry.ownerOf(id) == msg.sender) return 0;
         if (!studListed[id]) revert NotListedForStud(id);
-        cost = studFee[id];
+        return studFee[id];
     }
 }

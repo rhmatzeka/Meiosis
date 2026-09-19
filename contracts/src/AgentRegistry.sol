@@ -29,16 +29,23 @@ contract AgentRegistry is ERC721, Ownable {
     mapping(uint64 => Agent) private _agents;
     mapping(address => bool) public isMinter;
 
+    /// @dev Nama pilihan pemilik. Sengaja di luar struct Agent supaya struct itu
+    ///      tetap dua slot — nama adalah hiasan, genome dan silsilah bukan.
+    mapping(uint64 => string) public nameOf;
+
     event AgentMinted(
         uint64 indexed id, address indexed to, uint256 genome,
         uint64 indexed parentA, uint64 parentB, uint16 generation
     );
     event ManifestSet(uint64 indexed id, uint64 manifestHash);
     event MinterSet(address indexed who, bool allowed);
+    event Named(uint64 indexed id, string name);
 
     error NotMinter();
     error NoSuchAgent(uint64 id);
     error ManifestAlreadySet(uint64 id);
+    error NotAgentOwner(uint64 id);
+    error BadName();
 
     modifier onlyMinter() {
         if (!isMinter[msg.sender]) revert NotMinter();
@@ -82,6 +89,20 @@ contract AgentRegistry is ERC721, Ownable {
         emit ManifestSet(id, manifestHash);
     }
 
+    /**
+     * @notice Pemilik memberi nama agent-nya. Boleh diganti kapan saja.
+     * @dev Dibatasi 32 byte: nama tampil di kartu dan di berkas ekspor, bukan
+     *      tempat menyimpan data. Nama tidak ikut manifest, jadi tidak pernah
+     *      mengubah manifestHash.
+     */
+    function setName(uint64 id, string calldata name_) external {
+        if (_ownerOf(id) != msg.sender) revert NotAgentOwner(id);
+        uint256 n = bytes(name_).length;
+        if (n == 0 || n > 32) revert BadName();
+        nameOf[id] = name_;
+        emit Named(id, name_);
+    }
+
     function recordBreed(uint64 id) external onlyMinter {
         ++_agents[id].breedCount;
     }
@@ -103,6 +124,12 @@ contract AgentRegistry is ERC721, Ownable {
     function generationOf(uint64 id) external view returns (uint16) {
         if (!exists(id)) revert NoSuchAgent(id);
         return _agents[id].generation;
+    }
+
+    /// @notice Dipakai LineageRoyalty untuk menelusuri leluhur tanpa menyalin seluruh struct.
+    function parentsOf(uint64 id) external view returns (uint64 parentA, uint64 parentB) {
+        Agent storage a = _agents[id];
+        return (a.parentA, a.parentB);
     }
 
     function breedCountOf(uint64 id) external view returns (uint16) {

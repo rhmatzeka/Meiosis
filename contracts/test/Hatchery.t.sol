@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {AgentRegistry} from "../src/AgentRegistry.sol";
 import {Genesis} from "../src/Genesis.sol";
 import {Hatchery} from "../src/Hatchery.sol";
+import {LineageRoyalty} from "../src/LineageRoyalty.sol";
 import {GeneLib} from "../src/GeneLib.sol";
 import {Vectors} from "./Vectors.sol";
 
@@ -12,6 +13,7 @@ contract HatcheryTest is Test {
     AgentRegistry reg;
     Genesis gen;
     Hatchery hat;
+    LineageRoyalty roy;
 
     address alice = makeAddr("alice"); // pemilik G0
     address bob   = makeAddr("bob");   // pemilik G1
@@ -22,7 +24,8 @@ contract HatcheryTest is Test {
     function setUp() public {
         reg = new AgentRegistry();
         gen = new Genesis(reg);
-        hat = new Hatchery(reg);
+        roy = new LineageRoyalty(reg);
+        hat = new Hatchery(reg, roy);
 
         reg.setMinter(address(gen), true);
         reg.setMinter(address(hat), true);
@@ -166,9 +169,14 @@ contract HatcheryTest is Test {
     // ---------------------------------------------------------------
 
     function test_StudFeeGoesToParentOwner() public {
-        uint256 before = bob.balance;
         _breedG0G1();
-        assertEq(bob.balance - before, 0.01 ether, "pemilik pejantan tidak dibayar");
+        // founder tidak punya leluhur, jadi stud fee utuh untuk pemiliknya
+        assertEq(roy.pending(bob), 0.01 ether, "pemilik pejantan tidak dikreditkan");
+
+        uint256 before = bob.balance;
+        vm.prank(bob);
+        roy.withdraw();
+        assertEq(bob.balance - before, 0.01 ether, "saldo royalti tidak bisa ditarik");
     }
 
     function test_ExcessFeeRefunded() public {
