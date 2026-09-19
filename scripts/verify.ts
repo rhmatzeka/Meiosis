@@ -6,8 +6,8 @@
  */
 const steps: { name: string; cmd: string[]; needs?: string }[] = [
   { name: "Model genetik — 10.000 simulasi perkawinan", cmd: ["bun", "run", "scripts/gene-sim.ts"] },
-  { name: "Kontrak — 27 test Foundry", cmd: ["forge", "test", "--root", "contracts"] },
-  { name: "Runtime — 36 test, termasuk 20 berkas acuan", cmd: ["bun", "test", "runtime/"] },
+  { name: "Kontrak — 38 test Foundry", cmd: ["forge", "test", "--root", "contracts"] },
+  { name: "Runtime — 39 test, termasuk 20 berkas acuan", cmd: ["bun", "test", "runtime/"] },
   { name: "Sandbox — kode benar vs kode rusak", cmd: ["bun", "run", "scripts/test-sandbox.ts"], needs: "docker" },
 ];
 

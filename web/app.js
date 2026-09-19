@@ -12,7 +12,7 @@ const KEY_LOCI = ["SECURITY_INSTINCT", "AESTHETIC", "TEST_RIGOR", "STACK_AFFINIT
 const GEN_COLOR = ["var(--g0)", "var(--child)", "var(--g1)", "var(--accent)"];
 
 let state = {
-  status: null, agents: [], pregs: [], sel: [],
+  status: null, agents: [], pregs: [], sel: [], wallet: null, royalty: {},
   runSel: [], runBusy: false, runOut: null,
   jobId: null, jobLive: null,
 };
@@ -22,6 +22,121 @@ const TASK_CONTOH = [
   ["Landing page", `Buat landing page untuk dApp staking bernama Epoch: hero, cara kerja, tabel APY.\nBalas dengan kode saja.`],
   ["Audit singkat", `Tinjau potongan kode ini dan sebutkan masalahnya:\n\nfunction Balance({ html }) { return <div dangerouslySetInnerHTML={{__html: html}} /> }`],
 ];
+
+// --- wallet ---
+//
+// Tanpa pustaka dan tanpa build step: wallet browser (MetaMask dan sejenisnya)
+// diajak bicara lewat EIP-1193 apa adanya. Calldata disusun server di /api/tx,
+// ditandatangani di sini oleh wallet pengguna — server tidak pernah memegang
+// kuncinya.
+
+const eth = () => window.ethereum;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const short = (a) => a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "";
+const same = (a, b) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
+
+let toastTimer;
+function toast(msg, kind = "") {
+  const t = $("#toast");
+  t.textContent = msg; t.className = `toast ${kind}`;
+  clearTimeout(toastTimer);
+  if (kind) toastTimer = setTimeout(() => t.classList.add("hidden"), kind === "bad" ? 9000 : 4000);
+}
+
+async function ensureChain() {
+  const want = "0x" + state.status.chainId.toString(16);
+  if ((await eth().request({ method: "eth_chainId" })) === want) return;
+  try {
+    await eth().request({ method: "wallet_switchEthereumChain", params: [{ chainId: want }] });
+  } catch (e) {
+    // 4902: wallet belum mengenal chain ini. Sepolia sudah bawaan; Anvil belum.
+    if (e.code !== 4902 || !state.status.local) throw e;
+    await eth().request({ method: "wallet_addEthereumChain", params: [{
+      chainId: want, chainName: "Anvil lokal", rpcUrls: [state.status.rpc],
+      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    }] });
+  }
+}
+
+async function connectWallet() {
+  if (!eth()) {
+    toast("Tidak ada wallet di browser ini. Pasang MetaMask (metamask.io) atau wallet EVM lain, lalu muat ulang.", "bad");
+    return;
+  }
+  try {
+    const [addr] = await eth().request({ method: "eth_requestAccounts" });
+    await ensureChain();
+    state.wallet = addr;
+    try { localStorage.setItem("wallet", "1"); } catch {}
+    await refresh(true);
+  } catch (e) { toast(e.message ?? String(e), "bad"); }
+}
+
+function disconnectWallet() {
+  state.wallet = null;
+  try { localStorage.removeItem("wallet"); } catch {}
+  refresh();
+}
+
+if (eth()) {
+  eth().on?.("accountsChanged", (a) => { state.wallet = a[0] ?? null; refresh(true); });
+  eth().on?.("chainChanged", () => refresh(true));
+}
+
+/** Pesan galat wallet dan viem yang panjang diringkas jadi satu kalimat. */
+const why = (e) => {
+  const m = e?.data?.message ?? e?.message ?? String(e);
+  if (e?.code === 4001) return "dibatalkan di wallet";
+  return (m.match(/reverted with custom error '([^']+)'/)?.[1] ?? m.match(/execution reverted:?\s*(.*)/)?.[1] ?? m).slice(0, 200);
+};
+
+async function sendTx(action, args) {
+  const tx = await post("/api/tx", { action, args, from: state.wallet });
+  if (tx.error) throw new Error(tx.error);
+  await ensureChain();
+  toast(`konfirmasi di wallet: ${tx.label}…`);
+  const hash = await eth().request({ method: "eth_sendTransaction", params: [{ from: state.wallet, to: tx.to, data: tx.data, value: tx.value }] });
+  toast(`menunggu blok: ${tx.label}…`);
+  for (let i = 0; i < 200; i++) {
+    const r = await eth().request({ method: "eth_getTransactionReceipt", params: [hash] });
+    if (r) {
+      if (r.status !== "0x1") throw new Error(`${tx.label} revert di chain`);
+      return { hash, label: tx.label };
+    }
+    await sleep(1500);
+  }
+  throw new Error("transaksi belum juga masuk blok — cek di wallet");
+}
+
+/**
+ * Satu pintu untuk semua aksi on-chain. Dengan wallet: ditandatangani pengguna.
+ * Tanpa wallet di Anvil: ditandatangani server memakai akun demo. Tanpa wallet
+ * di Sepolia: minta hubungkan wallet dulu.
+ */
+async function act(action, args = {}, opts = {}) {
+  try {
+    let done;
+    if (state.wallet) done = await sendTx(action, args);
+    else if (state.status.local) {
+      toast("mengirim transaksi dengan akun demo…");
+      const r = await post("/api/local-act", { action, args, as: opts.as });
+      if (r.error) throw new Error(r.error);
+      done = { hash: r.hash, label: `${action} oleh ${r.by}` };
+    } else { toast("Hubungkan wallet dulu untuk bertransaksi.", "bad"); return null; }
+    toast(`✓ ${done.label}`, "ok");
+    await refresh(true);
+    return done;
+  } catch (e) {
+    toast(why(e), "bad");
+    return null;
+  }
+}
+
+/** Siapa "aku" di halaman ini: wallet yang terhubung, atau Alice di demo lokal. */
+const me = () => state.wallet ?? (state.status?.local ? state.status.accounts?.[1]?.address : null);
+const canManage = (a) => state.wallet ? same(a.owner, state.wallet) : !!state.status?.local;
+
+$("#btn-wallet").onclick = () => state.wallet ? disconnectWallet() : connectWallet();
 
 // --- tab ---
 document.querySelectorAll("nav button").forEach((b) => b.onclick = () => {
@@ -40,70 +155,143 @@ $("#btn-theme").onclick = () => {
 try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch {}
 
 // --- status ---
-async function refresh() {
+async function refresh(fresh = false) {
   state.status = await api("/api/status");
-  const live = state.status.chainLive;
+  const st = state.status;
+  const live = st.chainLive;
+  const net = st.local ? "anvil" : st.chain;
   $("#dot-chain").classList.toggle("on", live);
-  $("#s-chain").textContent = live ? (state.status.deployed ? "anvil · ter-deploy" : "anvil · belum deploy") : "anvil mati";
-  $("#s-block").textContent = live ? `blok ${state.status.block}` : "blok —";
+  $("#s-chain").textContent = live ? (st.deployed ? `${net} · ter-deploy` : `${net} · belum deploy`) : `${net} tidak terjangkau`;
+  $("#s-block").textContent = live ? `blok ${st.block}` : "blok —";
+  $("#btn-wallet").textContent = state.wallet ? `${short(state.wallet)} · putus` : "Hubungkan wallet";
 
-  if (live && state.status.deployed) {
-    [state.agents, state.pregs] = await Promise.all([api("/api/agents"), api("/api/pregnancies")]);
+  if (live && st.deployed) {
+    const q = fresh ? "?fresh=1" : "";
+    [state.agents, state.pregs] = await Promise.all([api("/api/agents" + q), api("/api/pregnancies" + q)]);
+    const who = state.wallet ? [state.wallet] : st.local ? st.accounts.map((a) => a.address) : [];
+    const bal = await Promise.all(who.map((a) => api(`/api/royalty?address=${a}`)));
+    state.royalty = Object.fromEntries(who.map((a, i) => [a, bal[i].pendingEth]));
   } else {
-    state.agents = []; state.pregs = [];
+    state.agents = []; state.pregs = []; state.royalty = {};
   }
-  renderRoster(); renderBreed(); renderTree();
+  renderWallet(); renderRoster(); renderBreed(); renderTree();
   // tab Jalankan hanya digambar ulang saat idle, agar hasil tidak hilang
   if (!state.runBusy && !state.runOut && !state.jobLive) renderRun();
 }
 
 function needChain() {
-  if (!state.status?.chainLive) return el(`<div class="note bad">
-    <b>Anvil belum jalan.</b> Buka terminal lain lalu jalankan <code>bun run anvil</code>,
-    halaman ini akan menyambung sendiri.</div>`);
-  if (!state.status.deployed) {
+  const st = state.status;
+  if (!st?.chainLive) return el(st?.local
+    ? `<div class="note bad"><b>Anvil belum jalan.</b> Buka terminal lain lalu jalankan <code>bun run anvil</code>,
+       halaman ini akan menyambung sendiri.</div>`
+    : `<div class="note bad"><b>RPC ${esc(st?.chain ?? "")} tidak terjangkau.</b> Server akan mencoba lagi sendiri.</div>`);
+  if (!st.deployed) {
+    if (!st.local) return el(`<div class="note"><b>Kontrak belum ter-deploy ke ${esc(st.chain)}.</b>
+      Jalankan <code>bun run deploy:sepolia</code> dari terminal, lalu muat ulang halaman ini.</div>`);
     const n = el(`<div class="note"><b>Kontrak belum ter-deploy.</b>
-      Sekali klik: deploy empat kontrak, mint empat founder ke tiga pemilik berbeda, lalu segel generasi nol.
+      Sekali klik: deploy lima kontrak, daftarkan modul skill, mint empat founder ke tiga pemilik berbeda, lalu segel generasi nol.
       <div class="row mt"><button class="act" id="btn-deploy">Deploy &amp; mint generasi nol</button></div></div>`);
     n.querySelector("#btn-deploy").onclick = async (e) => {
-      e.target.disabled = true; e.target.textContent = "men-deploy…";
+      e.target.disabled = true; e.target.textContent = "men-deploy… (±1 menit)";
       const r = await post("/api/deploy");
-      if (r.error) { e.target.disabled = false; e.target.textContent = "Coba lagi"; alert(r.error); return; }
-      await refresh();
+      if (r.error) { e.target.disabled = false; e.target.textContent = "Coba lagi"; toast(r.error, "bad"); return; }
+      await refresh(true);
     };
     return n;
   }
   return null;
 }
 
+// --- dompet & royalti ---
+function renderWallet() {
+  const box = $("#wallet-panel"); box.innerHTML = "";
+  const st = state.status;
+  if (!st?.deployed) return;
+
+  if (!state.wallet && !st.local) {
+    const n = el(`<div class="note">Hubungkan wallet (MetaMask atau sejenisnya, jaringan ${esc(st.chainName)})
+      untuk mengawinkan agent, memberi nama agent-mu, memasang tarif kawin, dan menarik royalti.
+      <div class="row mt"><button class="act" id="wp-connect">Hubungkan wallet</button></div></div>`);
+    n.querySelector("#wp-connect").onclick = connectWallet;
+    box.append(n);
+    return;
+  }
+
+  const rows = Object.entries(state.royalty);
+  const card = el(`<div class="card" style="margin-bottom:14px">
+    <h3>${state.wallet ? "Dompetmu" : "Akun demo"} <span class="gen">${state.wallet
+      ? `${esc(short(state.wallet))} · ${state.agents.filter((a) => same(a.owner, state.wallet)).length} agent milikmu`
+      : "tanpa wallet, transaksi ditandatangani server dengan akun bawaan Anvil"}</span></h3>
+    <table class="mt"><thead><tr><th>akun</th><th class="num">royalti siap ditarik</th><th></th></tr></thead><tbody></tbody></table>
+    <div class="gen mt">Setiap bayaran ke sebuah agent — sewa atau tarif kawin — 5% mengalir ke pemilik induknya,
+      2,5% ke kakek-neneknya, dan seterusnya sampai empat generasi.</div>
+  </div>`);
+  const tb = card.querySelector("tbody");
+  for (const [addr, v] of rows) {
+    const acc = st.accounts?.find((a) => same(a.address, addr));
+    const tr = el(`<table><tr><td>${esc(acc?.name ?? "kamu")} <span class="gen mono">${esc(short(addr))}</span></td>
+      <td class="num">${esc(v)} ETH</td>
+      <td class="num"><button class="act ghost sm" ${Number(v) > 0 ? "" : "disabled"}>Tarik</button></td></tr></table>`).querySelector("tr");
+    tr.querySelector("button").onclick = () => act("withdraw", {}, { as: addr });
+    tb.append(tr);
+  }
+  box.append(card);
+}
+
 // --- roster ---
 function agentCard(a, opts = {}) {
   const hi = a.traits.filter((t) => KEY_LOCI.includes(t.name));
+  const mine = state.wallet && same(a.owner, state.wallet);
+  const explorer = state.status?.explorer;
   const c = el(`<div class="card${opts.sel ? " sel" : ""}">
     <h3><span style="color:${GEN_COLOR[a.generation % 4]}">●</span> ${esc(a.name)}
-      <span class="gen">#${a.id} · gen ${a.generation} · ${esc(a.ownerName)}</span></h3>
+      <span class="gen">#${a.id} · gen ${a.generation} · ${mine ? '<span class="mine">milikmu</span>' : esc(a.ownerName)}</span></h3>
     <div class="traits">${hi.map((t) => `<span class="trait hi">${t.name.toLowerCase().replace(/_/g, " ")} <b>${esc(t.value)}</b></span>`).join("")}</div>
     <div class="traits">${a.modules.map((m) => `<span class="trait">${esc(m)}</span>`).join("") || '<span class="trait">tanpa modul</span>'}</div>
     <dl class="kv">
       <dt>genome</dt><dd class="mono">${a.genome.slice(0, 22)}…</dd>
       <dt>tier</dt><dd>${a.modelTier} · temp ${a.params.temperature} · ${a.params.maxTokens} token</dd>
       ${a.parents[0] ? `<dt>induk</dt><dd>#${a.parents[0]} × #${a.parents[1]}</dd>` : ""}
+      <dt>kawin</dt><dd>${a.stud.listed
+        ? `<span class="badge on">pejantan · ${Number(a.stud.feeEth) ? esc(a.stud.feeEth) + " ETH" : "gratis"}</span>`
+        : '<span class="badge">tidak dibuka untuk umum</span>'}</dd>
       <dt>manifest</dt><dd class="mono">${a.manifestHashOnChain === "0x0000000000000000"
-        ? `<button class="act ghost" style="padding:2px 8px;font-size:11px" data-manifest="${a.id}">catat ke chain</button>`
+        ? (canManage(a) ? `<button class="act ghost sm" data-do="manifest">catat ke chain</button>` : "belum dicatat pemiliknya")
         : (a.manifestHashOnChain === a.manifestHashComputed
             ? `<span style="color:var(--ok)">✓ cocok</span> ${a.manifestHashOnChain.slice(0, 12)}…`
             : `<span style="color:var(--bad)">✗ beda dari hasil hitung ulang</span>`)}</dd>
     </dl>
+    ${opts.actions === false ? "" : `<div class="actions">
+      <a class="act ghost sm" href="/api/agents/${a.id}/agent.md" download title="subagent Claude Code">Ekspor .md</a>
+      <button class="act ghost sm" data-do="pay">Bayar / sewa</button>
+      ${canManage(a) ? `
+        <button class="act ghost sm" data-do="name">Beri nama</button>
+        <button class="act ghost sm" data-do="stud">${a.stud.listed ? "Ubah tarif kawin" : "Buka untuk kawin"}</button>
+        ${a.stud.listed ? '<button class="act ghost sm" data-do="unstud">Tutup kawin</button>' : ""}` : ""}
+      ${explorer ? `<a class="act ghost sm" href="${explorer}/nft/${state.status.addresses.registry}/${a.id}" target="_blank" rel="noopener noreferrer">Etherscan ↗</a>` : ""}
+    </div>`}
   </div>`);
-  const mb = c.querySelector("[data-manifest]");
-  if (mb) mb.onclick = async (ev) => {
-    ev.stopPropagation();
-    mb.disabled = true; mb.textContent = "mencatat…";
-    const r = await post("/api/manifest", { id: a.id });
-    if (r.error) { alert(r.error); mb.disabled = false; mb.textContent = "catat ke chain"; return; }
-    await refresh();
-  };
-  if (opts.onClick) c.onclick = (ev) => { if (ev.target.closest('button')) return; opts.onClick(a); };
+
+  const on = (k, fn) => { const b = c.querySelector(`[data-do="${k}"]`); if (b) b.onclick = (ev) => { ev.stopPropagation(); fn(b); }; };
+  const busy = async (b, p) => { b.disabled = true; await p; b.disabled = false; };
+  on("manifest", (b) => busy(b, act("setManifestHash", { id: a.id })));
+  on("name", (b) => {
+    const name = prompt(`Nama baru untuk agent #${a.id} (maks 32 huruf):`, a.named ? a.name : "");
+    if (name?.trim()) busy(b, act("setName", { id: a.id, name: name.trim() }));
+  });
+  on("stud", (b) => {
+    const fee = prompt(`Tarif kawin agent #${a.id} dalam ETH (0 = gratis).\nDibayar oleh siapa pun yang mengawinkan agent-mu; sebagian mengalir ke leluhurnya.`,
+      a.stud.listed ? a.stud.feeEth : "0");
+    if (fee !== null) busy(b, act("listForStud", { id: a.id, feeEth: fee.trim() || "0" }));
+  });
+  on("unstud", (b) => busy(b, act("unlistStud", { id: a.id })));
+  on("pay", (b) => {
+    const amt = prompt(`Bayar agent #${a.id} berapa ETH?\nPemiliknya menerima sisanya setelah bagian untuk leluhur.`, "0.001");
+    if (amt?.trim()) busy(b, act("pay", { id: a.id, amountEth: amt.trim(), memo: "sewa" }));
+  });
+  c.querySelectorAll("a").forEach((x) => x.onclick = (ev) => ev.stopPropagation());
+
+  if (opts.onClick) c.onclick = (ev) => { if (ev.target.closest("button, a")) return; opts.onClick(a); };
   if (opts.onClick) c.style.cursor = "pointer";
   return c;
 }
@@ -121,39 +309,44 @@ function renderRoster() {
 async function renderBreed() {
   const box = $("#breed"); box.innerHTML = "";
   const n = needChain(); if (n) { box.append(n); return; }
+  const local = state.status.local;
 
   const pending = state.pregs.filter((p) => !p.hatched);
   if (pending.length) {
     const list = el('<div class="mt"></div>');
     for (const p of pending) {
+      const forMe = same(p.to, me());
       const item = el(`<div class="card mt">
-        <h3>Kehamilan #${p.id} <span class="gen">#${p.parentA} × #${p.parentB}</span></h3>
+        <h3>Kehamilan #${p.id} <span class="gen">#${p.parentA} × #${p.parentB}${forMe ? ' · <span class="mine">anaknya untukmu</span>' : ` · untuk ${esc(short(p.to))}`}</span></h3>
         <dl class="kv">
           <dt>reveal</dt><dd>blok ${p.revealBlock}</dd>
-          <dt>status</dt><dd>${p.expired ? '<span style="color:var(--bad)">blockhash kedaluwarsa — perlu reroll</span>'
+          <dt>status</dt><dd>${p.expired ? '<span style="color:var(--bad)">blockhash kedaluwarsa — perlu dijadwalkan ulang</span>'
             : p.ready ? '<span style="color:var(--ok)">siap ditetaskan</span>'
-            : `menunggu ${p.blocksLeft} blok lagi`}</dd>
+            : `menunggu ${p.blocksLeft} blok lagi${local ? "" : ` (±${p.blocksLeft * 12} detik)`}`}</dd>
         </dl>
         <div class="row mt">
-          <button class="act" ${p.ready ? "" : "disabled"} data-hatch="${p.id}">Tetaskan</button>
-          <button class="act ghost" data-mine="1">Majukan 6 blok</button>
+          ${p.expired
+            ? `<button class="act" data-reroll="${p.id}">Jadwalkan ulang</button>`
+            : `<button class="act" ${p.ready ? "" : "disabled"} data-hatch="${p.id}">Tetaskan</button>`}
+          ${local ? '<button class="act ghost" data-mine="1">Majukan 6 blok</button>' : ""}
+          <span class="gen">siapa pun boleh menetaskan; anaknya tetap jatuh ke pemesan</span>
         </div></div>`);
-      item.querySelector("[data-hatch]").onclick = async (e) => {
-        e.target.disabled = true; e.target.textContent = "menetaskan…";
-        const r = await post("/api/hatch", { pid: p.id });
-        if (r.error) alert(r.error);
-        await refresh();
-      };
-      item.querySelector("[data-mine]").onclick = async () => { await post("/api/mine"); await refresh(); };
+      const h = item.querySelector("[data-hatch]");
+      if (h) h.onclick = async (e) => { e.target.disabled = true; e.target.textContent = "menetaskan…"; await act("hatch", { pid: p.id }); };
+      const rr = item.querySelector("[data-reroll]");
+      if (rr) rr.onclick = async (e) => { e.target.disabled = true; await act("reroll", { pid: p.id }); };
+      const m = item.querySelector("[data-mine]");
+      if (m) m.onclick = async () => { await post("/api/mine"); await refresh(true); };
       list.append(item);
     }
     box.append(list);
   }
 
-  const picker = el(`<div class="mt"><p class="sub">Pilih dua induk:</p><div class="grid" id="pick"></div></div>`);
+  const picker = el(`<div class="mt"><p class="sub">Pilih dua induk. Agent milik orang lain hanya bisa dipakai
+    kalau pemiliknya membukanya untuk kawin, dan kamu membayar tarifnya.</p><div class="grid" id="pick"></div></div>`);
   state.agents.forEach((a) => picker.querySelector("#pick").append(
     agentCard(a, {
-      sel: state.sel.includes(a.id),
+      sel: state.sel.includes(a.id), actions: false,
       onClick: (x) => {
         const i = state.sel.indexOf(x.id);
         if (i >= 0) state.sel.splice(i, 1);
@@ -166,14 +359,24 @@ async function renderBreed() {
 
   if (state.sel.length === 2) {
     const [a, b] = state.sel.map((id) => state.agents.find((x) => x.id === id));
+    if (!a || !b) { state.sel = []; return; }
     const rel = await api(`/api/relatedness?a=${a.genomeRaw}&b=${b.genomeRaw}`);
     const pct = Math.round((rel.value / 255) * 100);
+
+    // Tarif yang harus dibayar: nol untuk agent milik sendiri.
+    const who = me();
+    const cost = [a, b].map((x) => same(x.owner, who) ? { ok: true, fee: 0 }
+      : x.stud.listed ? { ok: true, fee: Number(x.stud.feeEth) } : { ok: false, fee: 0 });
+    const blocked = [a, b].filter((x, i) => !cost[i].ok);
+    const total = cost.reduce((s, c) => s + c.fee, 0);
+
     const panel = el(`<div class="card mt">
       <h3>${esc(a.name)} × ${esc(b.name)}</h3>
       <dl class="kv">
         <dt>kekerabatan</dt><dd>${rel.value}/255 (${pct}%) ${pct > 60
           ? '<span style="color:var(--warn)">— berkerabat dekat, variasi anak akan rendah</span>' : ""}</dd>
-        <dt>masa hamil</dt><dd>5 blok</dd>
+        <dt>masa hamil</dt><dd>5 blok${local ? "" : " (±1 menit)"}</dd>
+        <dt>biaya</dt><dd>${blocked.length ? "—" : total ? `${+total.toFixed(6)} ETH tarif kawin` : "gratis"}</dd>
       </dl>
       <table class="mt"><thead><tr><th>lokus</th><th>${esc(a.name)}</th><th>${esc(b.name)}</th></tr></thead><tbody>
       ${KEY_LOCI.map((k) => {
@@ -181,20 +384,24 @@ async function renderBreed() {
         return `<tr><td>${k.toLowerCase().replace(/_/g, " ")}</td><td>${esc(ta)}</td><td>${esc(tb)}</td></tr>`;
       }).join("")}
       </tbody></table>
-      <div class="row mt"><button class="act" id="go">Kawinkan</button>
-        <span class="gen">dipanggil oleh Alice · di chain lokal semua agent dipasang sebagai pejantan dengan biaya 0</span></div>
+      ${blocked.length ? `<div class="note bad">${blocked.map((x) => `#${x.id}`).join(" dan ")} bukan milikmu dan belum dibuka untuk kawin oleh pemiliknya.</div>` : ""}
+      <div class="row mt"><button class="act" id="go" ${blocked.length || (!state.wallet && !local) ? "disabled" : ""}>Kawinkan</button>
+        <span class="gen">${state.wallet ? `dari wallet ${esc(short(state.wallet))} — anaknya jadi milikmu`
+          : local ? "dipanggil oleh Alice (akun demo)" : "hubungkan wallet untuk mengawinkan"}</span></div>
     </div>`);
     panel.querySelector("#go").onclick = async (e) => {
       e.target.disabled = true; e.target.textContent = "mengirim…";
-      const r = await post("/api/breed", { a: a.id, b: b.id, from: 1 });
-      if (r.error) { alert(r.error); e.target.disabled = false; e.target.textContent = "Kawinkan"; return; }
-      state.sel = []; await refresh();
+      const r = await act("breed", { a: a.id, b: b.id });
+      if (!r) { e.target.disabled = false; e.target.textContent = "Kawinkan"; return; }
+      state.sel = []; renderBreed();
     };
     box.append(panel);
   }
 }
 
 // --- jalankan ---
+const price = () => state.status?.public && Number(state.status.runPriceEth) > 0;
+
 function renderRun() {
   const box = $("#run"); box.innerHTML = "";
   const n = needChain(); if (n) { box.append(n); return; }
@@ -202,7 +409,7 @@ function renderRun() {
   const picker = el(`<div><p class="sub">Pilih satu atau lebih agent:</p><div class="grid" id="rpick"></div></div>`);
   state.agents.forEach((a) => picker.querySelector("#rpick").append(
     agentCard(a, {
-      sel: state.runSel.includes(a.id),
+      sel: state.runSel.includes(a.id), actions: false,
       onClick: (x) => {
         const i = state.runSel.indexOf(x.id);
         if (i >= 0) state.runSel.splice(i, 1); else state.runSel.push(x.id);
@@ -228,6 +435,12 @@ function renderRun() {
         <input type="checkbox" id="mock" /> mode tiruan (tanpa memakai kuota)</label>
       <span class="gen">${state.runBusy ? "" : "mode agent: maksimal 10 langkah, lalu build dan render"}</span>
     </div>
+    ${state.status.runReady ? "" : `<div class="note bad">Server ini belum punya kunci model, jadi agent belum bisa
+      bekerja sungguhan — hanya <b>mode tiruan</b> yang jalan. Pemilik server: isi <code>GROQ_API_KEY</code> di <code>.env</code>
+      (gratis di console.groq.com/keys) lalu nyalakan ulang server.</div>`}
+    ${price() ? `<div class="gen mt">Tiap agent dibayar <b>${esc(state.status.runPriceEth)} ETH</b> dari wallet-mu sebelum bekerja —
+      masuk ke pemiliknya, dan sebagian ke pemilik leluhurnya.</div>`
+      : state.status.public ? `<div class="gen mt">Server publik: jumlah run per jam dibatasi.</div>` : ""}
   </div>`);
 
   panel.querySelectorAll("[data-eg]").forEach((b) => b.onclick = () => {
@@ -237,14 +450,24 @@ function renderRun() {
     const task = panel.querySelector("#task").value.trim();
     if (!task) { alert("tugasnya masih kosong"); return; }
 
-    state.runBusy = true; state.runOut = null; state.jobLive = null;
+    const mock = panel.querySelector("#mock")?.checked;
     const mode = panel.querySelector("#agentmode")?.checked ? "agent" : "single";
+
+    // Server berbayar: setiap agent dibayar lebih dulu, lalu hash tx-nya jadi bukti.
+    const payments = {};
+    if (price() && !mock) {
+      if (!state.wallet) { toast("Hubungkan wallet dulu untuk membayar agent.", "bad"); return; }
+      for (const id of state.runSel) {
+        const r = await act("pay", { id, amountEth: state.status.runPriceEth, memo: "run" });
+        if (!r) return;
+        payments[id] = r.hash;
+      }
+    }
+
+    state.runBusy = true; state.runOut = null; state.jobLive = null;
     renderRun();
 
-    const started = await post("/api/run", {
-      ids: state.runSel, task, mode,
-      mock: panel.querySelector("#mock")?.checked,
-    });
+    const started = await post("/api/run", { ids: state.runSel, task, mode, mock, payments });
     if (started.error) { state.runBusy = false; state.runOut = { error: started.error }; renderRun(); return; }
 
     state.jobId = started.jobId;
@@ -482,5 +705,15 @@ if (initial) {
 // Dibuka untuk uji end-to-end; tidak dipakai logika halaman.
 window.__state = state;
 
-refresh();
-setInterval(refresh, 4000);
+// Wallet yang pernah dihubungkan disambung lagi tanpa jendela izin.
+(async () => {
+  try {
+    if (eth() && localStorage.getItem("wallet")) {
+      const [a] = await eth().request({ method: "eth_accounts" });
+      if (a) state.wallet = a;
+    }
+  } catch {}
+  await refresh();
+  // Di chain publik blok datang tiap 12 detik; menarik lebih sering hanya membebani RPC.
+  setInterval(() => refresh(), state.status?.local === false ? 12000 : 4000);
+})();

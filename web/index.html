@@ -16,6 +16,7 @@
   <div class="spacer"></div>
   <span class="pill"><i class="dot" id="dot-chain"></i><span id="s-chain">memeriksa…</span></span>
   <span class="pill" id="s-block">blok —</span>
+  <button class="act ghost" id="btn-wallet">Hubungkan wallet</button>
   <button class="act ghost" id="btn-theme" title="ganti tema">◐</button>
 </header>
 
@@ -31,7 +32,10 @@
   <section id="tab-roster">
     <h2>Roster agent</h2>
     <p class="sub">Setiap agent adalah NFT yang menyimpan genome 256-bit. Trait yang
-      ditampilkan adalah hasil ekspresi genome — alel dengan dominansi tertinggi yang menang.</p>
+      ditampilkan adalah hasil ekspresi genome — alel dengan dominansi tertinggi yang menang.
+      Tombol <b>Ekspor .md</b> mengunduh agent sebagai subagent Claude Code: taruh di
+      <code>.claude/agents/</code> proyekmu dan agent itu langsung bisa dipakai.</p>
+    <div id="wallet-panel"></div>
     <div id="roster"></div>
   </section>
 
@@ -65,6 +69,7 @@
   </section>
 </main>
 
+<div id="toast" class="toast hidden"></div>
 <script type="module" src="/app.js"></script>
 </body>
 </html>

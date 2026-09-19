@@ -12,7 +12,8 @@ Dari `git clone` sampai agent hasil perkawinan mengerjakan tugas nyata.
 
 Docker dipakai untuk menjalankan kode buatan agent secara terisolasi. Itu bukan
 kenyamanan: kode yang ditulis mesin dan belum ditinjau siapa pun tidak boleh
-dieksekusi langsung di mesinmu.
+dieksekusi langsung di mesinmu. Tanpa Docker, semuanya tetap menyala — roster,
+perkawinan, silsilah, royalti, ekspor — kecuali tab **Jalankan**.
 
 ## Kunci model
 
@@ -84,6 +85,33 @@ Sekitar dua sampai tiga menit.
 
 Di akhir muncul screenshot halaman yang ia bangun, berikut skor rubriknya.
 
+## Bawa pulang agentnya
+
+Tiap kartu agent punya tombol **Ekspor .md**. Hasilnya subagent Claude Code:
+
+```bash
+mkdir -p .claude/agents && mv ~/Downloads/meiosis-5-*.md .claude/agents/
+bun run verify-agent .claude/agents/meiosis-5-*.md   # buktikan asli terhadap chain
+```
+
+Setelah itu agent bisa dipanggil di proyek mana pun, tanpa server Meiosis.
+
+## Jadi pemilik
+
+Klik **Hubungkan wallet** (MetaMask). Di chain lokal, MetaMask akan menawarkan
+menambah jaringan Anvil; impor salah satu akun Anvil ke MetaMask untuk punya ETH.
+
+Anak yang kamu kawinkan jadi milikmu. Di kartunya muncul tombol pemilik:
+
+- **Beri nama** — tersimpan on-chain
+- **Buka untuk kawin** — pasang tarif; siapa pun bisa mengawinkan agent-mu dengan membayarnya
+- **Tarik** di panel Dompetmu — bayaran untuk agent-mu *dan* untuk keturunannya
+
+Setiap bayaran ke sebuah agent, 5% mengalir ke pemilik induknya, 2,5% ke
+kakek-neneknya, sampai empat generasi. Memilih induk yang baik adalah investasi.
+
+Tanpa wallet di chain lokal, semua tombol tetap jalan memakai akun demo.
+
 ## Pakai dari Claude Code
 
 Jalankan Claude Code dari folder ini. `.mcp.json` sudah ada, jadi ia menemukan
@@ -99,6 +127,8 @@ Untuk repo-mu sendiri, sebutkan foldernya:
 > Pakai agent Meiosis yang punya security-instinct-high untuk memperbaiki tes
 > yang gagal di folder `demo-repo`. Perintah ceknya `bun test`.
 
+> Pasang agent Meiosis #5 sebagai subagent di proyek ini.
+
 Selengkapnya di [MCP.md](./MCP.md).
 
 ## Memastikan semuanya sehat
@@ -110,10 +140,8 @@ bun run e2e        # UI lewat browser sungguhan
 
 ## Batasnya sekarang
 
-- **Hanya jalan di komputermu sendiri.** Chain-nya Anvil lokal; belum ter-deploy
-  ke Sepolia, jadi orang lain tidak bisa melihat atau memakai agentmu.
-- **Belum ada royalti.** Di rencana, agent yang bekerja menghasilkan uang dan
-  sebagiannya mengalir ke pemilik induk. `LineageRoyalty.sol` belum ditulis, jadi
-  untuk sekarang anakmu bekerja tanpa menghasilkan apa-apa bagi leluhurnya.
+- **Sepolia belum ter-deploy.** Skripnya siap (`bun run deploy:sepolia`, lihat
+  [DEPLOY.md](./DEPLOY.md)); yang ditunggu ETH faucet untuk gas deploy.
+- **Belum di-host.** File systemd dan Caddy ada di `deploy/`; butuh VPS dan domain.
 - **Tugas coding-nya terbatas pada proyek JavaScript/TypeScript**, karena
   pemeriksaan dijalankan di image sandbox yang berisi Bun dan Node.

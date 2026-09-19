@@ -10,19 +10,23 @@
     "arena": "bun run scripts/discrimination-test.ts",
     "demo:local": "bun run scripts/demo-local.ts",
     "demo:runtime": "bun run scripts/demo-runtime.ts",
+    "deploy:sepolia": "CHAIN=sepolia bun run scripts/deploy.ts",
     "e2e": "bun run scripts/e2e.ts",
     "e2e:full": "bun run scripts/e2e.ts --full",
     "gen-golden": "bun run scripts/gen-golden.ts",
     "gene-sim": "bun run scripts/gene-sim.ts",
     "litter": "bun run scripts/litter.ts",
-    "setup": "bun install && forge install foundry-rs/forge-std --no-git --root contracts",
+    "setup": "bun run scripts/setup.ts",
     "start": "bun run scripts/start.ts",
     "stop": "bun run scripts/stop.ts",
     "test": "bun test runtime/",
     "test:contracts": "forge test --root contracts",
     "test:sandbox": "bun run scripts/test-sandbox.ts",
     "ui": "bun run server/api.ts",
-    "verify": "bun run scripts/verify.ts"
+    "ui:sepolia": "CHAIN=sepolia bun run server/api.ts",
+    "verify": "bun run scripts/verify.ts",
+    "verify-agent": "bun run scripts/verify-agent.ts",
+    "verify:sepolia": "bun run scripts/verify-etherscan.ts"
   },
   "devDependencies": {
     "typescript": "^5.6.0"

@@ -74,7 +74,6 @@ const missing: string[] = [];
 for (const [bin, how] of [
   ["bun", "curl -fsSL https://bun.sh/install | bash"],
   ["forge", "curl -L https://foundry.paradigm.xyz | bash && foundryup"],
-  ["docker", "curl -fsSL https://get.docker.com | sudo sh"],
 ] as const) {
   if (await have(bin)) c.ok(bin);
   else { c.bad(`${bin} tidak ada`); c.dim(how); missing.push(bin); }
@@ -84,12 +83,22 @@ if (missing.length) {
   process.exit(1);
 }
 
-if ((await sh(["docker", "info"], 15_000)).code !== 0) {
-  c.bad("docker terpasang tapi daemon-nya mati");
-  c.dim("sudo systemctl start docker");
-  process.exit(1);
+/**
+ * Docker hanya dibutuhkan untuk MENJALANKAN agent — kode buatan mesin tidak
+ * boleh dieksekusi langsung di host. Roster, perkawinan, silsilah, dan ekspor
+ * tetap jalan tanpanya, jadi ketiadaannya bukan alasan menolak menyala.
+ */
+let dockerOk = false;
+if (!(await have("docker"))) {
+  c.bad("docker tidak ada — tab Jalankan tidak akan bisa membangun hasil agent");
+  c.dim("curl -fsSL https://get.docker.com | sudo sh && sudo usermod -aG docker $USER");
+} else if ((await sh(["docker", "info"], 15_000)).code !== 0) {
+  c.bad("docker terpasang tapi daemon-nya mati atau kamu belum di grup docker");
+  c.dim("sudo systemctl start docker   ·   sudo usermod -aG docker $USER lalu login ulang");
+} else {
+  dockerOk = true;
+  c.ok("daemon docker jalan");
 }
-c.ok("daemon docker jalan");
 
 // ---------------------------------------------------------------- dependensi
 c.head("2. Dependensi");
@@ -99,13 +108,15 @@ if (!existsSync("node_modules")) {
 }
 c.ok("paket bun");
 
-if (!existsSync("contracts/lib/forge-std")) {
-  c.work("memasang forge-std…");
-  await sh(["forge", "install", "foundry-rs/forge-std", "--no-git", "--root", "contracts"], 300_000);
+if (!existsSync("contracts/lib/forge-std/src") || !existsSync("contracts/lib/openzeppelin-contracts/contracts")) {
+  c.work("memasang pustaka Solidity…");
+  const r = await sh(["bun", "run", "scripts/setup.ts"], 600_000);
+  if (r.code !== 0) { c.bad("setup gagal"); console.log(r.out.slice(-1500) || r.err.slice(-1500)); process.exit(1); }
 }
-c.ok("forge-std");
+c.ok("forge-std & openzeppelin");
+mkdirSync("deployments", { recursive: true });
 
-if (!existsSync("contracts/out/GeneLib.sol/GeneLib.json")) {
+if (!existsSync("contracts/out/LineageRoyalty.sol/LineageRoyalty.json")) {
   c.work("mengompilasi kontrak…");
   const b = await sh(["forge", "build", "--root", "contracts"], 300_000);
   if (b.code !== 0) { c.bad("forge build gagal"); console.log(b.out || b.err); process.exit(1); }
@@ -114,13 +125,15 @@ c.ok("kontrak terkompilasi");
 
 // ---------------------------------------------------------------- image sandbox
 c.head("3. Sandbox");
-const img = await sh(["docker", "image", "inspect", "meiosis-sandbox:1"], 20_000);
-if (img.code !== 0) {
+const img = dockerOk ? await sh(["docker", "image", "inspect", "meiosis-sandbox:1"], 20_000) : { code: 0 };
+if (!dockerOk) {
+  c.bad("dilewati — tanpa docker");
+} else if (img.code !== 0) {
   c.work("membangun image sandbox (sekitar 2 menit, sekali saja)…");
   const b = await sh(["docker", "build", "-t", "meiosis-sandbox:1", "-f", "sandbox/Dockerfile", "sandbox/"], 900_000);
   if (b.code !== 0) { c.bad("build image gagal"); console.log(b.err.slice(-1500)); process.exit(1); }
 }
-c.ok("image sandbox siap");
+if (dockerOk) c.ok("image sandbox siap");
 
 // ---------------------------------------------------------------- chain
 c.head("4. Chain lokal");

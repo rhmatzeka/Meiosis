@@ -1,0 +1,27 @@
+# systemd unit untuk server Meiosis di VPS — PLAN.md §19.2.
+#
+#   sudo cp deploy/meiosis.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now meiosis
+#   journalctl -u meiosis -f
+#
+# Sesuaikan User dan WorkingDirectory. User harus anggota grup docker agar
+# sandbox bisa dipakai untuk menjalankan agent.
+[Unit]
+Description=Meiosis — server UI dan API
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+User=meiosis
+WorkingDirectory=/opt/meiosis
+# .env di WorkingDirectory dibaca sendiri oleh Bun, dan Bun tidak menimpa
+# variabel yang sudah diset di sini. Sengaja tidak memakai EnvironmentFile=:
+# isinya justru MENIMPA Environment=, sehingga CHAIN=anvil di .env akan menang.
+Environment=CHAIN=sepolia
+Environment=TRUST_PROXY=1
+ExecStart=/home/meiosis/.bun/bin/bun run server/api.ts
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

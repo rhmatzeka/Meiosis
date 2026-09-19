@@ -15,16 +15,17 @@ bun run ui        # terminal 2 — MCP server bicara ke sini
 
 `.mcp.json` sudah ada di repo, jadi Claude Code yang dijalankan dari folder ini
 akan menemukannya sendiri. Periksa dengan `/mcp` — harusnya muncul server
-`meiosis` dengan empat tool.
+`meiosis` dengan lima tool.
 
-## Empat tool
+## Lima tool
 
 | Tool | Gunanya |
 |---|---|
 | `meiosis_list_agents` | Daftar agent di chain berikut trait warisan dan silsilahnya |
 | `meiosis_ask` | Tanya satu agent, dapat jawaban teks. Sekali jalan, tanpa tool |
 | `meiosis_run` | Suruh agent mengerjakan tugas coding sungguhan: menulis, build, perbaiki sendiri |
-| `meiosis_breed` | Kawinkan dua agent dan tetaskan anaknya |
+| `meiosis_breed` | Kawinkan dua agent dan tetaskan anaknya (chain lokal) |
+| `meiosis_export` | Pasang agent sebagai subagent Claude Code di `.claude/agents/` sebuah proyek |
 
 ## Contoh percakapan
 

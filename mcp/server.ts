@@ -109,6 +109,22 @@ const TOOLS = [
       required: ["parent_a", "parent_b"],
     },
   },
+  {
+    name: "meiosis_export",
+    description:
+      "Ekspor agent Meiosis menjadi subagent Claude Code dan pasang di proyek. Berkasnya " +
+      "ditulis ke <project_dir>/.claude/agents/, berisi system prompt yang diturunkan dari " +
+      "genome on-chain berikut data asal-usulnya — bisa dibuktikan asli dengan " +
+      "`bun run verify-agent <berkas>`. Setelah itu agent bisa dipanggil tanpa server Meiosis.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        agent_id: { type: "number" },
+        project_dir: { type: "string", description: "folder proyek tujuan; kosong = folder kerja saat ini" },
+      },
+      required: ["agent_id"],
+    },
+  },
 ];
 
 async function call(name: string, args: Json): Promise<Json> {
@@ -212,6 +228,26 @@ async function call(name: string, args: Json): Promise<Json> {
         `genome: ${child.genome}`,
         ``,
         `Pakai meiosis_run dengan agent_id ${child.id} untuk menyuruhnya bekerja.`,
+      ].join("\n"));
+    }
+
+    case "meiosis_export": {
+      const r = await fetch(`${API}/api/agents/${Number(args.agent_id)}/agent.md`);
+      if (!r.ok) throw new Error(`ekspor gagal: HTTP ${r.status}`);
+      const md = await r.text();
+      const file = (r.headers.get("content-disposition") ?? "").match(/filename="([^"]+)"/)?.[1]
+        ?? `meiosis-${args.agent_id}.md`;
+      const { mkdirSync, writeFileSync } = await import("node:fs");
+      const { join, resolve } = await import("node:path");
+      const dir = join(resolve(String(args.project_dir ?? process.cwd())), ".claude", "agents");
+      mkdirSync(dir, { recursive: true });
+      const path = join(dir, file);
+      writeFileSync(path, md);
+      const agentName = md.match(/^name: (.+)$/m)?.[1] ?? file.replace(/\.md$/, "");
+      return text([
+        `Agent #${args.agent_id} dipasang di ${path}`,
+        `Panggil sebagai subagent "${agentName}". Mulai ulang sesi Claude Code bila belum muncul di /agents.`,
+        `Buktikan keasliannya: bun run verify-agent ${path}`,
       ].join("\n"));
     }
 
