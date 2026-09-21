@@ -2,116 +2,97 @@
 
 > *Inherited intelligence, verifiable on-chain.*
 
-Protokol perkawinan agent AI di Ethereum. Dua agent kawin, anaknya mewarisi
-kemampuan lewat meiosis on-chain, dan terbukti secara terukur lebih
-baik dari kedua orang tuanya.
+A protocol for **breeding AI agents on Ethereum**. Two agents "mate", their child inherits abilities from both parents through meiosis done on-chain, and the child is then measured to see whether it actually beats its parents.
 
-**Mulai di sini: [QUICKSTART.md](./QUICKSTART.md)** — dari clone sampai agent bekerja.
+**Start here: [QUICKSTART.md](./QUICKSTART.md)**, which goes from cloning the repo to a working agent.
 
-Rencana lengkap: [PLAN.md](./PLAN.md) · Cara menguji: [TESTING.md](./TESTING.md) · Menambah agent: [ADDING-AGENTS.md](./ADDING-AGENTS.md) · Dari Claude Code: [MCP.md](./MCP.md) · Sepolia & hosting: [DEPLOY.md](./DEPLOY.md)
+Full plan: [PLAN.md](./PLAN.md) · How to test: [TESTING.md](./TESTING.md) · Adding agents: [ADDING-AGENTS.md](./ADDING-AGENTS.md) · Using it from Claude Code: [MCP.md](./MCP.md) · Sepolia and hosting: [DEPLOY.md](./DEPLOY.md)
 
-## Hasil perkawinan itu berbentuk apa?
+## What does a "child" look like?
 
-Seekor agent adalah **NFT berisi genome 256-bit**. Genome itu dirakit —
-deterministik, byte per byte — menjadi manifest (tier model, tool, parameter)
-dan system prompt yang disusun dari modul skill warisannya.
+An agent is an **NFT that holds a 256-bit genome**. That genome is turned, deterministically and byte for byte, into a **manifest** (model tier, tools, parameters) and a **system prompt** built from the skill modules it inherited.
 
-Agent bisa dipakai dengan tiga cara:
+You can use an agent in three ways:
 
-1. **Di halaman Meiosis** — tab Jalankan: agent menulis kode, membangunnya di
-   sandbox, memperbaiki sendiri, lalu diberi skor.
-2. **Dari Claude Code lewat MCP** — lihat [MCP.md](./MCP.md).
-3. **Dibawa pulang sebagai berkas `.md`** — tombol Ekspor mengunduh subagent
-   Claude Code siap pakai. Taruh di `.claude/agents/` proyek mana pun. Berkasnya
-   membawa genome dan manifestHash, jadi `bun run verify-agent <berkas>`
-   membuktikan isinya tidak diubah dari yang tercatat di chain.
+1. **On the Meiosis site**: in the Run tab, the agent writes code, builds it in a sandbox, fixes its own mistakes, and gets a score.
+2. **From Claude Code over MCP**: see [MCP.md](./MCP.md).
+3. **As a `.md` file you take home**: the Export button downloads a ready-to-use Claude Code subagent. Put it in any project's `.claude/agents/` folder. The file carries the genome and `manifestHash`, so `bun run verify-agent <file>` proves it hasn't been changed from what is recorded on-chain.
 
 ## Status
 
-| Fase | Status |
+| Phase | Status |
 |---|---|
-| P0 — GeneLib, fuzz test, simulator gen | ✅ selesai |
-| P1 — kontrak inti, kelahiran jalan di Anvil | ✅ selesai |
-| P1b — deploy Sepolia | skrip siap (`bun run deploy:sepolia`), menunggu ETH faucet |
-| P2 — runtime `expand()` + 12 modul skill | ✅ selesai |
-| P3 — sandbox, scorer, judge, arena | sebagian: pipa jalan, hybrid vigor belum terbukti |
-| P4 — web UI | ✅ roster, kawinkan, silsilah, arena, **connect wallet**, aksi pemilik, royalti, ekspor |
-| Royalti leluhur | ✅ `LineageRoyalty.sol` — sewa dan tarif kawin mengalir sampai 4 generasi |
-| P4 — orchestrator & indexer | belum |
+| P0: GeneLib, fuzz tests, genetics simulator | ✅ done |
+| P1: core contracts, births working on Anvil | ✅ done |
+| P1b: deploy to Sepolia | script ready (`bun run deploy:sepolia`), waiting for faucet ETH |
+| P2: runtime `expand()` + 12 skill modules | ✅ done |
+| P3: sandbox, scorer, judge, arena | partly: the pipeline runs, but "hybrid vigor" (children beating parents) isn't proven yet |
+| P4: web UI | ✅ roster, breeding, family tree, arena, **wallet connect**, owner actions, royalties, export |
+| Ancestor royalties | ✅ `LineageRoyalty.sol`: rental and breeding fees flow up to 4 generations |
+| P4: orchestrator and indexer | not started |
 
-## Jalankan
+## Run it
 
 ```bash
-bun run start            # satu perintah: siapkan semuanya, lalu buka localhost:5173
-bun run stop             # hentikan
+bun run start            # one command: set everything up, then open localhost:5173
+bun run stop             # stop it
 
-bun run setup            # (manual) bun install + forge-std + openzeppelin + compile
-bun run gene-sim          # simulasi 10.000 perkawinan G0 x G1
-bun run test:contracts    # 38 test, termasuk uji silang TS <-> Solidity dan royalti
+bun run setup            # (manual) bun install + forge-std + OpenZeppelin + compile
+bun run gene-sim         # simulate 10,000 G0 x G1 breedings
+bun run test:contracts   # 38 tests, including TS <-> Solidity cross-checks and royalties
 
-bun test                  # 39 test runtime, termasuk 20 berkas acuan expand()
+bun test                 # 39 runtime tests, including 20 golden files for expand()
 
-bun run anvil             # di terminal terpisah
-bun run ui                # http://localhost:5173 — deploy, kawinkan, jalankan, silsilah, arena
-bun run demo:local        # deploy -> mint -> breed -> hatch -> rakit agent
-bun run demo:runtime      # tiga agent, tugas identik, model sungguhan
+bun run anvil            # in a separate terminal
+bun run ui               # http://localhost:5173: deploy, breed, run, family tree, arena
+bun run demo:local       # deploy -> mint -> breed -> hatch -> build the agent
+bun run demo:runtime     # three agents, same task, real models
 
-bun run deploy:sepolia    # deploy ke Sepolia — lihat DEPLOY.md
-bun run ui:sepolia        # UI tersambung ke Sepolia; pengunjung pakai wallet sendiri
-bun run verify-agent f.md # buktikan berkas ekspor asli terhadap chain
+bun run deploy:sepolia   # deploy to Sepolia (see DEPLOY.md)
+bun run ui:sepolia       # UI connected to Sepolia; visitors use their own wallet
+bun run verify-agent f.md  # prove an exported file matches the chain
 ```
 
-Tanpa wallet di chain lokal, transaksi ditandatangani server dengan akun demo
-Anvil. Dengan wallet — dan selalu di Sepolia — pengguna menandatangani sendiri;
-server hanya menyusun calldata di `/api/tx` dan tidak pernah memegang kunci.
+**Who signs transactions?** On a local chain with no wallet connected, the server signs with an Anvil demo account. With a wallet connected, and always on Sepolia, users sign for themselves: the server only builds the calldata at `/api/tx` and never holds keys.
 
-`demo:local` menjalankan seluruh alur kelahiran lalu membaca genome anak dari
-chain dan menghitungnya ulang dari nol dengan implementasi TypeScript. Kalau
-keduanya sama, seorang anak terbukti sah keturunan kedua parent-nya tanpa perlu
-mempercayai siapa pun.
+`demo:local` runs the whole birth flow, reads the child's genome from the chain, and recomputes it from scratch in TypeScript. If both match, the child is proven to be a real offspring of its two parents, without having to trust anyone.
 
-## Kontrak
+## Contracts
 
-| Kontrak | Isi |
+| Contract | What it does |
 |---|---|
-| `GeneLib.sol` | `meiosis`, `express`, `relatedness` — semuanya `pure` |
-| `AgentRegistry.sol` | ERC-721, genome + silsilah dalam 2 storage slot, nama pilihan pemilik |
-| `Genesis.sol` | mint generasi nol, `seal()` mengunci selamanya |
-| `Hatchery.sol` | commit–reveal, cooldown, stud fee lewat royalti, `reroll()` |
-| `LineageRoyalty.sol` | bayar agent; 5% → induk, 2,5% → kakek-nenek, … sampai 4 generasi; pola tarik |
-| `SkillRegistry.sol` | trait → modul skill, append-only; diisi otomatis saat deploy |
+| `GeneLib.sol` | `meiosis`, `express`, `relatedness`, all `pure` |
+| `AgentRegistry.sol` | ERC-721; genome and family tree in 2 storage slots; owner-chosen names |
+| `Genesis.sol` | Mints generation zero; `seal()` locks it forever |
+| `Hatchery.sol` | Commit–reveal breeding, cooldowns, stud fees via royalties, `reroll()` |
+| `LineageRoyalty.sol` | Pay an agent: 5% goes to its parents, 2.5% to its grandparents, and so on for 4 generations (pull payments) |
+| `SkillRegistry.sol` | Trait → skill module, append-only; filled automatically on deploy |
 
 ## Runtime
 
-| Berkas | Isi |
+| File | What it does |
 |---|---|
-| `runtime/genome/expand.ts` | genome → manifest, **wajib deterministik** |
-| `runtime/genome/catalog.ts` | pemuat 12 modul skill, urutan tidak bergantung filesystem |
-| `runtime/materialize.ts` | manifest → agent yang bisa dijalankan |
-| `runtime/agent-loop.ts` | loop tool: tulis → periksa → perbaiki → ulangi |
-| `runtime/tools/` | tool agent, aksesnya ditentukan genome |
-| `mcp/server.ts` | MCP server: agent Meiosis dipakai dari Claude Code |
-| `runtime/export.ts` | agent → subagent Claude Code `.md`, dan pembacanya untuk verifikasi |
-| `runtime/providers/` | Groq & OpenRouter, token bucket RPM+TPM, retry 429 |
+| `runtime/genome/expand.ts` | Genome → manifest. **Must be deterministic.** |
+| `runtime/genome/catalog.ts` | Loads the 12 skill modules in a fixed order, independent of the filesystem |
+| `runtime/materialize.ts` | Manifest → a runnable agent |
+| `runtime/agent-loop.ts` | Tool loop: write → check → fix → repeat |
+| `runtime/tools/` | Agent tools; which ones an agent may use is decided by its genome |
+| `mcp/server.ts` | MCP server, so Meiosis agents can be used from Claude Code |
+| `runtime/export.ts` | Agent → Claude Code subagent `.md`, plus the reader used to verify it |
+| `runtime/providers/` | Groq and OpenRouter, with requests-per-minute and tokens-per-minute limits and 429 retries |
 
-Manifest menyimpan **tier**, bukan nama model. Resolusi tier → model konkret
-terjadi di `materialize()`, di luar bagian yang di-hash — sehingga berpindah
-penyedia tidak pernah membatalkan `manifestHash` yang sudah tercatat on-chain.
+The manifest stores a model **tier**, not a model name. Turning a tier into a concrete model happens in `materialize()`, outside the hashed part, so switching providers never invalidates a `manifestHash` that's already on-chain.
 
-Mengubah isi sebuah prompt akan membuat golden test merah. Itu disengaja:
-`expand()` yang bergeser diam-diam adalah kegagalan paling mahal di proyek ini.
+Changing any prompt text turns the golden tests red. That's on purpose: an `expand()` that quietly drifts is the most expensive bug this project could have.
 
-`gene-sim` juga menulis ulang `contracts/test/Vectors.sol`. Jalankan ia lebih
-dulu setiap kali model genetik berubah, lalu jalankan test kontrak — kalau
-keduanya menyimpang, test akan merah.
+`gene-sim` also regenerates `contracts/test/Vectors.sol`. Run it first whenever the genetic model changes, then run the contract tests; if the two disagree, the tests fail.
 
-## Tata letak genome
+## Genome layout
 
 ```
-genome : uint256 = 16 lokus x 16 bit
-lokus  : [ alelX 8 bit | alelY 8 bit ]
-alel   : [ dominance 2 bit | traitId 6 bit ]
+genome : uint256 = 16 loci x 16 bits
+locus  : [ allele X 8 bits | allele Y 8 bits ]
+allele : [ dominance 2 bits | traitId 6 bits ]
 ```
 
-Sumber kebenaran ada di dua tempat yang wajib identik:
-`packages/shared/src/genome.ts` dan `contracts/src/GeneLib.sol`.
+There are two sources of truth, and they must always match: `packages/shared/src/genome.ts` and `contracts/src/GeneLib.sol`.
