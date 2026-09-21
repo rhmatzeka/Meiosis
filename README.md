@@ -96,3 +96,7 @@ allele : [ dominance 2 bits | traitId 6 bits ]
 ```
 
 There are two sources of truth, and they must always match: `packages/shared/src/genome.ts` and `contracts/src/GeneLib.sol`.
+
+## License
+
+Released under the [MIT License](LICENSE).
