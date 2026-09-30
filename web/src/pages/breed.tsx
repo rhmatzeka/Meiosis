@@ -176,7 +176,7 @@ function OddsTable({ a, b }: { a: Agent; b: Agent }) {
 // --- 2 & 3. pembuahan lalu lahir --------------------------------------------------
 
 function Pregnant({ pid }: { pid: number }) {
-  const { pregnancies, agents, byId, status, loading } = useData();
+  const { pregnancies, agents, byId, loading } = useData();
   const p = pregnancies.find((x) => x.id === pid);
   // Bila pemetaan pid → anak dari server belum ada, cari anak dari induk & pemilik yang sama.
   const childId = p?.childId ?? (p?.hatched
@@ -185,7 +185,7 @@ function Pregnant({ pid }: { pid: number }) {
   const child = childId ? byId(childId) : undefined;
   const a = p ? byId(p.parentA) : undefined, b = p ? byId(p.parentB) : undefined;
 
-  if (loading || (status?.deployed && !pregnancies.length && !p)) return <div className="skeleton" style={{ height: 420 }} />;
+  if (loading) return <div className="skeleton" style={{ height: 420 }} />;
   if (!p) return <Empty title={`Kehamilan #${pid} tidak ditemukan`} action={<Link to="/kawin" className="btn">Kawinkan agent</Link>}>Mungkin chain lokal baru saja dijalankan ulang.</Empty>;
   if (child && a && b) return <Born child={child} a={a} b={b} />;
   return <Waiting p={p} a={a} b={b} />;

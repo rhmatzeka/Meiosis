@@ -39,15 +39,18 @@ export const api = async <T,>(path: string, body?: unknown): Promise<T> =>
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
   })).json() as Promise<T>;
 
-interface AgentRow { id: number; owner: string; readyAtBlock: number; stud: { listed: boolean }; manifestHashOnChain: string; manifestHashComputed: string; name: string }
+interface AgentRow { id: number; generation: number; owner: string; readyAtBlock: number; stud: { listed: boolean }; manifestHashOnChain: string; manifestHashComputed: string; name: string }
 export const agents = () => api<AgentRow[]>("/api/agents?fresh=1");
 export const block = async () => (await api<{ block: number }>("/api/status")).block;
 
-/** Dua founder yang sedang tidak istirahat, supaya uji tidak bergantung pada urutan. */
+/**
+ * Dua founder (generasi nol) yang sedang tidak istirahat. Hanya founder: anak
+ * dari uji sebelumnya bisa milik akun uji sendiri, dan itu mengubah hitungan royalti.
+ */
 export async function freePair(): Promise<[number, number]> {
   for (let i = 0; i < 60; i++) {
     const [as, b] = await Promise.all([agents(), block()]);
-    const free = as.filter((a) => a.readyAtBlock <= b && a.stud.listed).map((a) => a.id);
+    const free = as.filter((a) => a.generation === 0 && a.readyAtBlock <= b && a.stud.listed).map((a) => a.id);
     if (free.length >= 2) return [free[0], free[1]];
     await rpc("anvil_mine", ["0x4"]);
   }

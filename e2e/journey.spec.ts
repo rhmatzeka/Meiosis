@@ -87,6 +87,15 @@ try {
   await page.waitForSelector("article.plate", { timeout: 30_000 });
   ok("hasil tugas tampil", (await page.innerText("article.plate")).includes("[MOCK]"));
 
+  section("TAUTAN KEHAMILAN YANG TIDAK ADA");
+  // Kasus terburuk: chain yang belum pernah punya kehamilan sama sekali.
+  const p4 = await browser.newPage();
+  await p4.route("**/api/pregnancies*", (r) => r.fulfill({ json: [] }));
+  await p4.goto(`${BASE}/kawin/999999`, { waitUntil: "networkidle" });
+  await p4.waitForSelector("text=tidak ditemukan", { timeout: 8000 }).catch(() => {});
+  ok("kehamilan yang tidak ada dijelaskan, bukan memuat selamanya", (await p4.innerText("main")).includes("tidak ditemukan"));
+  await p4.close();
+
   section("CHAIN MATI");
   const p3 = await browser.newPage();
   await p3.route("**/api/status", async (r) => {

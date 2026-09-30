@@ -16,6 +16,7 @@ import {
 } from "./chain";
 import { deployAll } from "./deploy";
 import { startKeeper } from "./keeper";
+import { blockRanges } from "./ranges";
 import { faucetDecision, faucetMessage, loadFaucetState, saveFaucetState, verifyPrivyToken } from "./faucet";
 import { toClaudeAgent, agentSlug } from "../runtime/export";
 import { express, relatedness, LOCUS_NAMES, traitName, LOCUS_COUNT } from "../packages/shared/src/genome";
@@ -236,18 +237,25 @@ async function scanHatched(d: Deployment) {
   if (hatchScan.registry !== d.registry) Object.assign(hatchScan, { registry: d.registry, to: 0n, child: new Map() });
   const head = await pub.getBlockNumber();
   const from = hatchScan.to ? hatchScan.to + 1n : BigInt(d.block);
-  if (from > head) return hatchScan.child;
-  const logs = await pub.getContractEvents({
-    address: d.hatchery, abi: abis.hatchery, eventName: "Hatched", fromBlock: from, toBlock: head,
-  }) as unknown as { transactionHash: `0x${string}`; args: { childId: bigint } }[];
-  for (const l of logs) {
-    const tx = await pub.getTransaction({ hash: l.transactionHash });
-    try {
-      const call = decodeFunctionData({ abi: abis.hatchery, data: tx.input });
-      if (call.functionName === "hatch") hatchScan.child.set(Number(call.args![0]), Number(l.args.childId));
-    } catch { /* hatch lewat kontrak lain: tidak bisa dipetakan, UI jatuh ke pencarian induk */ }
+  // Per potongan, dan kemajuan disimpan tiap potongan: RPC yang gagal di tengah
+  // tidak membuat daftar kehamilan gagal, dan putaran berikutnya melanjutkan.
+  try {
+    for (const [a, b] of blockRanges(from, head, 9_000n)) {
+      const logs = await pub.getContractEvents({
+        address: d.hatchery, abi: abis.hatchery, eventName: "Hatched", fromBlock: a, toBlock: b,
+      }) as unknown as { transactionHash: `0x${string}`; args: { childId: bigint } }[];
+      for (const l of logs) {
+        const tx = await pub.getTransaction({ hash: l.transactionHash });
+        try {
+          const call = decodeFunctionData({ abi: abis.hatchery, data: tx.input });
+          if (call.functionName === "hatch") hatchScan.child.set(Number(call.args![0]), Number(l.args.childId));
+        } catch { /* hatch lewat kontrak lain: tidak bisa dipetakan, UI jatuh ke pencarian induk */ }
+      }
+      hatchScan.to = b;
+    }
+  } catch (e) {
+    console.warn(`  pemindaian Hatched berhenti di blok ${hatchScan.to}: ${(e as Error).message.split("\n")[0].slice(0, 120)}`);
   }
-  hatchScan.to = head;
   return hatchScan.child;
 }
 

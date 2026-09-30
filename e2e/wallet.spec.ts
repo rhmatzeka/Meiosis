@@ -11,7 +11,7 @@
  *
  * Butuh Anvil dan server lokal yang sudah ter-deploy (`bun run start`).
  */
-import { createWalletClient, http } from "viem";
+import { createWalletClient, formatEther, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 import { BASE, RPC, agents, api, finish, freePair, launch, ok, rpc, section, watchErrors } from "./harness";
@@ -88,17 +88,22 @@ try {
   ok("tarif kawin 0,02 ETH tampil", true);
 
   section("BAYAR & ROYALTI");
-  // Orang lain (deployer, akun demo) membayar agent ini 0,5 ETH.
+  // Orang lain (deployer, akun demo) membayar agent ini 0,5 ETH. Royalti diukur
+  // sebagai kenaikan, karena akun uji bisa membawa sisa dari putaran sebelumnya.
+  const pending = async () => BigInt((await api<{ pendingWei: string }>(`/api/royalty?address=${account.address}`)).pendingWei);
+  const p0 = await pending();
   const paid = await api<{ ok?: boolean; error?: string }>("/api/local-act", { action: "pay", args: { id: childId, amountEth: "0.5", memo: "sewa" } });
   ok("pembayaran dari akun lain masuk", !!paid.ok, paid.error ?? "");
+  const gained = (await pending()) - p0;
+  ok("royalti pemilik 95% dari bayaran", gained === 475n * 10n ** 15n, `${formatEther(gained)} ETH`);
   await page.goto(`${BASE}/dompet`, { waitUntil: "networkidle" });
-  await page.waitForSelector("text=/0\\.475 ETH/", { timeout: 20_000 });
-  ok("royalti pemilik 95% dari bayaran", true, "0.475 ETH");
+  await page.waitForSelector(`text=${formatEther(p0 + gained)} ETH`, { timeout: 20_000 });
+  ok("Dompet menampilkan royalti siap ditarik", true, `${formatEther(p0 + gained)} ETH`);
   const before = BigInt(await rpc("eth_getBalance", [account.address, "latest"]) as string);
   await page.click(".wallet-main >> text=Tarik royalti");
   await page.waitForSelector(".wallet-main >> text=/Royalti siap ditarik\\s*0 ETH/", { timeout: 30_000 });
   const after = BigInt(await rpc("eth_getBalance", [account.address, "latest"]) as string);
-  ok("royalti ditarik ke wallet", after - before > 47n * 10n ** 16n, `saldo naik ${(Number(after - before) / 1e18).toFixed(4)} ETH`);
+  ok("royalti ditarik ke wallet", after - before > p0 + gained - 10n ** 15n, `saldo naik ${(Number(after - before) / 1e18).toFixed(4)} ETH`);
 
   section("EKSPOR");
   await page.goto(`${BASE}/agent/${childId}`, { waitUntil: "networkidle" });
