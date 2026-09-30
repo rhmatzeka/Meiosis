@@ -35,7 +35,8 @@ Agent bisa dipakai dengan tiga cara:
 | P1b — deploy Sepolia | skrip siap (`bun run deploy:sepolia`), menunggu ETH faucet |
 | P2 — runtime `expand()` + 12 modul skill | ✅ selesai |
 | P3 — sandbox, scorer, judge, arena | sebagian: pipa jalan, hybrid vigor belum terbukti |
-| P4 — web UI | ✅ React + **login Privy** (email/Google/wallet), alur kawin terpandu, faucet & penetasan otomatis, koleksi, silsilah, arena, dompet, ekspor |
+| P4 — web UI | ✅ React + **login Privy** (email/Google/wallet), alur kawin terpandu, faucet & penetasan otomatis, silsilah, arena, dompet, ekspor |
+| Marketplace | ✅ **Studio** (rancang agent, aturan di kontrak), **Pasar** jual-beli, **sewa per tugas** berbayar, Panduan untuk orang awam |
 | Royalti leluhur | ✅ `LineageRoyalty.sol` — sewa dan tarif kawin mengalir sampai 4 generasi |
 | P4 — orchestrator & indexer | belum |
 
@@ -84,6 +85,8 @@ mempercayai siapa pun.
 | `Hatchery.sol` | commit–reveal, cooldown, stud fee lewat royalti, `reroll()` |
 | `LineageRoyalty.sol` | bayar agent; 5% → induk, 2,5% → kakek-nenek, … sampai 4 generasi; pola tarik |
 | `SkillRegistry.sol` | trait → modul skill, append-only; diisi otomatis saat deploy |
+| `Studio.sol` | rancang agent generasi nol: dominansi 1, otak ≤ seimbang, ≤ 2 bakat; biaya ke platform |
+| `Market.sol` | jual-beli & sewa per tugas; 2,5% platform, sisanya lewat royalti leluhur |
 
 ## Runtime
 

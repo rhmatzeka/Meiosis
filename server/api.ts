@@ -432,6 +432,7 @@ async function rentPriceOf(agentId: number) {
  * harga sewanya, dan belum pernah dipakai untuk tugas lain.
  */
 async function checkPayment(agentId: number, hash: string) {
+  if (!hash) throw new Error(`agent #${agentId} perlu disewa dulu (${formatEther(await rentPriceOf(agentId))} ETH per tugas)`);
   if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) throw new Error(`bukti bayar #${agentId} bukan hash tx`);
   if (!dep?.market) throw new Error("Pasar belum di-deploy, sewa belum bisa dibayar");
   const h = hash.toLowerCase();

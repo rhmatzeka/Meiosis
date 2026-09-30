@@ -109,7 +109,7 @@ try {
   section("PONSEL 375 px");
   const phone = await browser.newPage({ viewport: { width: 375, height: 812 } });
   const phoneErrors = watchErrors(phone);
-  for (const path of ["/", `/kawin?a=${x}&b=${y}`, `/kawin/${pid}`, `/agent/${childId}`, "/koleksi", "/silsilah", "/tugas", "/arena", "/dompet"]) {
+  for (const path of ["/", `/kawin?a=${x}&b=${y}`, `/kawin/${pid}`, `/agent/${childId}`, "/pasar", "/studio", "/panduan", "/silsilah", "/tugas", "/arena", "/dompet"]) {
     await phone.goto(BASE + path, { waitUntil: "networkidle" });
     await phone.waitForTimeout(300);
     const { sw, cw } = await phone.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));

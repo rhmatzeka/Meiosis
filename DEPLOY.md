@@ -55,6 +55,8 @@ melanjutkan dari langkah terakhir yang belum selesai.
 | `SEPOLIA_RPC_URL` | opsional; tanpa ini dipakai RPC publik, dengan cadangan otomatis |
 | `FOUNDER_OWNERS` | alamat dipisah koma; founder dibagi bergiliran. Bagikan ke ≥3 alamat supaya royalti bermakna (PLAN.md §12.1b) |
 | `STUD_FEE_ETH` | tarif kawin awal tiap founder, bawaan 0 |
+| `STUDIO_FEE_ETH` | biaya merancang agent di Studio, bawaan `0.002` |
+| `MARKET_FEE_BPS` | biaya platform jual-beli & sewa, bawaan `250` (2,5%), paling tinggi 1000 |
 | `BASE_COOLDOWN_BLOCKS` | jeda kawin dasar dalam blok (bawaan kontrak 10, berlipat tiap kawin). Untuk hari penjurian isi `1`, supaya founder bisa dikawinkan banyak juri berturut-turut |
 
 ### Verifikasi di Etherscan
@@ -168,13 +170,17 @@ menjalankan kode buatan mesin. Di Sepolia (atau `PUBLIC=1`), `/api/run`:
 |---|---|
 | `workdir` ditolak | direktori host bukan milik pengunjung |
 | paling banyak 3 agent dan 10 langkah per run | satu permintaan tidak boleh menghabiskan kuota harian |
-| `RUN_PRICE_ETH` > 0 → setiap agent dibayar dulu | tx pembayaran ke `LineageRoyalty` diperiksa di chain: penerima, agent, dan jumlahnya; satu tx hanya untuk satu run |
-| `RUN_PRICE_ETH` = 0 → jatah `RUN_LIMIT_PER_HOUR` per IP | tanpa bayaran, kuotanya dijatah. Set `TRUST_PROXY=1` di belakang Caddy |
+| agent berharga sewa > 0 → dibayar dulu lewat `Market.rent` | harga = harga pasang pemilik, atau `RUN_PRICE_ETH` bila pemilik tidak memasang. Server memeriksa event `Rented` di chain: pasar, agent, jumlah; satu tx hanya untuk satu tugas |
+| harga sewa 0 → jatah `RUN_LIMIT_PER_HOUR` per IP | tanpa bayaran, kuotanya dijatah. Set `TRUST_PROXY=1` di belakang Caddy |
 | tanpa kunci model → run ditolak sebelum bayar | pengunjung tidak boleh membayar untuk run yang pasti gagal |
 
-Bayaran run masuk ke pemilik agent — dan 5% ke pemilik induknya, 2,5% ke
-kakek-neneknya, sampai empat generasi. Penyelenggara server tidak mengambil
-bagian; yang ia jaga hanya kuota modelnya.
+Bayaran sewa dipotong 2,5% untuk platform (menutup biaya server dan model),
+sisanya ke pemilik agent — dan 5% ke pemilik induknya, 2,5% ke kakek-neneknya,
+sampai empat generasi. Pemilik yang memakai agent-nya sendiri di server juga
+membayar sewa, tapi sebagian besar kembali kepadanya sebagai royalti.
+
+Kas platform (biaya Studio dan 2,5% pasar) ditarik pemilik kontrak dengan
+`withdrawFees()` di `Studio` dan `Market`.
 
 ## 4. Membawa agent keluar
 

@@ -64,3 +64,42 @@ export function watchErrors(page: Page) {
   page.on("pageerror", (e) => errors.push(`pageerror: ${String(e).slice(0, 200)}`));
   return errors;
 }
+
+/**
+ * Wallet EIP-1193 tiruan: tanda tangan diteruskan ke Node (kunci Anvil yang
+ * TIDAK dipegang server), permintaan lain ke Anvil. Jalurnya sama dengan
+ * pengguna MetaMask sungguhan.
+ */
+export async function installFakeWallet(page: Page, key: `0x${string}`) {
+  const { createWalletClient, http } = await import("viem");
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const { foundry } = await import("viem/chains");
+  const account = privateKeyToAccount(key);
+  const signer = createWalletClient({ account, chain: foundry, transport: http(RPC) });
+  await page.exposeFunction("__walletSend", async (tx: { to: string; data: string; value: string }) =>
+    signer.sendTransaction({ to: tx.to as `0x${string}`, data: tx.data as `0x${string}`, value: BigInt(tx.value) }));
+  await page.exposeFunction("__rpc", rpc);
+  await page.addInitScript((addr: string) => {
+    (window as unknown as { ethereum: unknown }).ethereum = {
+      isMetaMask: true,
+      on() {},
+      async request({ method, params }: { method: string; params?: unknown[] }) {
+        const w = window as unknown as { __walletSend: (t: unknown) => Promise<string>; __rpc: (m: string, p?: unknown[]) => Promise<unknown> };
+        if (method === "eth_requestAccounts" || method === "eth_accounts") return [addr];
+        if (method === "eth_chainId") return "0x7a69";
+        if (method === "wallet_switchEthereumChain") return null;
+        if (method === "eth_sendTransaction") return w.__walletSend((params as unknown[])[0]);
+        return w.__rpc(method, params);
+      },
+    };
+  }, account.address);
+  return account;
+}
+
+/** Masuk dengan wallet tiruan lewat menu akun. */
+export async function signIn(page: Page) {
+  await page.goto(BASE, { waitUntil: "networkidle" });
+  await page.click(".account > button");
+  await page.click("text=Masuk dengan akunmu sendiri");
+  await page.waitForFunction(() => /0x[0-9a-f]{4}/i.test(document.querySelector(".account > button")?.textContent ?? ""));
+}

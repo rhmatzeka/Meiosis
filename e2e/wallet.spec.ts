@@ -11,40 +11,19 @@
  *
  * Butuh Anvil dan server lokal yang sudah ter-deploy (`bun run start`).
  */
-import { createWalletClient, formatEther, http } from "viem";
+import { formatEther } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { foundry } from "viem/chains";
-import { BASE, RPC, agents, api, finish, freePair, launch, ok, rpc, section, watchErrors } from "./harness";
+import { BASE, agents, api, finish, freePair, installFakeWallet, launch, ok, rpc, section, watchErrors } from "./harness";
 
 const KEY = "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e"; // Anvil #6
 const account = privateKeyToAccount(KEY);
-const signer = createWalletClient({ account, chain: foundry, transport: http(RPC) });
 
 const browser = await launch();
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 1000 }, acceptDownloads: true });
   const errors = watchErrors(page);
 
-  // Wallet tiruan: permintaan tanda tangan diteruskan ke Node, sisanya ke Anvil.
-  await page.exposeFunction("__walletSend", async (tx: { to: string; data: string; value: string }) =>
-    signer.sendTransaction({ to: tx.to as `0x${string}`, data: tx.data as `0x${string}`, value: BigInt(tx.value) }));
-  await page.exposeFunction("__rpc", rpc);
-  await page.addInitScript((addr: string) => {
-    (window as unknown as { ethereum: unknown }).ethereum = {
-      isMetaMask: true,
-      on() {},
-      async request({ method, params }: { method: string; params?: unknown[] }) {
-        const w = window as unknown as {
-          __walletSend: (t: unknown) => Promise<string>; __rpc: (m: string, p?: unknown[]) => Promise<unknown>;
-        };
-        if (method === "eth_requestAccounts" || method === "eth_accounts") return [addr];
-        if (method === "eth_chainId") return "0x7a69";
-        if (method === "wallet_switchEthereumChain") return null;
-        if (method === "eth_sendTransaction") return w.__walletSend((params as unknown[])[0]);
-        return w.__rpc(method, params);
-      },
-    };
-  }, account.address);
+  await installFakeWallet(page, KEY);
 
   section("MASUK DENGAN WALLET");
   await page.goto(BASE, { waitUntil: "networkidle" });
@@ -101,7 +80,7 @@ try {
   ok("Dompet menampilkan royalti siap ditarik", true, `${formatEther(p0 + gained)} ETH`);
   const before = BigInt(await rpc("eth_getBalance", [account.address, "latest"]) as string);
   await page.click(".wallet-main >> text=Tarik royalti");
-  await page.waitForSelector(".wallet-main >> text=/Royalti siap ditarik\\s*0 ETH/", { timeout: 30_000 });
+  await page.waitForSelector(".wallet-main >> text=/Penghasilan siap ditarik\\s*0 ETH/", { timeout: 30_000 });
   const after = BigInt(await rpc("eth_getBalance", [account.address, "latest"]) as string);
   ok("royalti ditarik ke wallet", after - before > p0 + gained - 10n ** 15n, `saldo naik ${(Number(after - before) / 1e18).toFixed(4)} ETH`);
 

@@ -65,7 +65,7 @@ bun run e2e         # ~1 menit, tanpa kuota model, butuh Chrome/Chromium di mesi
 `e2e/journey.spec.ts` menjalani perjalanan juri dengan akun demo: beranda →
 kawinkan → refresh di tengah pembuahan → lahir → unduh `.md` → `verify-agent`
 SAH. Ia juga memeriksa induk yang sedang istirahat, banner saat chain mati,
-tugas mode tiruan, dan bahwa sembilan halaman tidak bisa digeser menyamping di
+tugas mode tiruan, dan bahwa sebelas halaman tidak bisa digeser menyamping di
 layar 375 px.
 
 `e2e/wallet.spec.ts` memakai wallet EIP-1193 tiruan yang menandatangani dengan

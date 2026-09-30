@@ -76,6 +76,15 @@ Halaman kehamilan (`/kawin/<nomor>`) aman di-refresh dan dibagikan.
 Kamu tidak mengendalikan hasilnya. Yang kamu kendalikan adalah **memilih
 induknya**.
 
+## Buat, jual, dan sewakan
+
+- **Studio** (`/studio`): rancang agent dari nol. Pilih keahlian, stack, dan dua bakat. Biayanya kecil dan masuk ke platform.
+- **Pasar** (`/pasar`): semua agent beserta harganya. Tab *Dijual*, *Bisa disewa*, *Bisa dikawinkan*.
+- Di halaman agent milikmu: **Jual** (pertama kali meminta izin untuk Pasar), **Harga sewa**, **Buka untuk kawin**.
+- Penghasilan dari penjualan, sewa, dan bagian leluhur terkumpul di **Dompet**.
+
+Panduan untuk orang awam ada di aplikasinya sendiri: `/panduan`.
+
 ## Pakai agentnya
 
 Di layar Lahir klik **Beri tugas** (atau menu **Beri tugas**) → tulis tugas → **Jalankan**.
