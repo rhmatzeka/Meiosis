@@ -19,7 +19,7 @@
     "setup": "bun run scripts/setup.ts",
     "start": "bun run scripts/start.ts",
     "stop": "bun run scripts/stop.ts",
-    "test": "bun test runtime/ web/ server/",
+    "test": "bun test runtime/ web/ server/ packages/",
     "test:contracts": "forge test --root contracts",
     "test:sandbox": "bun run scripts/test-sandbox.ts",
     "ui": "bun run server/api.ts",
