@@ -7,20 +7,32 @@ import { useData } from "./hooks/use-data";
 import { AgentPage } from "./pages/agent";
 import { ArenaPage } from "./pages/arena";
 import { BreedPage } from "./pages/breed";
-import { CollectionPage } from "./pages/collection";
+import { GuidePage } from "./pages/guide";
+import { MarketPage } from "./pages/market";
+import { StudioPage } from "./pages/studio";
 import { FamilyPage } from "./pages/family";
 import { HomePage } from "./pages/home";
 import { NotFound } from "./pages/not-found";
 import { RunPage } from "./pages/run";
 import { WalletPage } from "./pages/wallet";
-import { Link, match, useLocation } from "./router";
+import { Link, Redirect, match, useLocation } from "./router";
 
 const NAV = [
+  { to: "/pasar", label: "Pasar", icon: "shop" },
+  { to: "/studio", label: "Studio", icon: "spark" },
   { to: "/kawin", label: "Kawinkan", icon: "breed" },
-  { to: "/koleksi", label: "Koleksi", icon: "grid" },
+  { to: "/tugas", label: "Beri tugas", icon: "task" },
   { to: "/silsilah", label: "Silsilah", icon: "tree" },
-  { to: "/tugas", label: "Beri tugas", short: "Tugas", icon: "task" },
-  { to: "/arena", label: "Arena", icon: "arena" },
+  { to: "/panduan", label: "Panduan", icon: "grid" },
+] as const;
+
+/** Ponsel: lima pintu yang paling sering dipakai. */
+const BOTTOM = [
+  { to: "/pasar", label: "Pasar", icon: "shop" },
+  { to: "/studio", label: "Studio", icon: "spark" },
+  { to: "/kawin", label: "Kawin", icon: "breed" },
+  { to: "/tugas", label: "Tugas", icon: "task" },
+  { to: "/dompet", label: "Dompet", icon: "wallet" },
 ] as const;
 
 export function App() {
@@ -48,10 +60,19 @@ export function App() {
         <Routes path={path} />
       </main>
 
+      <footer className="footer">
+        <div className="footer-inner">
+          <span className="dim">Meiosis · agent AI yang bisa dibiakkan, diwariskan, dan dibuktikan on-chain</span>
+          <nav className="row" aria-label="Tambahan">
+            <Link to="/panduan">Panduan</Link><Link to="/arena">Arena</Link><Link to="/silsilah">Silsilah</Link><Link to="/dompet">Dompet</Link>
+          </nav>
+        </div>
+      </footer>
+
       <nav className="bottom-nav" aria-label="Utama">
-        {NAV.map((n) => (
+        {BOTTOM.map((n) => (
           <Link key={n.to} to={n.to} aria-current={current(n.to)}>
-            <Icon name={n.icon} />{"short" in n ? n.short : n.label}
+            <Icon name={n.icon} />{n.label}
           </Link>
         ))}
       </nav>
@@ -66,7 +87,10 @@ function Routes({ path }: { path: string }) {
   if (preg) return <BreedPage pid={Number(preg.pid)} />;
   const ag = match("/agent/:id", path);
   if (ag) return <AgentPage id={Number(ag.id)} />;
-  if (path === "/koleksi") return <CollectionPage />;
+  if (path === "/pasar") return <MarketPage />;
+  if (path === "/koleksi") return <Redirect to="/pasar" />;
+  if (path === "/studio") return <StudioPage />;
+  if (path === "/panduan") return <GuidePage />;
   if (path === "/silsilah") return <FamilyPage />;
   if (path === "/tugas") return <RunPage />;
   if (path === "/arena") return <ArenaPage />;

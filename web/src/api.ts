@@ -19,6 +19,8 @@ export interface Status {
   keeper: boolean;
   docker: boolean;
   secPerBlock: number;
+  /** null bila Pasar & Studio belum di-deploy di chain ini. */
+  market: { feeBps: number; studioFeeEth: string | null } | null;
 }
 
 export interface Agent {
@@ -38,6 +40,12 @@ export interface Agent {
   stud: { listed: boolean; feeWei: string; feeEth: string };
   readyAtBlock: number;
   cooldownBlocks: number;
+  /** Listing jual yang sah, atau null. */
+  sale: { seller: string; priceWei: string; priceEth: string } | null;
+  /** Harga sewa satu tugas: ownerPriceWei 0 berarti memakai harga bawaan platform. */
+  rent: { ownerPriceWei: string; priceWei: string; priceEth: string };
+  /** Dirancang di Studio (bukan founder asli, bukan hasil kawin). */
+  designed: boolean;
   traits: { locus: number; name: string; value: string }[];
   modules: string[];
   modelTier: "fast" | "balanced" | "strong";

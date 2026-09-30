@@ -58,3 +58,9 @@ export function useNow(ms = 1000) {
   useEffect(() => { const t = setInterval(() => set(Date.now()), ms); return () => clearInterval(t); }, [ms]);
   return now;
 }
+
+/** Mengalihkan ke rute lain setelah render (tautan lama seperti /koleksi). */
+export function Redirect({ to }: { to: string }) {
+  useEffect(() => { navigate(to, { replace: true }); }, [to]);
+  return null;
+}

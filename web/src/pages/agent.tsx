@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { same } from "../api";
 import { AgentCard, TraitList, highlights, useCooldown, useOwnerLabel } from "../components/agent";
-import { NameDialog, PayDialog, StudDialog } from "../components/dialogs";
+import { NameDialog, RentPriceDialog, SellDialog, StudDialog } from "../components/dialogs";
 import { Cell, Copy, Empty, GenomeStrip, Spinner } from "../components/ui";
 import { useActor } from "../hooks/use-actor";
 import { useData } from "../hooks/use-data";
-import { Link, useTitle } from "../router";
+import { Link, useLocation, useTitle } from "../router";
 
-type Dialog = "name" | "stud" | "pay" | null;
+type Dialog = "name" | "stud" | "sell" | "rent" | null;
 
 export function AgentPage({ id }: { id: number }) {
   const { byId, agents, loading, status } = useData();
@@ -16,6 +16,7 @@ export function AgentPage({ id }: { id: number }) {
   const a = byId(id);
   const cooldown = useCooldown(a);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const { query } = useLocation();
   useTitle(a?.name ?? `Agent #${id}`);
 
   if (loading) return <div className="skeleton" style={{ height: 480 }} />;
@@ -36,7 +37,7 @@ export function AgentPage({ id }: { id: number }) {
         <div className="stack" style={{ gap: 10, minWidth: 0 }}>
           <h1 className="h-page">{a.name}</h1>
           <p className="muted">
-            Agent #{a.id}, generasi {a.generation === 0 ? "pertama (founder)" : a.generation}, {owner(a) === "milikmu" ? "milikmu" : `dimiliki ${owner(a)}`}.
+            Agent #{a.id}, {a.designed ? "rancangan Studio" : a.generation === 0 ? "generasi pertama (founder)" : `generasi ${a.generation}`}, {owner(a) === "milikmu" ? "milikmu" : `dimiliki ${owner(a)}`}.
           </p>
           <div className="row" style={{ gap: 8 }}>
             {highlights(a, 5).map((h) => <span key={h.text} className="chip">{h.icon} {h.text}</span>)}
@@ -46,9 +47,16 @@ export function AgentPage({ id }: { id: number }) {
               ? <span className="chip chip-teal">terbuka untuk kawin · {Number(a.stud.feeEth) > 0 ? `${a.stud.feeEth} ETH` : "gratis"}</span>
               : <span className="chip chip-dim">tertutup untuk kawin</span>}
             {cooldown && <span className="chip chip-gold">{cooldown}</span>}
+            {a.sale && <span className="chip chip-gold">dijual {a.sale.priceEth} ETH</span>}
           </div>
         </div>
       </section>
+
+      {query.has("baru") && mine && (
+        <div className="banner banner-info" style={{ width: "100%", margin: 0 }}>
+          <div><b>{a.name} sudah jadi dan milikmu.</b> Beri tugas, jual, sewakan, atau kawinkan untuk mendapat keturunan yang lebih unggul.</div>
+        </div>
+      )}
 
       <div className="agent-body">
         <section className="stack-lg">
@@ -75,16 +83,29 @@ export function AgentPage({ id }: { id: number }) {
         <aside className="stack agent-side">
           <div className="plate stack">
             <h2 className="h-sub">Pakai agent ini</h2>
-            <a className="btn btn-primary" href={`/api/agents/${a.id}/agent.md`} download>Bawa pulang (.md)</a>
-            <Link to={`/tugas?id=${a.id}`} className="btn">Beri tugas</Link>
+            {a.sale && !mine && (
+              <button className="btn btn-primary" disabled={!!actor.busy} onClick={() => actor.mode === "none" ? actor.login() : actor.act("buy", { id: a.id })}>
+                {actor.busy === "buy" ? <Spinner /> : null}Beli · {a.sale.priceEth} ETH
+              </button>
+            )}
+            <Link to={`/tugas?id=${a.id}`} className={`btn ${a.sale && !mine ? "" : "btn-primary"}`}>
+              Beri tugas{BigInt(a.rent.priceWei) > 0n && !mine ? ` · ${a.rent.priceEth} ETH` : ""}
+            </Link>
             <Link to={`/kawin?a=${a.id}`} className="btn">Kawinkan dengan…</Link>
-            {!mine && <button className="btn" onClick={() => setDialog("pay")} disabled={actor.mode === "none" && !actor.canLogin}>Bayar / sewa</button>}
+            <a className="btn" href={`/api/agents/${a.id}/agent.md`} download>Bawa pulang (.md)</a>
             <p className="xs muted">Taruh berkas <code>.md</code> di <code>.claude/agents/</code> proyekmu, dan Claude Code bisa menyerahkan tugas ke agent ini.</p>
           </div>
 
           {canManage && (
             <div className="plate stack">
               <h2 className="h-sub">Milikmu</h2>
+              <button className="btn" onClick={() => setDialog("sell")} disabled={!status?.market}>{a.sale ? "Ubah harga jual" : "Jual"}</button>
+              {a.sale && (
+                <button className="btn btn-quiet" disabled={!!actor.busy} onClick={() => actor.act("cancelListing", { id: a.id })}>Batal jual</button>
+              )}
+              <button className="btn" onClick={() => setDialog("rent")} disabled={!status?.market}>
+                Harga sewa · {BigInt(a.rent.ownerPriceWei) > 0n ? `${a.rent.priceEth} ETH` : "bawaan"}
+              </button>
               <button className="btn" onClick={() => setDialog("name")}>Beri nama</button>
               <button className="btn" onClick={() => setDialog("stud")}>{a.stud.listed ? "Ubah tarif kawin" : "Buka untuk kawin"}</button>
               {a.stud.listed && (
@@ -118,7 +139,8 @@ export function AgentPage({ id }: { id: number }) {
 
       {dialog === "name" && <NameDialog agent={a} onClose={() => setDialog(null)} />}
       {dialog === "stud" && <StudDialog agent={a} onClose={() => setDialog(null)} />}
-      {dialog === "pay" && <PayDialog agent={a} onClose={() => setDialog(null)} />}
+      {dialog === "sell" && <SellDialog agent={a} onClose={() => setDialog(null)} />}
+      {dialog === "rent" && <RentPriceDialog agent={a} onClose={() => setDialog(null)} />}
     </div>
   );
 }

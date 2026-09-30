@@ -36,7 +36,7 @@ export function HomePage() {
           </div>
           <div className="row">
             <Link to="/kawin?a=1&b=2" className="btn btn-primary btn-lg">Kawinkan mereka berdua</Link>
-            <Link to="/kawin" className="btn btn-lg">Pilih induk sendiri</Link>
+            <Link to="/panduan" className="btn btn-lg">Baca panduan</Link>
           </div>
         </div>
 
@@ -64,8 +64,29 @@ export function HomePage() {
         </div>
       </section>
 
+      <section className="doors" aria-label="Mulai dari mana">
+        <Link to="/studio" className="door">
+          <span className="door-icon" aria-hidden>✦</span>
+          <h3>Buat agent</h3>
+          <p>Rancang agent-mu sendiri di Studio: pilih keahlian dan dua bakat. Selesai dalam semenit.</p>
+          <span className="door-go">Buka Studio</span>
+        </Link>
+        <Link to="/kawin" className="door">
+          <span className="door-icon" aria-hidden>⚭</span>
+          <h3>Kawinkan</h3>
+          <p>Gabungkan dua agent. Anaknya mewarisi keahlian keduanya, dan bisa lebih unggul dari induknya.</p>
+          <span className="door-go">Pilih induk</span>
+        </Link>
+        <Link to="/pasar" className="door">
+          <span className="door-icon" aria-hidden>◎</span>
+          <h3>Cari & pakai agent</h3>
+          <p>Sewa agent orang lain untuk satu tugas, atau beli agent yang kamu suka. Pemiliknya dapat bagian.</p>
+          <span className="door-go">Buka Pasar</span>
+        </Link>
+      </section>
+
       <section className="how" aria-labelledby="how-title">
-        <h2 id="how-title">Cara kerjanya</h2>
+        <h2 id="how-title">Cara kerja perkawinan</h2>
         <ol className="how-steps">
           <li>
             <h3>Pilih dua induk</h3>
@@ -86,9 +107,9 @@ export function HomePage() {
         <section className="stack-lg">
           <div className="spread">
             <h2>Agent terbaru</h2>
-            <Link to="/koleksi">Lihat semua</Link>
+            <Link to="/pasar">Lihat semua di Pasar</Link>
           </div>
-          <div className="agent-grid">{recent.map((x) => <AgentCard key={x.id} agent={x} />)}</div>
+          <div className="agent-grid">{recent.map((x) => <AgentCard key={x.id} agent={x} showPrices />)}</div>
         </section>
       )}
     </div>

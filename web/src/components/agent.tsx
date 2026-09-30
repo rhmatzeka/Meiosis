@@ -36,13 +36,14 @@ export function useCooldown(a: Agent | undefined) {
   return cooldownLabel(a.readyAtBlock, status.block, status.secPerBlock);
 }
 
-export function AgentCard({ agent, to, onPick, pickedAs, disabledReason, note }: {
+export function AgentCard({ agent, to, onPick, pickedAs, disabledReason, note, showPrices }: {
   agent: Agent;
   to?: string;
   onPick?: () => void;
   pickedAs?: "a" | "b";
   disabledReason?: string | null;
   note?: string | null;
+  showPrices?: boolean;
 }) {
   const owner = useOwnerLabel();
   const body = (
@@ -51,12 +52,13 @@ export function AgentCard({ agent, to, onPick, pickedAs, disabledReason, note }:
         <Cell genome={agent.genome} size={44} alive={false} />
         <div style={{ minWidth: 0 }}>
           <div className="agent-card-name">{agent.name}</div>
-          <div className="agent-card-meta">#{agent.id} · generasi {agent.generation} · {owner(agent)}</div>
+          <div className="agent-card-meta">#{agent.id} · {agent.designed ? "rancangan Studio" : `generasi ${agent.generation}`} · {owner(agent)}</div>
         </div>
       </div>
       <div className="agent-card-tags">
         {highlights(agent).map((h) => <span key={h.text} className="chip">{h.icon} {h.text}</span>)}
       </div>
+      {showPrices && <Prices agent={agent} />}
       {(disabledReason || note) && <div className="agent-card-note">{disabledReason ?? note}</div>}
     </>
   );
@@ -97,3 +99,17 @@ export const traitIdOf = (a: Agent, locus: number) => {
   const v = a.traits.find((t) => t.locus === locus)?.value;
   return Math.max(0, TRAITS[locus].indexOf(v ?? ""));
 };
+
+const eth = (v: string) => `${Number(v).toLocaleString("id-ID", { maximumFractionDigits: 4 })} ETH`;
+
+/** Harga yang relevan untuk pembeli: jual, sewa per tugas, dan kawin. */
+export function Prices({ agent }: { agent: Agent }) {
+  const rent = BigInt(agent.rent.priceWei);
+  return (
+    <div className="prices">
+      {agent.sale && <span className="price price-sale"><small>Dijual</small>{eth(agent.sale.priceEth)}</span>}
+      <span className="price"><small>Sewa/tugas</small>{rent > 0n ? eth(agent.rent.priceEth) : "gratis"}</span>
+      {agent.stud.listed && <span className="price"><small>Kawin</small>{BigInt(agent.stud.feeWei) > 0n ? eth(agent.stud.feeEth) : "gratis"}</span>}
+    </div>
+  );
+}

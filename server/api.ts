@@ -674,12 +674,13 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
 
       if (p === "/api/royalty") {
         const who = url.searchParams.get("address") ?? "";
-        if (!dep || !isAddress(who)) return json({ pendingEth: "0", pendingWei: "0", balanceEth: "0" });
-        const [v, bal] = await Promise.all([
+        if (!dep || !isAddress(who)) return json({ pendingEth: "0", pendingWei: "0", balanceEth: "0", marketApproved: false });
+        const [v, bal, approved] = await Promise.all([
           read(dep.royalty, abis.royalty, "pending", [getAddress(who)]) as Promise<bigint>,
           pub.getBalance({ address: getAddress(who) }),
+          dep.market ? read(dep.registry, abis.registry, "isApprovedForAll", [getAddress(who), dep.market]) as Promise<boolean> : false,
         ]);
-        return json({ pendingEth: formatEther(v), pendingWei: v.toString(), balanceEth: formatEther(bal) });
+        return json({ pendingEth: formatEther(v), pendingWei: v.toString(), balanceEth: formatEther(bal), marketApproved: approved });
       }
 
       // Ekspor: agent hasil perkawinan dibawa keluar sebagai subagent Claude Code.

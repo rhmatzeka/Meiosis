@@ -37,3 +37,14 @@ test("pesan lain dipotong jadi satu kalimat pendek", () => {
   const long = "x".repeat(500);
   expect(humanError(new Error(long), ctx).message.length).toBeLessThanOrEqual(181);
 });
+
+test("galat pasar dan studio diterjemahkan", () => {
+  const m = (s: string) => humanError(new Error(`custom error '${s}'`), ctx).message;
+  expect(m("BadDesign()")).toBe("Rancangan agent tidak sah. Periksa pilihan otak dan bakatnya.");
+  expect(m("NotApproved(7)")).toBe("Izinkan Pasar menjual agent ini dulu.");
+  expect(m("StaleListing(7)")).toBe("Agent ini sudah tidak dijual oleh pemiliknya.");
+  expect(m("OwnListing(7)")).toBe("Ini agent milikmu sendiri.");
+  expect(m("NotListed(7)")).toBe("Agent ini sedang tidak dijual.");
+  expect(m("ZeroPrice()")).toBe("Harga harus lebih dari 0.");
+  expect(m("InsufficientPayment(10000000000000000, 0)")).toBe("Pembayaran kurang. Harganya 0.01 ETH.");
+});

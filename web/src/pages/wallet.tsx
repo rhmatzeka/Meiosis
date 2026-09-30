@@ -46,7 +46,7 @@ export function WalletPage() {
     <div className="stack-lg">
       <div className="page-head">
         <h1 className="h-page">Dompet</h1>
-        <p>{demo ? "Kamu belum masuk. Di chain lokal kamu bertindak sebagai Alice, salah satu akun demo." : "Agent, saldo, dan royalti milikmu."}</p>
+        <p>{demo ? "Kamu belum masuk. Di chain lokal kamu bertindak sebagai Alice, salah satu akun demo." : "Agent, saldo, dan penghasilanmu. Penghasilan datang dari penjualan, sewa, tarif kawin, dan bagian leluhur."}</p>
       </div>
 
       <div className="wallet-top">
@@ -75,11 +75,20 @@ export function WalletPage() {
         </section>
       )}
 
+      {mine.some((a) => a.sale) && (
+        <section className="stack">
+          <h2 className="h-section">Sedang dijual</h2>
+          <div className="agent-grid">{mine.filter((a) => a.sale).map((a) => <AgentCard key={a.id} agent={a} showPrices />)}</div>
+        </section>
+      )}
+
       <section className="stack">
         <h2 className="h-section">Agent milikku ({mine.length})</h2>
         {mine.length
           ? <div className="agent-grid">{mine.map((a) => <AgentCard key={a.id} agent={a} />)}</div>
-          : <Empty title="Belum ada agent" action={<Link to="/kawin" className="btn btn-primary">Kawinkan agent pertamamu</Link>}>Setiap anak yang lahir dari perkawinanmu menjadi milikmu.</Empty>}
+          : <Empty title="Belum ada agent" action={<div className="row" style={{ justifyContent: "center" }}>
+              <Link to="/studio" className="btn btn-primary">Buat di Studio</Link><Link to="/pasar?tab=dijual" className="btn">Beli di Pasar</Link>
+            </div>}>Buat agent di Studio, beli di Pasar, atau kawinkan dua agent.</Empty>}
       </section>
 
       {demo && status && (
@@ -111,7 +120,7 @@ function Account({ address, label, as, compact }: { address: string; label: stri
       </div>
       <dl className="money">
         <div><dt>Saldo</dt><dd>{m ? `${Number(m.balanceEth).toLocaleString("id-ID", { maximumFractionDigits: 4 })} ETH` : "…"}</dd></div>
-        <div><dt>Royalti siap ditarik</dt><dd>{m ? `${m.pendingEth} ETH` : "…"}</dd></div>
+        <div><dt>Penghasilan siap ditarik</dt><dd>{m ? `${m.pendingEth} ETH` : "…"}</dd></div>
       </dl>
       <button className="btn btn-sm" disabled={!can || !!actor.busy} onClick={() => actor.act("withdraw", {}, { as })}>
         {actor.busy === "withdraw" ? <Spinner /> : null}Tarik royalti

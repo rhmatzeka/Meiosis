@@ -115,13 +115,16 @@ export function Copy({ text, label }: { text: string; label?: string }) {
 export const Spinner = () => <span className="spinner" aria-hidden />;
 
 /** Ikon garis sederhana untuk navigasi bawah di ponsel. */
-export function Icon({ name }: { name: "breed" | "grid" | "tree" | "task" | "arena" }) {
+export function Icon({ name }: { name: "breed" | "grid" | "tree" | "task" | "arena" | "shop" | "spark" | "wallet" }) {
   const p = {
     breed: <><circle cx="8" cy="12" r="5" /><circle cx="16" cy="12" r="5" /></>,
     grid: <><rect x="3.5" y="3.5" width="7" height="7" rx="2" /><rect x="13.5" y="3.5" width="7" height="7" rx="2" /><rect x="3.5" y="13.5" width="7" height="7" rx="2" /><rect x="13.5" y="13.5" width="7" height="7" rx="2" /></>,
     tree: <><circle cx="6" cy="5" r="2.5" /><circle cx="18" cy="5" r="2.5" /><circle cx="12" cy="19" r="2.5" /><path d="M6 7.5c0 5 6 4 6 9M18 7.5c0 5-6 4-6 9" /></>,
     task: <><path d="M5 5h14v14H5z" /><path d="m8.5 12 2.5 2.5 4.5-5" /></>,
     arena: <><path d="M4 20V10M10 20V4M16 20v-8M22 20H2" /></>,
+    shop: <><path d="M4 9h16l-1.2 10.2a1 1 0 0 1-1 .8H6.2a1 1 0 0 1-1-.8z" /><path d="M8.5 9V7a3.5 3.5 0 0 1 7 0v2" /></>,
+    spark: <><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18" /></>,
+    wallet: <><rect x="3" y="6" width="18" height="13" rx="2.5" /><path d="M16 12.5h2M3 9.5h18" /></>,
   }[name];
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{p}</svg>;
 }

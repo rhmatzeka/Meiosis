@@ -3,6 +3,7 @@
  * sama, satu-satunya yang berbeda di antara hasil mereka adalah genome-nya.
  */
 import { useEffect, useRef, useState } from "react";
+import { formatEther } from "viem";
 import { get, post, type Agent } from "../api";
 import { AgentCard } from "../components/agent";
 import { useToast } from "../components/toast";
@@ -50,16 +51,20 @@ export function RunPage() {
   useEffect(() => () => clearTimeout(poll.current), []);
 
   const toggle = (a: Agent) => setSel((s) => (s.includes(a.id) ? s.filter((x) => x !== a.id) : [...s, a.id]));
-  const price = Number(status?.runPriceEth ?? 0);
+  // Harga sewa per agent; di mode tiruan tidak ada yang dibayar.
+  const priceOf = (id: number) => (mock ? 0n : BigInt(byId(id)?.rent.priceWei ?? "0"));
+  const total = sel.reduce((s, id) => s + priceOf(id), 0n);
   const limit = status?.public ? 3 : 8;
 
   const run = async () => {
     setError(null); setJob(null);
+    // Setiap agent berharga dibayar lebih dulu lewat Pasar; hash tx-nya jadi bukti bayar.
     const payments: Record<number, string> = {};
-    if (price > 0 && !mock) {
+    if (total > 0n) {
       if (actor.mode === "none") { actor.login(); return; }
       for (const id of sel) {
-        const r = await actor.act("pay", { id, amountEth: status!.runPriceEth, memo: "run" }, { quietSuccess: true });
+        if (priceOf(id) === 0n) continue;
+        const r = await actor.act("rent", { id }, { quietSuccess: true });
         if (!r) return;
         payments[id] = r.hash;
       }
@@ -129,11 +134,11 @@ export function RunPage() {
         </div>
         <div className="row">
           <button className="btn btn-primary btn-lg" disabled={!sel.length || !task.trim() || running || sel.length > limit} onClick={run}>
-            {running ? <><Spinner />Bekerja…</> : sel.length > 1 ? `Jalankan di ${sel.length} agent` : "Jalankan"}
+            {running ? <><Spinner />Bekerja…</> : `${sel.length > 1 ? `Jalankan di ${sel.length} agent` : "Jalankan"}${total > 0n ? ` · bayar ${formatEther(total)} ETH` : ""}`}
           </button>
           <span className="small muted">
             {!sel.length ? "Pilih agent di bawah." : sel.length > limit ? `Paling banyak ${limit} agent sekali jalan.` : sel.map((id) => byId(id)?.name).join(", ")}
-            {price > 0 && !mock && ` · ${status!.runPriceEth} ETH per agent, dibayar ke pemiliknya`}
+            {total > 0n && " · dibayar ke pemilik agent dan leluhurnya, sekali untuk tugas ini"}
           </span>
         </div>
       </section>
@@ -144,7 +149,7 @@ export function RunPage() {
       <section className="stack">
         <h2 className="h-section">Pilih agent</h2>
         <div className="agent-grid">
-          {agents.map((a) => <AgentCard key={a.id} agent={a} onPick={() => toggle(a)} pickedAs={sel.includes(a.id) ? "a" : undefined} />)}
+          {agents.map((a) => <AgentCard key={a.id} agent={a} onPick={() => toggle(a)} pickedAs={sel.includes(a.id) ? "a" : undefined} showPrices />)}
         </div>
       </section>
     </div>
