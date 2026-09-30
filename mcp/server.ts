@@ -210,14 +210,19 @@ async function call(name: string, args: Json): Promise<Json> {
       const p = pregs.filter((x) => !x.hatched).at(-1);
       if (!p) return text("kehamilan tidak ditemukan setelah breed");
 
-      // Kehamilan butuh 5 blok; di Anvil blok maju tiap 2 detik.
-      for (let i = 0; i < 30 && !(await api(`/api/pregnancies`) as { id: number; ready: boolean }[])
-        .find((x) => x.id === p.id)?.ready; i++) {
+      // Kehamilan butuh 5 blok; di Anvil blok maju tiap 2 detik. Keeper server
+      // biasanya menetaskannya sendiri; kalau keeper mati, kita yang menetaskan.
+      type Preg = { id: number; ready: boolean; hatched: boolean; childId: number | null };
+      let cur: Preg | undefined;
+      for (let i = 0; i < 60; i++) {
+        cur = ((await api("/api/pregnancies?fresh=1")) as Preg[]).find((x) => x.id === p.id);
+        if (cur?.hatched && cur.childId) break;
+        if (cur?.ready && !cur.hatched) await post("/api/hatch", { pid: p.id }).catch(() => {});
         await new Promise((r) => setTimeout(r, 2000));
       }
-      await post("/api/hatch", { pid: p.id });
-      const agents = (await api("/api/agents")) as Record<string, unknown>[];
-      const child = agents.at(-1)!;
+      if (!cur?.childId) return text(`kehamilan #${p.id} belum menetas setelah 2 menit; cek lagi nanti`);
+      const agents = (await api("/api/agents?fresh=1")) as Record<string, unknown>[];
+      const child = agents.find((a) => a.id === cur!.childId)!;
       const tr = Object.fromEntries(
         (child.traits as { name: string; value: string }[]).map((t) => [t.name, t.value]),
       );
