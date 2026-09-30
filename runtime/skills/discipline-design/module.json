@@ -1,9 +1,11 @@
 {
+  "contentHash": "f41903fc137f018b",
+  "hasPrompt": true,
   "locus": 1,
   "mcpTools": [
     "filesystem"
   ],
   "name": "discipline-design",
   "traitId": 2,
-  "version": "1.0.0"
+  "version": "2.0.0"
 }

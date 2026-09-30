@@ -1,7 +1,9 @@
 {
+  "contentHash": "8a19057ad4723224",
+  "hasPrompt": true,
   "locus": 11,
   "mcpTools": [],
   "name": "verbosity-terse",
   "traitId": 0,
-  "version": "1.0.0"
+  "version": "2.0.0"
 }

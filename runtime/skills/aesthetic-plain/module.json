@@ -1,7 +1,9 @@
 {
+  "contentHash": "a2ce6f800cd62435",
+  "hasPrompt": true,
   "locus": 4,
   "mcpTools": [],
   "name": "aesthetic-plain",
   "traitId": 0,
-  "version": "1.0.0"
+  "version": "2.0.0"
 }

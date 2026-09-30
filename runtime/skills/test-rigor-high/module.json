@@ -1,9 +1,11 @@
 {
+  "contentHash": "a4ad19eb09e54dc2",
+  "hasPrompt": true,
   "locus": 5,
   "mcpTools": [
     "bash"
   ],
   "name": "test-rigor-high",
   "traitId": 2,
-  "version": "1.0.0"
+  "version": "2.0.0"
 }

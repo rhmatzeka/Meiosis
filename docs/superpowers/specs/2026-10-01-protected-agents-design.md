@@ -31,7 +31,7 @@ Meiosis yang menyala; bukti isi prompt berubah dari "baca sendiri" menjadi
 
 ```
 runtime/skills/<nama>/module.json   publik: locus, traitId, name, version, mcpTools, modelTier, contentHash
-private/skills/<nama>/prompt.md     privat (di-.gitignore), atau $SKILLS_PRIVATE_DIR
+private/skills/<nama>/prompt.md     privat (di-.gitignore)
 ```
 
 - `catalog.ts`: `contentHash` diambil dari `module.json`. Bila prompt privat

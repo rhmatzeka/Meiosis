@@ -18,3 +18,6 @@ e2e/last-run.png
 demo-repo/
 .superpowers/
 .playwright-mcp/
+
+# Teks prompt modul skill: rahasia server, tidak pernah di-commit
+private/

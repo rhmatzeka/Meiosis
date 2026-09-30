@@ -17,6 +17,7 @@
     "gene-sim": "bun run scripts/gene-sim.ts",
     "litter": "bun run scripts/litter.ts",
     "setup": "bun run scripts/setup.ts",
+    "skills:hash": "bun run scripts/skills-hash.ts",
     "start": "bun run scripts/start.ts",
     "stop": "bun run scripts/stop.ts",
     "test": "bun test runtime/ web/ server/ packages/",

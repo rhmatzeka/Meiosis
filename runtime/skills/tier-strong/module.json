@@ -1,8 +1,10 @@
 {
+  "contentHash": "8a66ea1182f4abd9",
+  "hasPrompt": false,
   "locus": 0,
   "mcpTools": [],
   "modelTier": "strong",
   "name": "tier-strong",
   "traitId": 2,
-  "version": "1.0.0"
+  "version": "2.0.0"
 }

@@ -1,9 +1,11 @@
 {
+  "contentHash": "8e116801f6723eb6",
+  "hasPrompt": true,
   "locus": 6,
   "mcpTools": [
     "bash"
   ],
   "name": "security-instinct-high",
   "traitId": 2,
-  "version": "1.0.0"
+  "version": "2.0.0"
 }

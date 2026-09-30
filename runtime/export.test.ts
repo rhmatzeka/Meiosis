@@ -1,6 +1,7 @@
 import { test, expect } from "bun:test";
 import { toClaudeAgent, parseExport, agentSlug } from "./export";
 import { expand, systemPrompt } from "./genome/expand";
+import { promptsAvailable } from "./genome/catalog";
 import { FOUNDERS } from "../packages/shared/src/founders";
 
 const info = (i: number) => ({
@@ -9,7 +10,10 @@ const info = (i: number) => ({
   registry: "0x0000000000000000000000000000000000000002",
 });
 
-test("ekspor bisa dibaca balik dan prompt-nya identik dengan hasil expand()", () => {
+// Butuh teks prompt privat (private/skills); di klon publik tes ini dilewati.
+const needsPrompts = test.skipIf(!promptsAvailable());
+
+needsPrompts("ekspor bisa dibaca balik dan prompt-nya identik dengan hasil expand()", () => {
   for (let i = 0; i < FOUNDERS.length; i++) {
     const md = toClaudeAgent(info(i));
     const x = parseExport(md);
@@ -19,7 +23,7 @@ test("ekspor bisa dibaca balik dan prompt-nya identik dengan hasil expand()", ()
   }
 });
 
-test("frontmatter selalu membatasi tool — tanpa daftar, Claude Code mewariskan semua tool", () => {
+needsPrompts("frontmatter selalu membatasi tool — tanpa daftar, Claude Code mewariskan semua tool", () => {
   for (let i = 0; i < FOUNDERS.length; i++) {
     const md = toClaudeAgent(info(i));
     expect(md.startsWith("---\nname: meiosis-")).toBe(true);

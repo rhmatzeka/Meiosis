@@ -1,7 +1,9 @@
 {
+  "contentHash": "14e30918c81eb7c1",
+  "hasPrompt": true,
   "locus": 4,
   "mcpTools": [],
   "name": "aesthetic-high",
   "traitId": 2,
-  "version": "1.0.0"
+  "version": "2.0.0"
 }

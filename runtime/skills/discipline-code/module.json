@@ -1,4 +1,6 @@
 {
+  "contentHash": "378a0840a580672e",
+  "hasPrompt": true,
   "locus": 1,
   "mcpTools": [
     "filesystem",
@@ -6,5 +8,5 @@
   ],
   "name": "discipline-code",
   "traitId": 1,
-  "version": "1.0.0"
+  "version": "2.0.0"
 }

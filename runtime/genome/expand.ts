@@ -19,7 +19,7 @@
  */
 import { keccak256, toBytes } from "viem";
 import { express, LOCUS, LOCUS_COUNT } from "../../packages/shared/src/genome";
-import { moduleFor, type SkillModule } from "./catalog";
+import { composePrompt, moduleFor, type SkillModule } from "./catalog";
 
 export type ModelTier = "fast" | "balanced" | "strong";
 
@@ -120,14 +120,16 @@ export function manifestHash(m: Manifest): bigint {
   return BigInt("0x" + h.slice(2, 18));
 }
 
-/** Menyusun system prompt dari modul yang terekspresi, berurutan menurut lokus. */
+/**
+ * Menyusun system prompt dari modul yang terekspresi, berurutan menurut lokus.
+ * Butuh prompt privat (private/skills); tanpa itu melempar galat yang jelas.
+ */
 export function systemPrompt(m: Manifest): string {
-  const parts: string[] = [];
+  const mods: SkillModule[] = [];
   for (const t of m.traits) {
     if (!t.module) continue;
     const mod = moduleFor(t.locus, t.traitId);
-    if (!mod || !mod.prompt.trim()) continue;
-    parts.push(mod.prompt.trim());
+    if (mod) mods.push(mod);
   }
-  return parts.join("\n\n---\n\n");
+  return composePrompt(mods);
 }

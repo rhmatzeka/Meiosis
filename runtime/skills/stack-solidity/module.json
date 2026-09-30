@@ -1,4 +1,6 @@
 {
+  "contentHash": "4c5f2f8b6d05f2bb",
+  "hasPrompt": true,
   "locus": 3,
   "mcpTools": [
     "filesystem",
@@ -6,5 +8,5 @@
   ],
   "name": "stack-solidity",
   "traitId": 2,
-  "version": "1.0.0"
+  "version": "2.0.0"
 }

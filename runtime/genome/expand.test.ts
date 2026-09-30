@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { expand, manifestHash, canonicalJson, systemPrompt } from "./expand";
 import { catalog } from "./catalog";
 import { TRAIT_COUNTS } from "../../packages/shared/src/genome";
+import { promptsAvailable } from "./catalog";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const golden = JSON.parse(readFileSync(join(here, "golden.json"), "utf8")) as {
@@ -77,7 +78,8 @@ describe("katalog modul", () => {
     }
   });
 
-  test("system prompt disusun berurutan menurut lokus", () => {
+  // Butuh teks prompt privat; di klon publik dilewati.
+  test.skipIf(!promptsAvailable())("system prompt disusun berurutan menurut lokus", () => {
     // G0: discipline-code (L1) harus mendahului security (L6) dan terse (L11)
     const m = expand(BigInt(golden.cases[0].genome), 0n);
     const p = systemPrompt(m);
