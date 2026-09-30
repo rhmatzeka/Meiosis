@@ -5,13 +5,13 @@
  */
 import { useMemo, useState } from "react";
 import { same } from "../api";
-import { Cell, Empty } from "../components/ui";
+import { Empty } from "../components/ui";
 import { useActor } from "../hooks/use-actor";
 import { useData } from "../hooks/use-data";
 import { cellLook } from "../lib/look";
 import { navigate, useTitle } from "../router";
 
-const COL = 132, ROW = 170, R = 26, PAD = 60;
+const COL = 140, ROW = 180, R = 26, PAD = 60, LABEL = 42;
 
 export function FamilyPage() {
   useTitle("Silsilah");
@@ -50,15 +50,16 @@ export function FamilyPage() {
         <p>Setiap baris satu generasi. Garis teal dari induk pertama, pink dari induk kedua. Arahkan ke sebuah agent untuk menyorot keluarganya, klik untuk membukanya.</p>
       </div>
       <div className="stage tree-wrap">
-        <svg className="tree" viewBox={`0 0 ${layout.W} ${layout.H}`} style={{ minWidth: Math.min(layout.W, 900) }} role="img" aria-label="Pohon keluarga agent">
+        <svg className="tree" viewBox={`0 0 ${layout.W} ${layout.H}`} width={layout.W} height={layout.H} role="img" aria-label="Pohon keluarga agent">
           <defs>
             {agents.map((a) => {
               const l = cellLook(BigInt(a.genome));
               return (
-                <radialGradient key={a.id} id={`g${a.id}`} cx=".34" cy=".3" r=".75">
-                  <stop offset="0" stopColor={`hsl(${l.h} 100% 94%)`} />
-                  <stop offset=".38" stopColor={`hsl(${l.h} ${l.sat}% 64%)`} />
-                  <stop offset="1" stopColor={`hsl(${l.h2} 60% 14%)`} />
+                <radialGradient key={a.id} id={`g${a.id}`}>
+                  <stop offset=".5" stopColor={`hsl(${l.h2} 70% 14%)`} stopOpacity=".6" />
+                  <stop offset=".76" stopColor={`hsl(${l.h} ${l.sat}% 50%)`} stopOpacity=".75" />
+                  <stop offset=".92" stopColor={`hsl(${l.h} 100% 80%)`} />
+                  <stop offset="1" stopColor={`hsl(${l.h} 100% 70%)`} stopOpacity="0" />
                 </radialGradient>
               );
             })}
@@ -69,7 +70,7 @@ export function FamilyPage() {
             const on = hover === null || hover === a.id || hover === p;
             return (
               <path key={`${a.id}-${k}`}
-                d={`M${from.x} ${from.y + R} C ${from.x} ${from.y + ROW / 2}, ${to.x} ${to.y - ROW / 2}, ${to.x} ${to.y - R}`}
+                d={`M${from.x} ${from.y + R + LABEL} C ${from.x} ${from.y + ROW / 2 + 20}, ${to.x} ${to.y - ROW / 2 + 10}, ${to.x} ${to.y - R - 4}`}
                 fill="none" stroke={k === 0 ? "var(--teal)" : "var(--pink)"} strokeWidth={on ? 2 : 1.2}
                 opacity={on ? 0.75 : 0.12} />
             );
@@ -84,7 +85,8 @@ export function FamilyPage() {
                 tabIndex={0} role="link" aria-label={`${a.name}, generasi ${a.generation}`}
                 onKeyDown={(e) => e.key === "Enter" && navigate(`/agent/${a.id}`)}>
                 {mine && <circle cx={p.x} cy={p.y} r={R + 5} fill="none" stroke="var(--teal)" strokeDasharray="3 4" />}
-                <circle cx={p.x} cy={p.y} r={R} fill={`url(#g${a.id})`} />
+                <circle cx={p.x} cy={p.y} r={R} fill={`url(#g${a.id})`} style={{ filter: `drop-shadow(0 0 10px hsl(${cellLook(BigInt(a.genome)).h} 85% 60% / .45))` }} />
+                <circle cx={p.x + 3} cy={p.y + 3} r={5} fill={`hsl(${cellLook(BigInt(a.genome)).h} 100% 88%)`} opacity=".9" />
                 <text x={p.x} y={p.y + R + 18} textAnchor="middle" className="tree-name">{a.name}</text>
                 <text x={p.x} y={p.y + R + 33} textAnchor="middle" className="tree-meta">#{a.id}{mine ? " · milikmu" : ""}</text>
               </g>
@@ -92,7 +94,7 @@ export function FamilyPage() {
           })}
         </svg>
       </div>
-      <p className="xs dim"><Cell genome={agents[0].genome} size={10} alive={false} style={{ display: "inline-block", verticalAlign: "middle" }} /> Lingkaran putus-putus menandai agent milikmu.</p>
+      <p className="xs dim">Lingkaran putus-putus menandai agent milikmu.</p>
     </div>
   );
 }

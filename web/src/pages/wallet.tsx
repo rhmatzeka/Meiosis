@@ -110,7 +110,7 @@ function Account({ address, label, as, compact }: { address: string; label: stri
         </div>
       </div>
       <dl className="money">
-        <div><dt>Saldo</dt><dd>{m ? `${Number(m.balanceEth).toFixed(4)} ETH` : "…"}</dd></div>
+        <div><dt>Saldo</dt><dd>{m ? `${Number(m.balanceEth).toLocaleString("id-ID", { maximumFractionDigits: 4 })} ETH` : "…"}</dd></div>
         <div><dt>Royalti siap ditarik</dt><dd>{m ? `${m.pendingEth} ETH` : "…"}</dd></div>
       </dl>
       <button className="btn btn-sm" disabled={!can || !!actor.busy} onClick={() => actor.act("withdraw", {}, { as })}>

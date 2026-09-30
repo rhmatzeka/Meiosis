@@ -43,8 +43,10 @@ function Pick() {
   const pick = (x: Agent) => {
     if (a?.id === x.id) return setPair(b, undefined);
     if (b?.id === x.id) return setPair(a, undefined);
-    if (!a) return setPair(x, b);
-    return setPair(a, x);
+    const next: [Agent | undefined, Agent] | [Agent, Agent] = !a ? [x, b as Agent] : [a, x];
+    setPair(next[0], next[1]);
+    // Pasangan lengkap: bawa layar kembali ke peluang dan tombol Kawinkan (penting di ponsel).
+    if (next[0] && next[1]) requestAnimationFrame(() => document.querySelector(".breed-stage")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
   const cdA = useCooldown(a), cdB = useCooldown(b);
