@@ -18,10 +18,10 @@ dan system prompt yang disusun dari modul skill warisannya.
 
 Agent bisa dipakai dengan tiga cara:
 
-1. **Di halaman Meiosis** — tab Jalankan: agent menulis kode, membangunnya di
+1. **Di halaman Meiosis**: menu Beri tugas. Agent menulis kode, membangunnya di
    sandbox, memperbaiki sendiri, lalu diberi skor.
 2. **Dari Claude Code lewat MCP** — lihat [MCP.md](./MCP.md).
-3. **Dibawa pulang sebagai berkas `.md`** — tombol Ekspor mengunduh subagent
+3. **Dibawa pulang sebagai berkas `.md`**: tombol Bawa pulang mengunduh subagent
    Claude Code siap pakai. Taruh di `.claude/agents/` proyek mana pun. Berkasnya
    membawa genome dan manifestHash, jadi `bun run verify-agent <berkas>`
    membuktikan isinya tidak diubah dari yang tercatat di chain.
@@ -35,7 +35,7 @@ Agent bisa dipakai dengan tiga cara:
 | P1b — deploy Sepolia | skrip siap (`bun run deploy:sepolia`), menunggu ETH faucet |
 | P2 — runtime `expand()` + 12 modul skill | ✅ selesai |
 | P3 — sandbox, scorer, judge, arena | sebagian: pipa jalan, hybrid vigor belum terbukti |
-| P4 — web UI | ✅ roster, kawinkan, silsilah, arena, **connect wallet**, aksi pemilik, royalti, ekspor |
+| P4 — web UI | ✅ React + **login Privy** (email/Google/wallet), alur kawin terpandu, faucet & penetasan otomatis, koleksi, silsilah, arena, dompet, ekspor |
 | Royalti leluhur | ✅ `LineageRoyalty.sol` — sewa dan tarif kawin mengalir sampai 4 generasi |
 | P4 — orchestrator & indexer | belum |
 
@@ -52,7 +52,8 @@ bun run test:contracts    # 38 test, termasuk uji silang TS <-> Solidity dan roy
 bun test                  # 39 test runtime, termasuk 20 berkas acuan expand()
 
 bun run anvil             # di terminal terpisah
-bun run ui                # http://localhost:5173 — deploy, kawinkan, jalankan, silsilah, arena
+bun run ui                # http://localhost:5173 — beranda, kawinkan, koleksi, silsilah, tugas, arena, dompet
+bun run e2e               # uji browser sungguhan: perjalanan juri + jalur wallet
 bun run demo:local        # deploy -> mint -> breed -> hatch -> rakit agent
 bun run demo:runtime      # tiga agent, tugas identik, model sungguhan
 
@@ -61,9 +62,12 @@ bun run ui:sepolia        # UI tersambung ke Sepolia; pengunjung pakai wallet se
 bun run verify-agent f.md # buktikan berkas ekspor asli terhadap chain
 ```
 
-Tanpa wallet di chain lokal, transaksi ditandatangani server dengan akun demo
-Anvil. Dengan wallet — dan selalu di Sepolia — pengguna menandatangani sendiri;
-server hanya menyusun calldata di `/api/tx` dan tidak pernah memegang kunci.
+Tanpa login di chain lokal, transaksi ditandatangani server dengan akun demo
+Anvil. Setelah masuk (Privy: email, Google, atau wallet; tanpa `PRIVY_APP_ID`:
+MetaMask), dan selalu di Sepolia, pengguna menandatangani sendiri. Server hanya
+menyusun calldata di `/api/tx` dan tidak pernah memegang kunci pengguna. Satu
+wallet operator membayar gas faucet pengguna baru dan penetasan otomatis
+(lihat [DEPLOY.md](./DEPLOY.md#faucet-dan-keeper)).
 
 `demo:local` menjalankan seluruh alur kelahiran lalu membaca genome anak dari
 chain dan menghitungnya ulang dari nol dengan implementasi TypeScript. Kalau

@@ -57,7 +57,7 @@ function Auth({ children }: { children: ReactNode }) {
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ToastProvider>
-      <DataProvider>
+      <DataProvider initial={status}>
         <Auth>
           <App />
         </Auth>

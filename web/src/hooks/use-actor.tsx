@@ -167,7 +167,7 @@ export function PrivyActorProvider({ children }: { children: ReactNode }) {
     mode: authenticated && address ? "privy" : status?.local ? "demo" : "none",
     address: authenticated ? address : demoAddress(status),
     label: authenticated ? (email ?? undefined) : status?.local ? "Alice (akun demo)" : undefined,
-    ready,
+    ready: ready && !!status,
     canLogin: true,
     login,
     logout: async () => { await logout(); setFunding(null); },
@@ -180,14 +180,27 @@ export function PrivyActorProvider({ children }: { children: ReactNode }) {
 // --- tanpa Privy: wallet injected atau akun demo ------------------------------
 
 const eth = () => (window as unknown as { ethereum?: Eip1193 }).ethereum;
+const REMEMBER = "meiosis:wallet";
 
 export function PlainActorProvider({ children }: { children: ReactNode }) {
   const { status } = useData();
   const toast = useToast();
   const [address, setAddress] = useState<string | undefined>();
 
+  // Wallet yang pernah dihubungkan disambung lagi tanpa jendela izin (eth_accounts
+  // tidak memunculkan dialog). Tanpa ini, memuat ulang halaman diam-diam
+  // mengembalikan pengguna ke akun demo.
   useEffect(() => {
-    eth()?.on?.("accountsChanged", (a) => setAddress((a as string[])[0]));
+    const p = eth();
+    if (!p) return;
+    p.on?.("accountsChanged", (a) => {
+      const next = (a as string[])[0];
+      setAddress(next);
+      try { next ? localStorage.setItem(REMEMBER, "1") : localStorage.removeItem(REMEMBER); } catch { /* penyimpanan diblokir */ }
+    });
+    let remembered = false;
+    try { remembered = localStorage.getItem(REMEMBER) === "1"; } catch { /* penyimpanan diblokir */ }
+    if (remembered) p.request({ method: "eth_accounts" }).then((a) => setAddress((a as string[])[0])).catch(() => {});
   }, []);
 
   const login = useCallback(async () => {
@@ -196,6 +209,7 @@ export function PlainActorProvider({ children }: { children: ReactNode }) {
     try {
       const [a] = (await p.request({ method: "eth_requestAccounts" })) as string[];
       setAddress(a);
+      try { localStorage.setItem(REMEMBER, "1"); } catch { /* penyimpanan diblokir */ }
     } catch (e) {
       toast(humanError(e, { names: {}, block: 0, secPerBlock: 12 }).message, "info");
     }
@@ -224,12 +238,12 @@ export function PlainActorProvider({ children }: { children: ReactNode }) {
     mode: address ? "injected" : status?.local ? "demo" : "none",
     address: address ?? demoAddress(status),
     label: address ? undefined : status?.local ? "Alice (akun demo)" : undefined,
-    ready: true,
+    ready: !!status,
     canLogin: !!eth(),
     login,
-    logout: async () => setAddress(undefined),
+    logout: async () => { setAddress(undefined); try { localStorage.removeItem(REMEMBER); } catch { /* penyimpanan diblokir */ } },
     act, busy, funding: null,
-    loginProblem: eth() ? null : status?.local ? null : "Login belum diaktifkan di server ini (PRIVY_APP_ID kosong) dan browser ini tidak punya wallet.",
+    loginProblem: !status || eth() || status.local ? null : "Login belum diaktifkan di server ini (PRIVY_APP_ID kosong) dan browser ini tidak punya wallet.",
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

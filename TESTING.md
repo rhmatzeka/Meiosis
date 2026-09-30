@@ -58,21 +58,25 @@ promptnya diubah ditolak.
 ### Uji UI lewat browser sungguhan
 
 ```bash
-bun run ui          # terminal lain
-bun run e2e         # ~20 detik, tanpa kuota model
-bun run e2e:full    # termasuk menjalankan agent, ~5 menit
+bun run start       # chain lokal + server + keeper
+bun run e2e         # ~1 menit, tanpa kuota model, butuh Chrome/Chromium di mesin ini
 ```
 
-`e2e/wallet.spec.ts` menguji alur yang sama lewat klik di halaman, dengan wallet
-EIP-1193 tiruan yang menandatangani memakai akun Anvil #6. Di host yang punya
-Chrome dan `playwright-core`:
+`e2e/journey.spec.ts` menjalani perjalanan juri dengan akun demo: beranda →
+kawinkan → refresh di tengah pembuahan → lahir → unduh `.md` → `verify-agent`
+SAH. Ia juga memeriksa induk yang sedang istirahat, banner saat chain mati,
+tugas mode tiruan, dan bahwa sembilan halaman tidak bisa digeser menyamping di
+layar 375 px.
 
-```bash
-CHROMIUM_PATH=/usr/bin/google-chrome bun run e2e/wallet.spec.ts
-```
+`e2e/wallet.spec.ts` memakai wallet EIP-1193 tiruan yang menandatangani dengan
+akun Anvil #6: masuk, kawinkan, catat manifest, beri nama, pasang tarif,
+royalti 95%, tarik royalti, dan ekspor.
 
-Browser dijalankan di dalam container sandbox — Chromium dan playwright sudah
-ada di sana, jadi tidak perlu memasang apa pun di host.
+Browser dicari di `/usr/bin/chromium`, `/usr/bin/google-chrome`, dan
+sejenisnya; atau tunjuk langsung dengan `CHROMIUM_PATH`.
+
+Login Privy tidak bisa diuji otomatis karena butuh email/Google sungguhan. Daftar
+periksa manualnya ada di [DEPLOY.md](./DEPLOY.md#daftar-periksa-login-privy).
 
 Memeriksa API saja tidak cukup: halaman bisa mati karena satu galat JavaScript
 sementara seluruh endpoint tetap sehat. Uji ini memuat halaman, mengumpulkan

@@ -12,7 +12,6 @@
     "demo:runtime": "bun run scripts/demo-runtime.ts",
     "deploy:sepolia": "CHAIN=sepolia bun run scripts/deploy.ts",
     "e2e": "bun run scripts/e2e.ts",
-    "e2e:full": "bun run scripts/e2e.ts --full",
     "gen-golden": "bun run scripts/gen-golden.ts",
     "gene-sim": "bun run scripts/gene-sim.ts",
     "litter": "bun run scripts/litter.ts",
@@ -32,6 +31,7 @@
     "@types/bun": "^1.4.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "playwright-core": "^1.63.0",
     "typescript": "^5.6.0"
   },
   "dependencies": {

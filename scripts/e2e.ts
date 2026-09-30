@@ -1,42 +1,27 @@
 /**
- * Menjalankan uji end-to-end di dalam container sandbox.
+ * Menjalankan uji end-to-end lewat browser sungguhan terhadap server lokal.
  *
- * Browser-nya dijalankan di container karena di situlah Chromium dan
- * playwright sudah terpasang — tidak perlu memasang apa pun di host.
- * `--network host` dipakai agar container bisa menjangkau server UI di laptop.
+ *   bun run e2e          perjalanan juri (demo) + jalur wallet
  *
- *   bun run e2e          uji UI saja, cepat, tanpa memakai kuota model
- *   bun run e2e:full     termasuk menjalankan agent sungguhan
+ * Butuh `bun run start` lebih dulu, dan Chrome/Chromium terpasang
+ * (atau CHROMIUM_PATH menunjuk ke sana).
  */
-const full = process.argv.includes("--full");
-const image = "meiosis-sandbox:1";
-
-const sh = async (args: string[], inherit = false) => {
-  const p = Bun.spawn(args, { stdout: inherit ? "inherit" : "pipe", stderr: inherit ? "inherit" : "pipe" });
-  const out = inherit ? "" : await new Response(p.stdout).text();
-  const code = await p.exited;
-  return { code, out: out.trim() };
-};
+import { browserPath } from "../e2e/harness";
 
 const up = await fetch("http://127.0.0.1:5173/api/status").then((r) => r.ok).catch(() => false);
 if (!up) {
-  console.error("\n  Server UI tidak menjawab di :5173. Jalankan `bun run ui` lebih dulu.\n");
+  console.error("\n  Server tidak menjawab di :5173. Jalankan `bun run start` lebih dulu.\n");
+  process.exit(1);
+}
+if (!browserPath()) {
+  console.error("\n  Tidak ada Chrome/Chromium di mesin ini. Pasang salah satunya, atau isi CHROMIUM_PATH.\n");
   process.exit(1);
 }
 
-const created = await sh([
-  "docker", "create", "--network", "host",
-  "-e", "HOME=/tmp", "-e", `RUN_AGENT=${full ? "1" : "0"}`,
-  "--entrypoint", "sh", image, "-c", "bun run /work/ui.spec.ts",
-]);
-const cid = created.out;
-if (created.code !== 0 || !cid) { console.error("docker create gagal:", created.out); process.exit(1); }
-
-try {
-  await sh(["docker", "cp", "e2e/ui.spec.ts", `${cid}:/work/ui.spec.ts`]);
-  const run = await sh(["docker", "start", "-a", cid], true);
-  await sh(["docker", "cp", `${cid}:/tmp/e2e-run.png`, "e2e/last-run.png"]);
-  process.exit(run.code);
-} finally {
-  await sh(["docker", "rm", "-f", cid]);
+let failed = 0;
+for (const spec of ["e2e/journey.spec.ts", "e2e/wallet.spec.ts"]) {
+  console.log(`\n\x1b[1m▶ ${spec}\x1b[0m`);
+  const p = Bun.spawn(["bun", "run", spec], { stdout: "inherit", stderr: "inherit" });
+  if ((await p.exited) !== 0) failed++;
 }
+process.exit(failed ? 1 : 0);

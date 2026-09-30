@@ -61,24 +61,26 @@ tugas React.
 
 Jadi kawinkan keduanya:
 
-1. Tab **Kawinkan** → klik kartu `#1` dan `#2`
-2. Lihat kekerabatan dan perbandingan trait-nya, lalu klik **Kawinkan**
-3. Muncul kartu kehamilan dengan hitung mundur blok — klik **Majukan 6 blok**
-4. Klik **Tetaskan**
+1. Di beranda, klik **Kawinkan mereka berdua** (atau buka **Kawinkan** dan pilih dua kartu)
+2. Lihat tabel peluang: mana sifat yang pasti turun, mana yang 50%. Klik **Kawinkan**
+3. Tunggu pembuahan, sekitar 12 detik di chain lokal. Tidak perlu menekan apa pun:
+   server menetaskannya otomatis begitu blok pengungkapnya lewat
+4. Layar **Lahir** menunjukkan pita genome anak, diwarnai asal tiap gennya
+   (teal dari induk pertama, pink dari induk kedua, emas bila bermutasi)
 
-Anak lahir di tab **Roster**. Perhatikan traitnya: ia hampir pasti mewarisi
-`security instinct high` dari `#1`, dan sekitar separuh kemungkinan mewarisi
-`aesthetic high` dari `#2`. Kalau tidak dapat, kawinkan lagi — tiap kelahiran
-memakai seed berbeda.
+Perhatikan sifatnya: ia hampir pasti mewarisi keamanan tinggi dari `#1`, dan
+sekitar separuh kemungkinan mewarisi estetika tinggi dari `#2`. Kalau tidak
+dapat, klik **Kawinkan lagi**, karena tiap kelahiran memakai seed berbeda.
+Halaman kehamilan (`/kawin/<nomor>`) aman di-refresh dan dibagikan.
 
 Kamu tidak mengendalikan hasilnya. Yang kamu kendalikan adalah **memilih
 induknya**.
 
 ## Pakai agentnya
 
-Tab **Jalankan** → pilih anaknya → tulis tugas → **Jalankan**.
+Di layar Lahir klik **Beri tugas** (atau menu **Beri tugas**) → tulis tugas → **Jalankan**.
 
-Mode agent aktif secara bawaan, artinya agent memakai tool sungguhan: ia
+Dengan Docker terpasang, **Kerja penuh** aktif secara bawaan, artinya agent memakai tool sungguhan: ia
 membaca berkas, menulis kode, menjalankan typecheck dan build, membaca galatnya,
 lalu memperbaiki sendiri. Langkahnya terlihat satu per satu selagi berjalan.
 Sekitar dua sampai tiga menit.
@@ -87,7 +89,7 @@ Di akhir muncul screenshot halaman yang ia bangun, berikut skor rubriknya.
 
 ## Bawa pulang agentnya
 
-Tiap kartu agent punya tombol **Ekspor .md**. Hasilnya subagent Claude Code:
+Layar Lahir dan halaman tiap agent punya tombol **Bawa pulang (.md)**. Hasilnya subagent Claude Code:
 
 ```bash
 mkdir -p .claude/agents && mv ~/Downloads/meiosis-5-*.md .claude/agents/
@@ -98,14 +100,17 @@ Setelah itu agent bisa dipanggil di proyek mana pun, tanpa server Meiosis.
 
 ## Jadi pemilik
 
-Klik **Hubungkan wallet** (MetaMask). Di chain lokal, MetaMask akan menawarkan
-menambah jaringan Anvil; impor salah satu akun Anvil ke MetaMask untuk punya ETH.
+Klik **Masuk** di kanan atas. Dengan `PRIVY_APP_ID` terisi (lihat
+[DEPLOY.md](./DEPLOY.md#login-privy)), orang bisa masuk dengan email, Google,
+atau wallet yang sudah punya; yang belum punya wallet dibuatkan otomatis dan
+diberi sedikit ETH untuk biaya jaringan. Tanpa `PRIVY_APP_ID`, tombol itu
+memakai wallet browser (MetaMask) langsung.
 
-Anak yang kamu kawinkan jadi milikmu. Di kartunya muncul tombol pemilik:
+Anak yang kamu kawinkan jadi milikmu. Di halaman agent-nya ada bagian **Milikmu**:
 
-- **Beri nama** — tersimpan on-chain
-- **Buka untuk kawin** — pasang tarif; siapa pun bisa mengawinkan agent-mu dengan membayarnya
-- **Tarik** di panel Dompetmu — bayaran untuk agent-mu *dan* untuk keturunannya
+- **Beri nama**: tersimpan on-chain
+- **Buka untuk kawin**: pasang tarif; siapa pun bisa mengawinkan agent-mu dengan membayarnya
+- **Tarik royalti** di **Dompet**: bayaran untuk agent-mu *dan* untuk keturunannya
 
 Setiap bayaran ke sebuah agent, 5% mengalir ke pemilik induknya, 2,5% ke
 kakek-neneknya, sampai empat generasi. Memilih induk yang baik adalah investasi.

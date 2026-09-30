@@ -21,8 +21,9 @@ interface Data {
 
 const Ctx = createContext<Data | null>(null);
 
-export function DataProvider({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<Status | null>(null);
+/** `initial` adalah status yang sudah diambil main.tsx, supaya layar pertama tidak berkedip. */
+export function DataProvider({ children, initial = null }: { children: ReactNode; initial?: Status | null }) {
+  const [status, setStatus] = useState<Status | null>(initial);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [pregnancies, setPregnancies] = useState<Pregnancy[]>([]);
   const [loading, setLoading] = useState(true);

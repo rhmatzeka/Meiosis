@@ -98,8 +98,8 @@
 .small { font-size: var(--t-sm); }
 .xs { font-size: var(--t-xs); }
 .row { display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; }
-.stack { display: grid; gap: var(--s-3); }
-.stack-lg { display: grid; gap: var(--s-5); }
+.stack { display: grid; gap: var(--s-3); grid-template-columns: minmax(0, 1fr); }
+.stack-lg { display: grid; gap: var(--s-5); grid-template-columns: minmax(0, 1fr); }
 .spread { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); flex-wrap: wrap; }
 
 .chip {

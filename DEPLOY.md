@@ -1,15 +1,22 @@
 # Deploy ke Sepolia dan membuka Meiosis untuk umum
 
 Di chain lokal, server memegang akun demo dan menandatangani semuanya sendiri.
-Di Sepolia tidak begitu: **server tidak memegang kunci siapa pun.** Setiap
-pengunjung menghubungkan wallet-nya sendiri, mengawinkan agent dengan wallet
-itu, dan anaknya jadi miliknya.
+Di Sepolia tidak begitu: **server tidak memegang kunci pengguna siapa pun.**
+Setiap pengunjung masuk lewat Privy (email, Google, atau wallet yang sudah
+punya), mengawinkan agent dengan wallet itu, dan anaknya jadi miliknya.
 
 ```
 browser ──(1) minta tx──▶ server /api/tx ──▶ calldata + stud fee + manifestHash
    │
-   └──(2) tanda tangan di MetaMask ──▶ Sepolia ◀── server hanya membaca
+   └──(2) tanda tangan di wallet Privy / MetaMask ──▶ Sepolia ◀── server membaca
+                                                         ▲
+               wallet operator: faucet pengguna baru + keeper penetasan
 ```
+
+Server memegang satu kunci: **wallet operator**. Isinya hanya Sepolia ETH untuk
+dua hal: mengirim sedikit ETH ke pengguna baru supaya bisa bertransaksi, dan
+menetaskan kehamilan begitu siap. `hatch()` terbuka untuk siapa saja dan anak
+selalu jatuh ke pengawinnya, jadi operator tidak bisa mengambil apa pun.
 
 ## 1. Deploy kontrak
 
@@ -48,6 +55,7 @@ melanjutkan dari langkah terakhir yang belum selesai.
 | `SEPOLIA_RPC_URL` | opsional; tanpa ini dipakai RPC publik, dengan cadangan otomatis |
 | `FOUNDER_OWNERS` | alamat dipisah koma; founder dibagi bergiliran. Bagikan ke ≥3 alamat supaya royalti bermakna (PLAN.md §12.1b) |
 | `STUD_FEE_ETH` | tarif kawin awal tiap founder, bawaan 0 |
+| `BASE_COOLDOWN_BLOCKS` | jeda kawin dasar dalam blok (bawaan kontrak 10, berlipat tiap kawin). Untuk hari penjurian isi `1`, supaya founder bisa dikawinkan banyak juri berturut-turut |
 
 ### Verifikasi di Etherscan
 
@@ -66,8 +74,64 @@ Di laptop:
 bun run ui:sepolia        # http://localhost:5173, tersambung ke Sepolia
 ```
 
-Buka halamannya, klik **Hubungkan wallet**. MetaMask akan diminta pindah ke
-jaringan Sepolia.
+Buka halamannya, klik **Masuk**. Tanpa `PRIVY_APP_ID`, tombol itu memakai
+wallet browser (MetaMask) dan meminta pindah ke jaringan Sepolia.
+
+### Login Privy
+
+Supaya orang tanpa wallet bisa masuk dengan email atau Google:
+
+1. Buat app di [dashboard.privy.io](https://dashboard.privy.io).
+2. **Login methods**: aktifkan Email, Google, dan External wallets.
+3. **Embedded wallets**: aktifkan untuk Ethereum. Aplikasi meminta pembuatan
+   otomatis untuk pengguna yang belum punya wallet, dan tanpa jendela
+   konfirmasi saat menandatangani.
+4. **Allowed origins**: tambahkan `http://localhost:5173` dan domain produksimu
+   (mis. `https://meiosis.example.com`). Tanpa ini Privy menolak memuat, dan
+   halaman menampilkan "Login tidak tersedia".
+5. Salin **App ID** ke `.env` di server:
+
+```bash
+PRIVY_APP_ID=cm...
+```
+
+App ID bukan rahasia; server mengirimkannya ke browser lewat `/api/status`.
+Server juga memakainya untuk memverifikasi token login pengguna yang meminta
+faucet, lewat kunci publik Privy (JWKS). **Tidak perlu app secret.**
+
+### Faucet dan keeper
+
+| Variabel `.env` | Guna |
+|---|---|
+| `OPERATOR_PRIVATE_KEY` | wallet operator. Buat baru (`cast wallet new`), jangan pakai wallet deployer, lalu isi dengan Sepolia ETH |
+| `FAUCET_AMOUNT_ETH` | jatah per pengguna baru, bawaan `0.003` (cukup untuk belasan transaksi di Sepolia) |
+| `FAUCET_PER_IP_DAY` | batas per IP per 24 jam, bawaan `3` |
+| `FAUCET_DAILY_CAP_ETH` | batas total per 24 jam, bawaan `0.05` |
+
+Faucet hanya mengirim bila: token Privy sah, user itu dan alamat itu belum
+pernah menerima, saldo alamat di bawah separuh jatah, dan batas IP serta
+harian belum habis. Catatannya di `.runs/faucet-sepolia.json`, jadi tetap
+berlaku setelah server dinyalakan ulang. Kalau faucet menolak, halaman Dompet
+menjelaskan alasannya dan menautkan faucet Sepolia publik.
+
+Keeper memeriksa kehamilan setiap blok dan menetaskan yang sudah siap. Tanpa
+`OPERATOR_PRIVATE_KEY`, keeper mati dan layar Pembuahan menampilkan tombol
+**Tetaskan** untuk ditandatangani pengguna sendiri.
+
+### Daftar periksa login Privy
+
+Setelah `PRIVY_APP_ID` dan `OPERATOR_PRIVATE_KEY` terisi, coba sekali dengan
+browser privat (tanpa MetaMask):
+
+1. Klik **Masuk** → pilih Google → selesai login, header menampilkan email.
+2. Dalam beberapa detik muncul pesan "Kami mengirim 0.003 ETH…", dan **Dompet**
+   menunjukkan saldonya.
+3. Buka **Kawinkan**, pilih dua induk, klik **Kawinkan**. Tidak ada jendela
+   konfirmasi wallet. Halaman pindah ke Pembuahan.
+4. ±1 menit kemudian layar berubah menjadi **Lahir** tanpa menekan apa pun.
+5. **Bawa pulang (.md)** → `bun run verify-agent <berkas>` menyatakan SAH.
+6. Keluar lalu masuk lagi dengan akun yang sama: faucet tidak mengirim lagi,
+   dan agent tadi tetap tercantum di Dompet.
 
 ### Di VPS, supaya orang lain bisa membuka
 
@@ -79,7 +143,8 @@ tempat agent bekerja).
 git clone https://github.com/rhmatzeka/Meiosis /opt/meiosis && cd /opt/meiosis
 bun run setup
 docker build -t meiosis-sandbox:1 -f sandbox/Dockerfile sandbox/
-cp .env.example .env && chmod 600 .env    # isi GROQ_API_KEY; JANGAN taruh DEPLOYER_PRIVATE_KEY di sini
+cp .env.example .env && chmod 600 .env    # isi GROQ_API_KEY, PRIVY_APP_ID, OPERATOR_PRIVATE_KEY, TRUST_PROXY=1
+                                          # JANGAN taruh DEPLOYER_PRIVATE_KEY di sini
 
 sudo cp deploy/meiosis.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now meiosis
