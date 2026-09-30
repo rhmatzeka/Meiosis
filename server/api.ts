@@ -13,6 +13,7 @@ import {
   deploymentValid, isLive, RPC, CHAIN, IS_LOCAL, EXPLORER, chain, type Deployment,
 } from "./chain";
 import { deployAll } from "./deploy";
+import { startKeeper } from "./keeper";
 import { faucetDecision, faucetMessage, loadFaucetState, saveFaucetState, verifyPrivyToken } from "./faucet";
 import { toClaudeAgent, agentSlug } from "../runtime/export";
 import { express, relatedness, LOCUS_NAMES, traitName, LOCUS_COUNT } from "../packages/shared/src/genome";
@@ -411,6 +412,25 @@ const MIME: Record<string, string> = {
   ".css": "text/css; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml",
 };
 
+if (operator) {
+  startKeeper({
+    pub: pub as never, signer: operator, getDep: () => dep, abi: abis.hatchery,
+    intervalMs: SEC_PER_BLOCK * 1000,
+    // Di Anvil pemilik anak adalah akun demo yang kuncinya dipegang server, jadi
+    // manifest-nya langsung dicatat — sama seperti /api/hatch. Di Sepolia itu
+    // hak pemilik sendiri lewat tombol "Catat ke chain".
+    onHatched: async (pid) => {
+      if (!IS_LOCAL || !dep) return;
+      const id = (await scanHatched(dep)).get(pid);
+      if (!id) return;
+      const genome = (await read(dep.registry, abis.registry, "genomeOf", [id])) as bigint;
+      const owner = ((await read(dep.registry, abis.registry, "ownerOf", [id])) as string).toLowerCase();
+      const w = wallets.find((x) => x.account.address.toLowerCase() === owner);
+      if (w) await send(dep.registry, abis.registry, w, "setManifestHash", [id, manifestHash(expand(genome, 0n))]);
+    },
+  });
+}
+
 Bun.serve({
   port: PORT,
   idleTimeout: 120,
@@ -482,7 +502,10 @@ Bun.serve({
         if (!(await isLive())) return json({ error: "Anvil tidak berjalan. Jalankan `bun run anvil` lebih dulu." }, 503);
         // Empat founder ke tiga pemilik berbeda, supaya royalti bermakna.
         const [, alice, bob, carol] = wallets.map((w) => w.account.address);
-        dep = await deployAll({ deployer: wallets[0], founderOwners: [alice, bob, carol, carol], resume: dep });
+        dep = await deployAll({
+          deployer: wallets[0], founderOwners: [alice, bob, carol, carol], resume: dep,
+          baseCooldownBlocks: process.env.BASE_COOLDOWN_BLOCKS ? Number(process.env.BASE_COOLDOWN_BLOCKS) : undefined,
+        });
         return json({ ok: true, addresses: dep });
       }
 

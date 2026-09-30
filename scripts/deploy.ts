@@ -13,6 +13,7 @@
  *   FOUNDER_OWNERS         opsional — alamat dipisah koma, founder dibagi bergiliran.
  *                          Kosong = semua tetap milik deployer.
  *   STUD_FEE_ETH           opsional — stud fee awal tiap founder, bawaan 0
+ *   BASE_COOLDOWN_BLOCKS   opsional — jeda kawin dasar dalam blok, bawaan kontrak 10
  */
 process.env.CHAIN ??= "sepolia";
 
@@ -68,6 +69,7 @@ const dep = await deployAll({
   deployer,
   founderOwners: owners.length ? owners.map((a) => getAddress(a)) : [me],
   studFeeWei: parseEther(process.env.STUD_FEE_ETH ?? "0"),
+  baseCooldownBlocks: process.env.BASE_COOLDOWN_BLOCKS ? Number(process.env.BASE_COOLDOWN_BLOCKS) : undefined,
   resume,
   log: ok,
 });

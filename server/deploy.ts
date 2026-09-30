@@ -22,6 +22,11 @@ export interface DeployOptions {
   founderOwners: Address[];
   /** Stud fee awal tiap founder, dalam wei. */
   studFeeWei?: bigint;
+  /**
+   * Jeda kawin dasar, dalam blok (bawaan kontrak 10, berlipat tiap kawin).
+   * Nilai kecil membuat founder bisa dikawinkan banyak orang berturut-turut.
+   */
+  baseCooldownBlocks?: number;
   /** Deployment sebelumnya yang belum selesai, untuk dilanjutkan. */
   resume?: Partial<Deployment> | null;
   log?: (s: string) => void;
@@ -158,6 +163,14 @@ export async function deployAll(o: DeployOptions): Promise<Deployment> {
     if (!target || owner !== me.toLowerCase() || target.toLowerCase() === owner) continue;
     await send(dep.registry, A.registry, "transferFrom", [me, target, id]);
     log(`founder #${id} dipindahkan ke ${target}`);
+  }
+
+  if (o.baseCooldownBlocks !== undefined) {
+    const cur = Number(await read(dep.hatchery, A.hatchery, "baseCooldownBlocks"));
+    if (cur !== o.baseCooldownBlocks) {
+      await send(dep.hatchery, A.hatchery, "setBaseCooldown", [o.baseCooldownBlocks]);
+      log(`jeda kawin dasar ${cur} → ${o.baseCooldownBlocks} blok`);
+    }
   }
 
   saveDeployment(dep);
