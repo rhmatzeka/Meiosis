@@ -16,12 +16,15 @@
  *   BASE_COOLDOWN_BLOCKS   opsional — jeda kawin dasar dalam blok, bawaan kontrak 10
  *   STUDIO_FEE_ETH         opsional — biaya merancang agent di Studio, bawaan 0.002
  *   MARKET_FEE_BPS         opsional — biaya platform pasar & sewa, bawaan 250 (2,5%)
+ *   OPERATOR_PRIVATE_KEY   dipakai untuk mengetahui alamat operator saldo pakai (kuncinya tidak disimpan)
+ *   CREDITS_DEFAULT_PRICE_ETH  opsional — harga satu tugas lewat Claude Code bila pemilik tak memasang, bawaan 0.0005
  */
 process.env.CHAIN ??= "sepolia";
 
 const { pub, deployerWallet, loadDeployment, CHAIN, EXPLORER, IS_LOCAL } = await import("../server/chain");
 const { deployAll } = await import("../server/deploy");
 const { formatEther, parseEther, isAddress, getAddress } = await import("viem");
+const { privateKeyToAccount } = await import("viem/accounts");
 const { existsSync } = await import("node:fs");
 
 const ok = (s: string) => console.log(`  \x1b[32m✓\x1b[0m ${s}`);
@@ -74,6 +77,8 @@ const dep = await deployAll({
   baseCooldownBlocks: process.env.BASE_COOLDOWN_BLOCKS ? Number(process.env.BASE_COOLDOWN_BLOCKS) : undefined,
   studioFeeWei: parseEther(process.env.STUDIO_FEE_ETH ?? "0.002"),
   marketFeeBps: Number(process.env.MARKET_FEE_BPS ?? 250),
+  operator: process.env.OPERATOR_PRIVATE_KEY ? privateKeyToAccount(process.env.OPERATOR_PRIVATE_KEY.trim() as `0x${string}`).address : undefined,
+  creditsDefaultPriceWei: parseEther(process.env.CREDITS_DEFAULT_PRICE_ETH ?? "0.0005"),
   resume,
   log: ok,
 });

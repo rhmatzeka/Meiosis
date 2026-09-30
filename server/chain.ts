@@ -115,6 +115,8 @@ export interface Deployment {
   /** Pasar & Studio (marketplace). Opsional: deployment lama belum punya. */
   studio?: Address;
   market?: Address;
+  /** Saldo pakai untuk Claude Code (bagian B). */
+  credits?: Address;
   block: number;
 }
 

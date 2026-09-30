@@ -31,6 +31,10 @@ export interface DeployOptions {
   studioFeeWei?: bigint;
   /** Biaya platform pasar & sewa dalam basis poin (bawaan 250 = 2,5%). */
   marketFeeBps?: number;
+  /** Alamat server yang boleh memotong saldo pakai (wallet operator). */
+  operator?: Address;
+  /** Harga satu tugas lewat Claude Code bila pemilik agent tidak memasang harga sewa. */
+  creditsDefaultPriceWei?: bigint;
   /** Deployment sebelumnya yang belum selesai, untuk dilanjutkan. */
   resume?: Partial<Deployment> | null;
   log?: (s: string) => void;
@@ -93,6 +97,7 @@ export async function deployAll(o: DeployOptions): Promise<Deployment> {
   out.skills = await put("skills", "SkillRegistry");
   out.studio = await put("studio", "Studio", [out.registry, o.studioFeeWei ?? 2_000_000_000_000_000n]);
   out.market = await put("market", "Market", [out.registry, out.royalty, o.marketFeeBps ?? 250]);
+  out.credits = await put("credits", "Credits", [out.market, o.operator ?? me, o.creditsDefaultPriceWei ?? 500_000_000_000_000n]);
   out.block = prev.block ?? Number(await pub.getBlockNumber());
 
   // Simpan sekarang juga: kalau langkah berikut putus, alamat ini dipakai ulang.
