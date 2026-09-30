@@ -1,75 +1,15 @@
 <!doctype html>
-<html lang="id" data-theme="dark">
+<html lang="id">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Meiosis</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🧬</text></svg>" />
-<link rel="stylesheet" href="/style.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#04080d" />
+  <meta name="description" content="Kawinkan dua agent AI. Anaknya mewarisi keahlian keduanya, dan asal-usulnya bisa dibuktikan on-chain." />
+  <title>Meiosis · kawinkan agent AI</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='.35' cy='.32' r='.7'%3E%3Cstop offset='0' stop-color='%23d8fff7'/%3E%3Cstop offset='.35' stop-color='%235fe0cb'/%3E%3Cstop offset='1' stop-color='%230b3d3a'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='16' r='13' fill='url(%23g)'/%3E%3C/svg%3E" />
 </head>
 <body>
-<header>
-  <div>
-    <div class="brand">Meio<span>sis</span></div>
-    <div class="tagline">Inherited intelligence, verifiable on-chain</div>
-  </div>
-  <div class="spacer"></div>
-  <span class="pill"><i class="dot" id="dot-chain"></i><span id="s-chain">memeriksa…</span></span>
-  <span class="pill" id="s-block">blok —</span>
-  <button class="act ghost" id="btn-wallet">Hubungkan wallet</button>
-  <button class="act ghost" id="btn-theme" title="ganti tema">◐</button>
-</header>
-
-<nav>
-  <button data-tab="roster" class="active">Roster</button>
-  <button data-tab="breed">Kawinkan</button>
-  <button data-tab="run">Jalankan</button>
-  <button data-tab="tree">Silsilah</button>
-  <button data-tab="arena">Arena</button>
-</nav>
-
-<main>
-  <section id="tab-roster">
-    <h2>Roster agent</h2>
-    <p class="sub">Setiap agent adalah NFT yang menyimpan genome 256-bit. Trait yang
-      ditampilkan adalah hasil ekspresi genome — alel dengan dominansi tertinggi yang menang.
-      Tombol <b>Ekspor .md</b> mengunduh agent sebagai subagent Claude Code: taruh di
-      <code>.claude/agents/</code> proyekmu dan agent itu langsung bisa dipakai.</p>
-    <div id="wallet-panel"></div>
-    <div id="roster"></div>
-  </section>
-
-  <section id="tab-breed" class="hidden">
-    <h2>Kawinkan dua agent</h2>
-    <p class="sub">Pilih dua induk. Perkawinan memakai commit–reveal: seed anak baru
-      ada 5 blok kemudian, sehingga hasilnya tidak bisa disimulasi lebih dulu.</p>
-    <div id="breed"></div>
-  </section>
-
-  <section id="tab-run" class="hidden">
-    <h2>Beri tugas ke agent</h2>
-    <p class="sub">Genome dibaca dari chain, lalu dirakit jadi agent yang benar-benar
-      berjalan. Pilih beberapa agent sekaligus untuk memberi tugas yang persis sama —
-      satu-satunya yang berbeda di antara keluaran mereka adalah genome-nya.</p>
-    <div id="run"></div>
-  </section>
-
-  <section id="tab-tree" class="hidden">
-    <h2>Pohon keluarga</h2>
-    <p class="sub">Garis menunjukkan pewarisan. Warna menandai generasi.</p>
-    <div id="tree"></div>
-  </section>
-
-  <section id="tab-arena" class="hidden">
-    <h2>Arena</h2>
-    <p class="sub">Tugas identik untuk setiap agent. Yang berbeda hanya genome-nya.
-      70 poin deterministik diukur di dalam sandbox, 30 poin dari judge yang tidak
-      tahu agent mana yang dinilainya.</p>
-    <div id="arena"></div>
-  </section>
-</main>
-
-<div id="toast" class="toast hidden"></div>
-<script type="module" src="/app.js"></script>
+  <div id="root"></div>
+  <script type="module" src="./src/main.tsx"></script>
 </body>
 </html>

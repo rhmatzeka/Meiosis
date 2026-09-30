@@ -1,0 +1,70 @@
+/*
+ * Meiosis: dunia sel yang bercahaya di air dalam.
+ *
+ * Warna punya arti, bukan hiasan:
+ *   teal  = induk pertama & aksi utama
+ *   pink  = induk kedua
+ *   emas  = mutasi
+ * Pakai konsisten di semua halaman supaya pita genome bisa dibaca tanpa legenda.
+ */
+:root {
+  color-scheme: dark;
+
+  --abyss: #04080d;
+  --deep: #081522;
+  --membrane: #0b1621;
+  --membrane-2: #0f1d2b;
+  --line: #172a3b;
+  --line-strong: #24405a;
+
+  --ink: #e7f2f6;
+  --muted: #92a9b5;
+  --dim: #5d7686;
+
+  --teal: #5fe0cb;
+  --teal-deep: #178f80;
+  --teal-glow: rgba(95, 224, 203, 0.38);
+  --pink: #f08ad8;
+  --pink-deep: #a43d95;
+  --pink-glow: rgba(240, 138, 216, 0.38);
+  --gold: #ffcf5c;
+  --danger: #ff7a7a;
+  --on-teal: #032019;
+
+  --font-display: "Bricolage Grotesque Variable", "Bricolage Grotesque", system-ui, sans-serif;
+  --font-body: "Inter Variable", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* skala tipografi: rasio 1.25 dari 15px */
+  --t-xs: 12px;
+  --t-sm: 13.5px;
+  --t-md: 15px;
+  --t-lg: 18.75px;
+  --t-xl: 23.5px;
+  --t-2xl: 29.3px;
+  --t-3xl: clamp(34px, 5.2vw, 56px);
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 72px;
+
+  --r-stage: 22px;
+  --r-item: 14px;
+  --r-field: 10px;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-cell: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  --page: min(1120px, 100% - 2 * var(--s-4));
+  --header-h: 64px;
+  --bottom-nav-h: 0px;
+}
+
+@media (max-width: 760px) {
+  :root { --bottom-nav-h: 64px; --header-h: 56px; }
+}

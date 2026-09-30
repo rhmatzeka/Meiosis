@@ -1,0 +1,124 @@
+import { useState } from "react";
+import { same } from "../api";
+import { AgentCard, TraitList, highlights, useCooldown, useOwnerLabel } from "../components/agent";
+import { NameDialog, PayDialog, StudDialog } from "../components/dialogs";
+import { Cell, Copy, Empty, GenomeStrip, Spinner } from "../components/ui";
+import { useActor } from "../hooks/use-actor";
+import { useData } from "../hooks/use-data";
+import { Link, useTitle } from "../router";
+
+type Dialog = "name" | "stud" | "pay" | null;
+
+export function AgentPage({ id }: { id: number }) {
+  const { byId, agents, loading, status } = useData();
+  const actor = useActor();
+  const owner = useOwnerLabel();
+  const a = byId(id);
+  const cooldown = useCooldown(a);
+  const [dialog, setDialog] = useState<Dialog>(null);
+  useTitle(a?.name ?? `Agent #${id}`);
+
+  if (loading) return <div className="skeleton" style={{ height: 480 }} />;
+  if (!a) return <Empty title={`Agent #${id} tidak ada di chain ini`} action={<Link to="/koleksi" className="btn">Lihat koleksi</Link>} />;
+
+  const mine = same(a.owner, actor.address);
+  const canManage = mine && actor.mode !== "none";
+  const parents = a.parents[0] ? [byId(a.parents[0]), byId(a.parents[1])] : [];
+  const children = agents.filter((x) => x.parents.includes(a.id));
+  const verified = a.manifestHashOnChain === a.manifestHashComputed;
+  const unrecorded = /^0x0+$/.test(a.manifestHashOnChain);
+  const tierName = { fast: "cepat", balanced: "seimbang", strong: "kuat" }[a.modelTier];
+
+  return (
+    <div className="stack-lg">
+      <section className="stage agent-hero">
+        <Cell genome={a.genome} size={148} />
+        <div className="stack" style={{ gap: 10, minWidth: 0 }}>
+          <h1 className="h-page">{a.name}</h1>
+          <p className="muted">
+            Agent #{a.id}, generasi {a.generation === 0 ? "pertama (founder)" : a.generation}, {owner(a) === "milikmu" ? "milikmu" : `dimiliki ${owner(a)}`}.
+          </p>
+          <div className="row" style={{ gap: 8 }}>
+            {highlights(a, 5).map((h) => <span key={h.text} className="chip">{h.icon} {h.text}</span>)}
+          </div>
+          <div className="row" style={{ gap: 8 }}>
+            {a.stud.listed
+              ? <span className="chip chip-teal">terbuka untuk kawin · {Number(a.stud.feeEth) > 0 ? `${a.stud.feeEth} ETH` : "gratis"}</span>
+              : <span className="chip chip-dim">tertutup untuk kawin</span>}
+            {cooldown && <span className="chip chip-gold">{cooldown}</span>}
+          </div>
+        </div>
+      </section>
+
+      <div className="agent-body">
+        <section className="stack-lg">
+          <div className="plate stack">
+            <h2 className="h-sub">Sifat</h2>
+            <GenomeStrip agent={a} large />
+            <TraitList agent={a} all />
+          </div>
+
+          {(parents.length > 0 || children.length > 0) && (
+            <div className="stack">
+              {parents.length > 0 && <>
+                <h2 className="h-sub">Induk</h2>
+                <div className="agent-grid">{parents.map((p) => p && <AgentCard key={p.id} agent={p} />)}</div>
+              </>}
+              {children.length > 0 && <>
+                <h2 className="h-sub">Anak ({children.length})</h2>
+                <div className="agent-grid">{children.map((c) => <AgentCard key={c.id} agent={c} />)}</div>
+              </>}
+            </div>
+          )}
+        </section>
+
+        <aside className="stack agent-side">
+          <div className="plate stack">
+            <h2 className="h-sub">Pakai agent ini</h2>
+            <a className="btn btn-primary" href={`/api/agents/${a.id}/agent.md`} download>Bawa pulang (.md)</a>
+            <Link to={`/tugas?id=${a.id}`} className="btn">Beri tugas</Link>
+            <Link to={`/kawin?a=${a.id}`} className="btn">Kawinkan dengan…</Link>
+            {!mine && <button className="btn" onClick={() => setDialog("pay")} disabled={actor.mode === "none" && !actor.canLogin}>Bayar / sewa</button>}
+            <p className="xs muted">Taruh berkas <code>.md</code> di <code>.claude/agents/</code> proyekmu, dan Claude Code bisa menyerahkan tugas ke agent ini.</p>
+          </div>
+
+          {canManage && (
+            <div className="plate stack">
+              <h2 className="h-sub">Milikmu</h2>
+              <button className="btn" onClick={() => setDialog("name")}>Beri nama</button>
+              <button className="btn" onClick={() => setDialog("stud")}>{a.stud.listed ? "Ubah tarif kawin" : "Buka untuk kawin"}</button>
+              {a.stud.listed && (
+                <button className="btn btn-quiet" disabled={!!actor.busy} onClick={() => actor.act("unlistStud", { id: a.id })}>Tutup untuk kawin</button>
+              )}
+              {!verified && (
+                <button className="btn btn-quiet" disabled={!!actor.busy} onClick={() => actor.act("setManifestHash", { id: a.id })}>
+                  {actor.busy === "setManifestHash" ? <Spinner /> : null}Catat manifest ke chain
+                </button>
+              )}
+            </div>
+          )}
+
+          <details className="tech plate">
+            <summary>Detail teknis</summary>
+            <dl>
+              <dt>genome</dt><dd><Copy text={a.genome} label={`${a.genome.slice(0, 18)}…`} /></dd>
+              <dt>otak</dt><dd>{tierName} · suhu {a.params.temperature} · {a.params.maxTokens} token · {a.params.maxSteps} langkah</dd>
+              <dt>modul</dt><dd>{a.modules.join(", ") || "—"}</dd>
+              <dt>manifest</dt><dd>{a.manifestHashComputed}</dd>
+              <dt>di chain</dt><dd>{unrecorded ? "belum dicatat" : verified ? "✓ cocok" : `✗ berbeda (${a.manifestHashOnChain})`}</dd>
+              <dt>pemilik</dt><dd><Copy text={a.owner} /></dd>
+              <dt>lahir di blok</dt><dd>{a.birthBlock}</dd>
+              {status?.explorer && status.deployed && <><dt>explorer</dt><dd><a href={`${status.explorer}/address/${a.owner}`} target="_blank" rel="noreferrer noopener">lihat pemilik</a></dd></>}
+              <dt>verifikasi</dt><dd>bun run verify-agent {`meiosis-${a.id}.md`}</dd>
+            </dl>
+            <p className="xs"><a href={`/api/agents/${a.id}/manifest.json`} download>Unduh manifest.json</a></p>
+          </details>
+        </aside>
+      </div>
+
+      {dialog === "name" && <NameDialog agent={a} onClose={() => setDialog(null)} />}
+      {dialog === "stud" && <StudDialog agent={a} onClose={() => setDialog(null)} />}
+      {dialog === "pay" && <PayDialog agent={a} onClose={() => setDialog(null)} />}
+    </div>
+  );
+}

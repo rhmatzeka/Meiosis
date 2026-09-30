@@ -6,7 +6,8 @@
  * yang langsung bisa dijalankan dan dilihat.
  */
 import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import type { Server } from "bun";
+import app from "../web/index.html";
 import { encodeFunctionData, decodeFunctionData, parseEther, formatEther, decodeEventLog, isAddress, getAddress, type Abi, type Address } from "viem";
 import {
   pub, wallets, ownerName, artifact, loadDeployment, operatorWallet, SEC_PER_BLOCK,
@@ -368,7 +369,7 @@ async function checkPayment(agentId: number, hash: string) {
   const paid = r.logs.some((l) => {
     if (l.address.toLowerCase() !== dep!.royalty.toLowerCase()) return false;
     try {
-      const ev = decodeEventLog({ abi: abis.royalty, data: l.data, topics: l.topics }) as
+      const ev = decodeEventLog({ abi: abis.royalty, data: l.data, topics: l.topics }) as unknown as
         { eventName: string; args: { agentId: bigint; amount: bigint } };
       return ev.eventName === "Paid" && Number(ev.args.agentId) === agentId && ev.args.amount >= RUN_PRICE;
     } catch { return false; }
@@ -407,10 +408,6 @@ const allowRun = (ip: string) => {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
-const MIME: Record<string, string> = {
-  ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml",
-};
 
 if (operator) {
   startKeeper({
@@ -434,7 +431,20 @@ if (operator) {
 Bun.serve({
   port: PORT,
   idleTimeout: 120,
-  async fetch(req, server) {
+  // Bun membundel web/index.html beserta TSX dan CSS-nya. Di mesin lokal dengan
+  // HMR dan sourcemap; di mode publik diminifikasi sekali saat server naik.
+  development: PUBLIC ? false : { hmr: true, console: true },
+  routes: {
+    "/api/*": (req, server) => handle(req, server),
+    "/artifact/*": (req, server) => handle(req, server),
+    // Semua rute lain milik aplikasi (SPA): /kawin/3, /agent/7, dst.
+    "/*": app,
+  },
+  fetch: (req, server) => handle(req, server),
+});
+
+async function handle(req: Request, server: Server<unknown>): Promise<Response> {
+  {
     const url = new URL(req.url);
     const p = url.pathname;
 
@@ -553,9 +563,12 @@ Bun.serve({
 
       if (p === "/api/royalty") {
         const who = url.searchParams.get("address") ?? "";
-        if (!dep || !isAddress(who)) return json({ pendingEth: "0", pendingWei: "0" });
-        const v = (await read(dep.royalty, abis.royalty, "pending", [getAddress(who)])) as bigint;
-        return json({ pendingEth: formatEther(v), pendingWei: v.toString() });
+        if (!dep || !isAddress(who)) return json({ pendingEth: "0", pendingWei: "0", balanceEth: "0" });
+        const [v, bal] = await Promise.all([
+          read(dep.royalty, abis.royalty, "pending", [getAddress(who)]) as Promise<bigint>,
+          pub.getBalance({ address: getAddress(who) }),
+        ]);
+        return json({ pendingEth: formatEther(v), pendingWei: v.toString(), balanceEth: formatEther(bal) });
       }
 
       // Ekspor: agent hasil perkawinan dibawa keluar sebagai subagent Claude Code.
@@ -657,6 +670,9 @@ Bun.serve({
           payments?: Record<string, string>;
         };
         const { ids, task, mock, mode, workdir, checkCommand, payments } = body;
+        if (mode === "agent" && !mock && !DOCKER && !workdir) {
+          return json({ error: "Mode kerja penuh butuh Docker di server untuk membangun hasil agent. Pakai mode jawaban cepat, atau pasang Docker lalu nyalakan ulang server." }, 400);
+        }
         let { maxSteps } = body;
         if (!task?.trim()) return json({ error: "tugas kosong" }, 400);
         if (!ids?.length) return json({ error: "belum ada agent dipilih" }, 400);
@@ -775,7 +791,8 @@ Bun.serve({
                   const r = await agent.run(`${task}\n\n---\n\n${BUILD_CONTRACT}`);
                   const files = parseAgentFiles(r.output);
                   let built = null;
-                  if (Object.keys(files).length) {
+                  // Tanpa Docker jawabannya tetap dikembalikan, hanya tidak dibangun dan dinilai.
+                  if (Object.keys(files).length && DOCKER) {
                     const dir = `.runs/${Date.now()}-${id}`;
                     mkdirSync(dir, { recursive: true });
                     const sb = await runInSandbox(files, { timeoutMs: 300_000, outDir: `${dir}/out` });
@@ -858,29 +875,13 @@ Bun.serve({
         });
       }
 
-      // Berkas statis, selalu disajikan segar.
-      //
-      // Tanpa header ini browser menyimpan app.js lama dan tab baru tidak
-      // pernah muncul walau server sudah mengirim versi terbaru — persis yang
-      // terjadi saat tab Jalankan ditambahkan. Selama UI masih sering berubah,
-      // caching hanya menimbulkan kebingungan yang sulit dilacak.
-      const file = p === "/" ? "/index.html" : p;
-      const path = join("web", file);
-      if (existsSync(path)) {
-        const ext = file.slice(file.lastIndexOf("."));
-        return new Response(Bun.file(path), {
-          headers: {
-            "content-type": MIME[ext] ?? "text/plain",
-            "cache-control": "no-store, must-revalidate",
-          },
-        });
-      }
+      if (p.startsWith("/api/")) return json({ error: `tidak ada rute ${p}` }, 404);
       return new Response("not found", { status: 404 });
     } catch (e) {
       return json({ error: (e as Error).message.slice(0, 400) }, 500);
     }
-  },
-});
+  }
+}
 
 console.log(`\n  Meiosis UI  →  http://localhost:${PORT}`);
 console.log(`  chain       →  ${RPC}`);
