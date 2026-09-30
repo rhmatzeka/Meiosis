@@ -13,7 +13,12 @@ export const browserPath = () =>
 export async function launch() {
   const executablePath = browserPath();
   if (!executablePath) throw new Error("Tidak ada Chrome/Chromium. Pasang salah satunya atau isi CHROMIUM_PATH.");
-  return chromium.launch({ executablePath, args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"] });
+  const b = await chromium.launch({ executablePath, args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"] });
+  // Animasi dimatikan secara bawaan supaya uji tidak bergantung pada waktu;
+  // uji yang memang memeriksa animasi meminta "no-preference" sendiri.
+  const newPage = b.newPage.bind(b);
+  b.newPage = (o = {}) => newPage({ reducedMotion: "reduce", ...o });
+  return b;
 }
 
 export const fails: string[] = [];

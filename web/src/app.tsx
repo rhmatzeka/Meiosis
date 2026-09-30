@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { post, short } from "./api";
 import { useToast } from "./components/toast";
-import { BrandMark, Copy, Icon, Spinner } from "./components/ui";
+import { BrandMark, Copy, Spinner } from "./components/ui";
+import { MOTION_OK, gsap, useGSAP, usePageMotion } from "./motion";
 import { useActor } from "./hooks/use-actor";
 import { useData } from "./hooks/use-data";
 import { AgentPage } from "./pages/agent";
@@ -18,26 +19,21 @@ import { WalletPage } from "./pages/wallet";
 import { Link, Redirect, match, useLocation } from "./router";
 
 const NAV = [
-  { to: "/pasar", label: "Pasar", icon: "shop" },
-  { to: "/studio", label: "Studio", icon: "spark" },
-  { to: "/kawin", label: "Kawinkan", icon: "breed" },
-  { to: "/tugas", label: "Beri tugas", icon: "task" },
-  { to: "/silsilah", label: "Silsilah", icon: "tree" },
-  { to: "/panduan", label: "Panduan", icon: "grid" },
-] as const;
-
-/** Ponsel: lima pintu yang paling sering dipakai. */
-const BOTTOM = [
-  { to: "/pasar", label: "Pasar", icon: "shop" },
-  { to: "/studio", label: "Studio", icon: "spark" },
-  { to: "/kawin", label: "Kawin", icon: "breed" },
-  { to: "/tugas", label: "Tugas", icon: "task" },
-  { to: "/dompet", label: "Dompet", icon: "wallet" },
+  { to: "/pasar", label: "Pasar" },
+  { to: "/studio", label: "Studio" },
+  { to: "/kawin", label: "Kawinkan" },
+  { to: "/tugas", label: "Beri tugas" },
+  { to: "/silsilah", label: "Silsilah" },
+  { to: "/panduan", label: "Panduan" },
 ] as const;
 
 export function App() {
   const { path } = useLocation();
   const current = (to: string) => (path === to || path.startsWith(to + "/") ? "page" : undefined);
+  const [menu, setMenu] = useState(false);
+  const main = useRef<HTMLElement>(null);
+  usePageMotion(main, path);
+  useEffect(() => setMenu(false), [path]);
 
   return (
     <div className="shell">
@@ -50,33 +46,66 @@ export function App() {
           <div className="header-end">
             <NetworkBadge />
             <AccountMenu />
+            <button className="menu-btn" aria-label="Menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
+              <span /><span />
+            </button>
           </div>
         </div>
       </header>
+      {menu && <MobileMenu current={current} />}
 
       <StatusBanner />
 
-      <main className="page" id="main">
+      <main className="page" id="main" ref={main} key={path}>
         <Routes path={path} />
       </main>
 
-      <footer className="footer">
-        <div className="footer-inner">
-          <span className="dim">Meiosis · agent AI yang bisa dibiakkan, diwariskan, dan dibuktikan on-chain</span>
-          <nav className="row" aria-label="Tambahan">
-            <Link to="/panduan">Panduan</Link><Link to="/arena">Arena</Link><Link to="/silsilah">Silsilah</Link><Link to="/dompet">Dompet</Link>
-          </nav>
-        </div>
-      </footer>
-
-      <nav className="bottom-nav" aria-label="Utama">
-        {BOTTOM.map((n) => (
-          <Link key={n.to} to={n.to} aria-current={current(n.to)}>
-            <Icon name={n.icon} />{n.label}
-          </Link>
-        ))}
-      </nav>
+      <Footer />
     </div>
+  );
+}
+
+function MobileMenu({ current }: { current: (to: string) => "page" | undefined }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useGSAP(() => {
+    gsap.matchMedia().add(MOTION_OK, () => {
+      gsap.from(ref.current, { opacity: 0, duration: 0.25 });
+      gsap.from("a", { y: 24, opacity: 0, duration: 0.6, ease: "expo.out", stagger: 0.05 });
+    });
+  }, { scope: ref });
+  return (
+    <div className="mobile-menu" ref={ref}>
+      {[...NAV, { to: "/dompet", label: "Dompet" }, { to: "/arena", label: "Arena" }].map((n) => (
+        <Link key={n.to} to={n.to} aria-current={current(n.to)}>{n.label}</Link>
+      ))}
+    </div>
+  );
+}
+
+function Footer() {
+  const ref = useRef<HTMLElement>(null);
+  useGSAP(() => {
+    gsap.matchMedia().add(MOTION_OK, () => {
+      gsap.from(".footer-giant", {
+        yPercent: 40, opacity: 0, ease: "none",
+        scrollTrigger: { trigger: ref.current, start: "top bottom", end: "bottom bottom", scrub: 1 },
+      });
+    });
+  }, { scope: ref });
+  return (
+    <footer className="footer" ref={ref}>
+      <div className="footer-inner">
+        <div className="footer-about">
+          <b>Agent AI yang lahir, bukan dibuat.</b>
+          <p className="small muted">Rancang, kawinkan, jual, dan sewakan agent AI. Asal-usul setiap agent tercatat di blockchain dan bisa dibuktikan siapa saja.</p>
+        </div>
+        <nav className="footer-links" aria-label="Tambahan">
+          <div><Link to="/pasar">Pasar</Link><Link to="/studio">Studio</Link><Link to="/kawin">Kawinkan</Link></div>
+          <div><Link to="/panduan">Panduan</Link><Link to="/arena">Arena</Link><Link to="/dompet">Dompet</Link></div>
+        </nav>
+      </div>
+      <div className="footer-giant" aria-hidden>Meiosis</div>
+    </footer>
   );
 }
 
@@ -130,7 +159,7 @@ function AccountMenu() {
 
   return (
     <div className="account" ref={ref}>
-      <button className="btn btn-sm" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+      <button className="btn btn-sm btn-outline" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         {signedIn ? (actor.label ?? (actor.address ? short(actor.address) : "Akun")) : "Akun demo"}
       </button>
       {open && (

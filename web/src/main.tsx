@@ -1,10 +1,10 @@
-import "@fontsource-variable/bricolage-grotesque";
 import "@fontsource-variable/inter";
 import "@fontsource/jetbrains-mono/400.css";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/components.css";
 import "./styles/pages.css";
+import "./styles/landing.css";
 
 import { StrictMode, useEffect, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";

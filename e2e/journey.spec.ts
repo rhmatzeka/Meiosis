@@ -20,8 +20,9 @@ try {
   section("BERANDA");
   const res = await page.goto(BASE, { waitUntil: "networkidle" });
   ok("halaman merespons 200", res?.status() === 200);
-  ok("judul menjelaskan dalam satu kalimat", (await page.textContent("h1"))?.includes("Kawinkan dua agent") ?? false);
-  ok("tombol utama ada", await page.isVisible("text=Kawinkan mereka berdua"));
+  ok("judul menjelaskan dalam satu kalimat", (await page.textContent("h1"))?.includes("lahir dari perkawinan") ?? false);
+  ok("tombol utama ada", await page.isVisible("text=Buat agent-mu"));
+  ok("tiga cara pakai dijelaskan", (await page.innerText("main")).includes("tiga langkah"));
   ok("mode demo terlihat di header", (await page.textContent(".header"))?.includes("Akun demo") ?? false);
 
   section("PILIH INDUK");
@@ -106,6 +107,20 @@ try {
   ok("banner menjelaskan chain mati", (await p3.innerText("body")).includes("Chain tidak terjangkau"));
   await p3.close();
 
+  section("ANIMASI");
+  const moving = await browser.newPage({ viewport: { width: 1280, height: 900 }, reducedMotion: "no-preference" });
+  const movingErrors = watchErrors(moving);
+  await moving.goto(BASE, { waitUntil: "networkidle" });
+  await moving.waitForTimeout(2500);
+  const heroOpacity = await moving.evaluate(() => getComputedStyle(document.querySelector(".hero-cta")!).opacity);
+  ok("animasi pembuka selesai dan ajakan terlihat", heroOpacity === "1", `opacity ${heroOpacity}`);
+  await moving.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await moving.waitForTimeout(1500);
+  const hidden = await moving.evaluate(() => [...document.querySelectorAll("[data-reveal]")].filter((e) => getComputedStyle(e).opacity === "0").length);
+  ok("isi yang digulir ikut muncul", hidden <= 2, `${hidden} masih tersembunyi`);
+  ok("GSAP tanpa galat", movingErrors.length === 0, movingErrors.join(" | "));
+  await moving.close();
+
   section("PONSEL 375 px");
   const phone = await browser.newPage({ viewport: { width: 375, height: 812 } });
   const phoneErrors = watchErrors(phone);
@@ -115,7 +130,9 @@ try {
     const { sw, cw } = await phone.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
     ok(`tanpa geser horizontal: ${path}`, sw <= cw, `${sw}/${cw}`);
   }
-  ok("navigasi bawah tampil di ponsel", await phone.isVisible(".bottom-nav"));
+  await phone.goto(BASE, { waitUntil: "networkidle" });
+  await phone.click(".menu-btn");
+  ok("menu ponsel terbuka dan berisi Pasar", await phone.isVisible(".mobile-menu >> text=Pasar"));
   await phone.screenshot({ path: join(dir, "phone.png") });
 
   ok("tanpa galat JavaScript", errors.length + phoneErrors.length === 0, [...errors, ...phoneErrors].join(" | "));
