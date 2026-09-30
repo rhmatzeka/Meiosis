@@ -10,7 +10,6 @@
  * Server menyusun calldata (/api/tx), wallet menandatangani, dan receipt
  * ditunggu lewat server (/api/receipt) supaya semua wallet berperilaku sama.
  */
-import { usePrivy, useWallets, type ConnectedWallet } from "@privy-io/react-auth";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { get, post, same } from "../api";
 import { useToast } from "../components/toast";
@@ -39,15 +38,15 @@ export interface Actor {
   loginProblem: string | null;
 }
 
-const Ctx = createContext<Actor | null>(null);
+export const ActorCtx = createContext<Actor | null>(null);
 export const useActor = () => {
-  const v = useContext(Ctx);
+  const v = useContext(ActorCtx);
   if (!v) throw new Error("useActor di luar ActorProvider");
   return v;
 };
 
-interface Eip1193 { request(a: { method: string; params?: unknown[] }): Promise<unknown>; on?(e: string, f: (x: unknown) => void): void }
-interface BuiltTx { to: string; data: string; value: string; label: string; chainId: number }
+export interface Eip1193 { request(a: { method: string; params?: unknown[] }): Promise<unknown>; on?(e: string, f: (x: unknown) => void): void }
+export interface BuiltTx { to: string; data: string; value: string; label: string; chainId: number }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -64,7 +63,7 @@ async function waitReceipt(hash: string, secPerBlock: number) {
 }
 
 /** Bagian yang sama untuk semua mode; tiap mode hanya menyediakan cara menandatangani. */
-function useActCore(sign: ((tx: BuiltTx) => Promise<string>) | null, from: string | undefined, onNeedLogin: () => void) {
+export function useActCore(sign: ((tx: BuiltTx) => Promise<string>) | null, from: string | undefined, onNeedLogin: () => void) {
   const { status, agents, refresh } = useData();
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
@@ -104,85 +103,16 @@ function useActCore(sign: ((tx: BuiltTx) => Promise<string>) | null, from: strin
   return { act, busy };
 }
 
-// --- Privy -----------------------------------------------------------------
-
-export function PrivyActorProvider({ children }: { children: ReactNode }) {
-  const { ready, authenticated, login, logout, user, getAccessToken } = usePrivy();
-  const { wallets } = useWallets();
-  const { status, refresh } = useData();
-  const toast = useToast();
-  const [funding, setFunding] = useState<Actor["funding"]>(null);
-  const funded = useRef(new Set<string>());
-
-  // Privy yang tidak kunjung siap hampir selalu berarti App ID salah atau
-  // origin belum didaftarkan di dashboard Privy. Katakan itu, jangan diam.
-  const [stalled, setStalled] = useState(false);
-  useEffect(() => {
-    if (ready) { setStalled(false); return; }
-    const t = setTimeout(() => setStalled(true), 10_000);
-    return () => clearTimeout(t);
-  }, [ready]);
-
-  // Wallet yang dipakai: yang tertaut ke akun, embedded lebih dulu.
-  const wallet: ConnectedWallet | undefined = authenticated
-    ? wallets.find((w) => w.walletClientType === "privy") ?? wallets.find((w) => same(w.address, user?.wallet?.address)) ?? wallets[0]
-    : undefined;
-  const address = wallet?.address;
-
-  const sign = useCallback(async (tx: BuiltTx) => {
-    if (!wallet) throw new Error("Wallet belum siap.");
-    if (wallet.chainId !== `eip155:${tx.chainId}`) await wallet.switchChain(tx.chainId);
-    const provider = (await wallet.getEthereumProvider()) as Eip1193;
-    return (await provider.request({
-      method: "eth_sendTransaction",
-      params: [{ from: wallet.address, to: tx.to, data: tx.data, value: tx.value }],
-    })) as string;
-  }, [wallet]);
-
-  const { act, busy } = useActCore(wallet ? sign : null, address, login);
-
-  // Pengguna baru mendapat ETH untuk biaya jaringan, sekali per alamat.
-  useEffect(() => {
-    if (!address || !status?.faucet.enabled || funded.current.has(address)) return;
-    funded.current.add(address);
-    (async () => {
-      const token = await getAccessToken().catch(() => null);
-      const r = await fetch("/api/faucet", {
-        method: "POST",
-        headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ address }),
-      }).then((x) => x.json()).catch(() => ({ ok: false, message: "Faucet tidak terjangkau." }));
-      if (r.hash) {
-        setFunding({ ok: true, message: `Kami mengirim ${r.amountEth} ETH untuk biaya jaringan.` });
-        toast(`Kami mengirim ${r.amountEth} ETH ke wallet-mu untuk biaya jaringan.`, "ok");
-        refresh(true);
-      } else if (r.reason !== "saldo-cukup") {
-        setFunding({ ok: false, message: r.message ?? "Faucet menolak permintaan." });
-      }
-    })();
-  }, [address, status?.faucet.enabled, getAccessToken, toast, refresh]);
-
-  const email = user?.email?.address ?? user?.google?.email;
-  const value: Actor = {
-    mode: authenticated && address ? "privy" : status?.local ? "demo" : "none",
-    address: authenticated ? address : demoAddress(status),
-    label: authenticated ? (email ?? undefined) : status?.local ? "Alice (akun demo)" : undefined,
-    ready: ready && !!status,
-    canLogin: true,
-    login,
-    logout: async () => { await logout(); setFunding(null); },
-    act, busy, funding,
-    loginProblem: stalled ? "Login belum bisa dipakai: Privy tidak merespons. Periksa PRIVY_APP_ID dan daftar origin di dashboard Privy." : null,
-  };
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
-}
-
 // --- tanpa Privy: wallet injected atau akun demo ------------------------------
 
 const eth = () => (window as unknown as { ethereum?: Eip1193 }).ethereum;
 const REMEMBER = "meiosis:wallet";
 
-export function PlainActorProvider({ children }: { children: ReactNode }) {
+/**
+ * `pending`: Privy sedang dimuat. Jangan tawarkan MetaMask atau menyebut login
+ * tidak tersedia; sebentar lagi provider ini diganti PrivyActorProvider.
+ */
+export function PlainActorProvider({ children, pending = false }: { children: ReactNode; pending?: boolean }) {
   const { status } = useData();
   const toast = useToast();
   const [address, setAddress] = useState<string | undefined>();
@@ -238,15 +168,15 @@ export function PlainActorProvider({ children }: { children: ReactNode }) {
     mode: address ? "injected" : status?.local ? "demo" : "none",
     address: address ?? demoAddress(status),
     label: address ? undefined : status?.local ? "Alice (akun demo)" : undefined,
-    ready: !!status,
-    canLogin: !!eth(),
+    ready: !!status && !pending,
+    canLogin: !pending && !!eth(),
     login,
     logout: async () => { setAddress(undefined); try { localStorage.removeItem(REMEMBER); } catch { /* penyimpanan diblokir */ } },
     act, busy, funding: null,
-    loginProblem: !status || eth() || status.local ? null : "Login belum diaktifkan di server ini (PRIVY_APP_ID kosong) dan browser ini tidak punya wallet.",
+    loginProblem: pending || !status || eth() || status.local ? null : "Login belum diaktifkan di server ini (PRIVY_APP_ID kosong) dan browser ini tidak punya wallet.",
   };
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return <ActorCtx.Provider value={value}>{children}</ActorCtx.Provider>;
 }
 
 /** Di chain lokal tanpa login, "aku" adalah Alice — akun yang dipakai /api/local-act untuk kawin. */
-const demoAddress = (s: ReturnType<typeof useData>["status"]) => (s?.local ? s.accounts[1]?.address : undefined);
+export const demoAddress = (s: ReturnType<typeof useData>["status"]) => (s?.local ? s.accounts[1]?.address : undefined);

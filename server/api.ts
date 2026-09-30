@@ -5,7 +5,8 @@
  * cadangan demo (PLAN.md §15.2); untuk sekarang yang dibutuhkan adalah sesuatu
  * yang langsung bisa dijalankan dan dilihat.
  */
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 import type { Server } from "bun";
 import app from "../web/index.html";
 import { encodeFunctionData, decodeFunctionData, parseEther, formatEther, decodeEventLog, isAddress, getAddress, type Abi, type Address } from "viem";
@@ -428,6 +429,25 @@ if (operator) {
   });
 }
 
+/**
+ * Di mode publik halaman disajikan dari hasil `bun run build:web`: diminifikasi
+ * dan dipecah, sehingga SDK Privy yang besar hanya diunduh saat dibutuhkan
+ * (±140 KB gzip untuk layar pertama, bukan ±1,6 MB). Tanpa build, server
+ * membundel sendiri seperti di mesin lokal, dan memperingatkannya.
+ */
+const DIST = resolve("dist/web");
+const USE_DIST = PUBLIC && existsSync(join(DIST, "index.html"));
+if (PUBLIC && !USE_DIST) console.warn("  ⚠ dist/web belum ada: jalankan `bun run build:web` supaya halaman jauh lebih ringan");
+function serveDist(req: Request) {
+  const path = resolve(DIST, "." + decodeURIComponent(new URL(req.url).pathname));
+  if (path.startsWith(DIST + "/") && existsSync(path) && statSync(path).isFile()) {
+    return new Response(Bun.file(path), { headers: { "cache-control": "public, max-age=31536000, immutable" } });
+  }
+  return new Response(Bun.file(join(DIST, "index.html")), {
+    headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" },
+  });
+}
+
 Bun.serve({
   port: PORT,
   idleTimeout: 120,
@@ -438,7 +458,7 @@ Bun.serve({
     "/api/*": (req, server) => handle(req, server),
     "/artifact/*": (req, server) => handle(req, server),
     // Semua rute lain milik aplikasi (SPA): /kawin/3, /agent/7, dst.
-    "/*": app,
+    "/*": USE_DIST ? serveDist : app,
   },
   fetch: (req, server) => handle(req, server),
 });

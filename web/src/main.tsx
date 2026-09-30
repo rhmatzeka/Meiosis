@@ -6,15 +6,14 @@ import "./styles/base.css";
 import "./styles/components.css";
 import "./styles/pages.css";
 
-import { PrivyProvider } from "@privy-io/react-auth";
-import { StrictMode, type ReactNode } from "react";
+import { StrictMode, useEffect, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { defineChain, type Chain } from "viem";
 import { sepolia } from "viem/chains";
 import type { Status } from "./api";
 import { App } from "./app";
 import { ToastProvider } from "./components/toast";
-import { PlainActorProvider, PrivyActorProvider } from "./hooks/use-actor";
+import { PlainActorProvider } from "./hooks/use-actor";
 import { DataProvider } from "./hooks/use-data";
 
 /**
@@ -30,28 +29,11 @@ const chainOf = (s: Status | null): Chain => s && !s.local ? sepolia : defineCha
 });
 
 function Auth({ children }: { children: ReactNode }) {
-  if (!status?.privyAppId) return <PlainActorProvider>{children}</PlainActorProvider>;
-  const chain = chainOf(status);
-  return (
-    <PrivyProvider
-      appId={status.privyAppId}
-      config={{
-        loginMethods: ["email", "google", "wallet"],
-        appearance: {
-          theme: "#04080d",
-          accentColor: "#5fe0cb",
-          landingHeader: "Masuk ke Meiosis",
-          loginMessage: "Wallet dibuatkan otomatis kalau kamu belum punya.",
-          walletList: ["detected_wallets", "metamask", "rabby_wallet", "coinbase_wallet", "wallet_connect"],
-        },
-        embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" }, showWalletUIs: false },
-        defaultChain: chain,
-        supportedChains: [chain],
-      }}
-    >
-      <PrivyActorProvider>{children}</PrivyActorProvider>
-    </PrivyProvider>
-  );
+  const [privy, setPrivy] = useState<typeof import("./privy") | null>(null);
+  const wanted = !!status?.privyAppId;
+  useEffect(() => { if (wanted) import("./privy").then(setPrivy).catch(() => {}); }, [wanted]);
+  if (wanted && privy) return <privy.PrivyAuth appId={status!.privyAppId!} chain={chainOf(status)}>{children}</privy.PrivyAuth>;
+  return <PlainActorProvider pending={wanted}>{children}</PlainActorProvider>;
 }
 
 createRoot(document.getElementById("root")!).render(

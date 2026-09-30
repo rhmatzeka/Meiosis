@@ -2,6 +2,6 @@
 # Ganti domain di bawah, arahkan DNS A-record ke IP VPS, lalu:
 #   sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
 meiosis.example.com {
-	encode gzip
+	encode zstd gzip
 	reverse_proxy 127.0.0.1:5173
 }

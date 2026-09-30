@@ -142,6 +142,7 @@ tempat agent bekerja).
 # di VPS, sebagai user non-root bernama meiosis, anggota grup docker
 git clone https://github.com/rhmatzeka/Meiosis /opt/meiosis && cd /opt/meiosis
 bun run setup
+bun run build:web                          # halaman diminifikasi & dipecah; ulangi setiap kali menarik kode baru
 docker build -t meiosis-sandbox:1 -f sandbox/Dockerfile sandbox/
 cp .env.example .env && chmod 600 .env    # isi GROQ_API_KEY, PRIVY_APP_ID, OPERATOR_PRIVATE_KEY, TRUST_PROXY=1
                                           # JANGAN taruh DEPLOYER_PRIVATE_KEY di sini
