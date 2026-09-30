@@ -7,12 +7,13 @@
  */
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { encodeFunctionData, parseEther, formatEther, decodeEventLog, isAddress, getAddress, type Abi, type Address } from "viem";
+import { encodeFunctionData, decodeFunctionData, parseEther, formatEther, decodeEventLog, isAddress, getAddress, type Abi, type Address } from "viem";
 import {
-  pub, wallets, ownerName, artifact, loadDeployment,
+  pub, wallets, ownerName, artifact, loadDeployment, operatorWallet, SEC_PER_BLOCK,
   deploymentValid, isLive, RPC, CHAIN, IS_LOCAL, EXPLORER, chain, type Deployment,
 } from "./chain";
 import { deployAll } from "./deploy";
+import { faucetDecision, faucetMessage, loadFaucetState, saveFaucetState, verifyPrivyToken } from "./faucet";
 import { toClaudeAgent, agentSlug } from "../runtime/export";
 import { express, relatedness, LOCUS_NAMES, traitName, LOCUS_COUNT } from "../packages/shared/src/genome";
 import { FOUNDERS } from "../packages/shared/src/founders";
@@ -116,6 +117,29 @@ const PUBLIC = !IS_LOCAL || process.env.PUBLIC === "1";
 const RUN_PRICE = parseEther(process.env.RUN_PRICE_ETH ?? "0");
 const RUN_LIMIT_PER_HOUR = Number(process.env.RUN_LIMIT_PER_HOUR ?? 6);
 
+const PRIVY_APP_ID = process.env.PRIVY_APP_ID?.trim() || "";
+const operator = operatorWallet();
+
+const FAUCET_FILE = `.runs/faucet-${CHAIN}.json`;
+const faucetCfg = {
+  amountWei: parseEther(process.env.FAUCET_AMOUNT_ETH ?? "0.003"),
+  perIpPerDay: Number(process.env.FAUCET_PER_IP_DAY ?? 3),
+  dailyCapWei: parseEther(process.env.FAUCET_DAILY_CAP_ETH ?? "0.05"),
+};
+/** Di Sepolia faucet butuh operator dan Privy (untuk memverifikasi siapa yang meminta). */
+const FAUCET_ON = !!operator && faucetCfg.amountWei > 0n && (IS_LOCAL || !!PRIVY_APP_ID);
+let faucetBusy = Promise.resolve();
+
+/** Docker dipakai tab Tugas. Dicek sekali; memasang Docker butuh restart server juga. */
+const DOCKER = (() => {
+  try { return Bun.spawnSync(["docker", "info"], { stdout: "ignore", stderr: "ignore" }).exitCode === 0; }
+  catch { return false; }
+})();
+
+const clientIp = (req: Request, server: { requestIP(r: Request): { address: string } | null }) =>
+  (process.env.TRUST_PROXY === "1" ? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() : null)
+    || server.requestIP(req)?.address || "?";
+
 const read = (addr: Address, abi: Abi, fn: string, args: unknown[] = []) =>
   pub.readContract({ address: addr, abi, functionName: fn, args } as never);
 
@@ -147,7 +171,7 @@ const cached = <T,>(fn: () => Promise<T>) => {
 type AgentRow = Awaited<ReturnType<typeof readAgent>>;
 
 async function readAgent(d: Deployment, id: number) {
-  const [a, owner, chosenName, listed, fee] = await Promise.all([
+  const [a, owner, chosenName, listed, fee, readyAt, cooldown] = await Promise.all([
     read(d.registry, abis.registry, "agentOf", [id]) as Promise<{
       genome: bigint; parentA: bigint; parentB: bigint; generation: number;
       breedCount: number; manifestHash: bigint; birthBlock: number;
@@ -156,6 +180,8 @@ async function readAgent(d: Deployment, id: number) {
     read(d.registry, abis.registry, "nameOf", [id]) as Promise<string>,
     read(d.hatchery, abis.hatchery, "studListed", [id]) as Promise<boolean>,
     read(d.hatchery, abis.hatchery, "studFee", [id]) as Promise<bigint>,
+    read(d.hatchery, abis.hatchery, "readyAt", [id]) as Promise<bigint>,
+    read(d.hatchery, abis.hatchery, "cooldownBlocks", [id]) as Promise<number>,
   ]);
   const founderName = !chosenName && a.generation === 0
     ? ((await read(d.genesis, abis.genesis, "founderName", [id])) as string) : "";
@@ -181,6 +207,8 @@ async function readAgent(d: Deployment, id: number) {
     manifestHashComputed: "0x" + manifestHash(manifest).toString(16).padStart(16, "0"),
     birthBlock: a.birthBlock,
     stud: { listed, feeWei: fee.toString(), feeEth: formatEther(fee) },
+    readyAtBlock: Number(readyAt),
+    cooldownBlocks: Number(cooldown),
     traits: e.map((t, i) => ({ locus: i, name: LOCUS_NAMES[i], value: traitName(i, t) })),
     modules: manifest.traits.filter((t) => t.module).map((t) => t.module),
     modelTier: manifest.modelTier,
@@ -195,9 +223,35 @@ const listAgents = cached(async () => {
   return Promise.all(Array.from({ length: total }, (_, i) => readAgent(d, i + 1)));
 });
 
+/**
+ * pid → id anak. Event Hatched tidak memuat pid, jadi pid dibaca dari calldata
+ * `hatch(pid)` pada tx yang memancarkannya. Hasilnya tidak pernah berubah,
+ * jadi cukup dipindai sekali per rentang blok.
+ */
+const hatchScan = { registry: "", to: 0n, child: new Map<number, number>() };
+async function scanHatched(d: Deployment) {
+  if (hatchScan.registry !== d.registry) Object.assign(hatchScan, { registry: d.registry, to: 0n, child: new Map() });
+  const head = await pub.getBlockNumber();
+  const from = hatchScan.to ? hatchScan.to + 1n : BigInt(d.block);
+  if (from > head) return hatchScan.child;
+  const logs = await pub.getContractEvents({
+    address: d.hatchery, abi: abis.hatchery, eventName: "Hatched", fromBlock: from, toBlock: head,
+  }) as unknown as { transactionHash: `0x${string}`; args: { childId: bigint } }[];
+  for (const l of logs) {
+    const tx = await pub.getTransaction({ hash: l.transactionHash });
+    try {
+      const call = decodeFunctionData({ abi: abis.hatchery, data: tx.input });
+      if (call.functionName === "hatch") hatchScan.child.set(Number(call.args![0]), Number(l.args.childId));
+    } catch { /* hatch lewat kontrak lain: tidak bisa dipetakan, UI jatuh ke pencarian induk */ }
+  }
+  hatchScan.to = head;
+  return hatchScan.child;
+}
+
 const listPregnancies = cached(async () => {
   if (!dep) return [];
   const d = dep;
+  const children = await scanHatched(d);
   const [next, head] = await Promise.all([
     read(d.hatchery, abis.hatchery, "nextPregnancyId"),
     pub.getBlockNumber(),
@@ -210,6 +264,7 @@ const listPregnancies = cached(async () => {
     return {
       id: pid, parentA: Number(p[0]), parentB: Number(p[1]),
       revealBlock, hatched: p[3] as boolean, to: p[4] as string,
+      childId: children.get(pid) ?? null,
       blocksLeft: Math.max(0, revealBlock - now + 1),
       ready: !p[3] && now > revealBlock,
       expired: !p[3] && now > revealBlock + 256,
@@ -375,7 +430,51 @@ Bun.serve({
           runPriceEth: formatEther(RUN_PRICE),
           runReady: !modelMissing(),
           accounts: wallets.map((w, i) => ({ name: ["deployer", "Alice", "Bob", "Carol"][i], address: w.account.address })),
+          privyAppId: PRIVY_APP_ID || null,
+          faucet: { enabled: FAUCET_ON, amountEth: formatEther(faucetCfg.amountWei) },
+          keeper: !!operator,
+          docker: DOCKER,
+          secPerBlock: SEC_PER_BLOCK,
         });
+      }
+
+      const rc = p.match(/^\/api\/receipt\/(0x[0-9a-fA-F]{64})$/);
+      if (rc) {
+        const r = await pub.getTransactionReceipt({ hash: rc[1] as `0x${string}` }).catch(() => null);
+        return json({ status: r ? (r.status === "success" ? "success" : "reverted") : "pending" });
+      }
+
+      if (p === "/api/faucet" && req.method === "POST") {
+        if (!FAUCET_ON || !operator) return json({ ok: false, message: "Faucet tidak aktif di server ini." }, 503);
+        const { address } = (await req.json().catch(() => ({}))) as { address?: string };
+        if (!address || !isAddress(address)) return json({ ok: false, message: "alamat tidak sah" }, 400);
+
+        let userId = `lokal:${address.toLowerCase()}`;
+        if (!IS_LOCAL) {
+          const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+          try { userId = await verifyPrivyToken(token, PRIVY_APP_ID); }
+          catch { return json({ ok: false, message: "Sesi masuk tidak sah. Coba keluar lalu masuk lagi." }, 401); }
+        }
+
+        // Diproses satu per satu: dua permintaan serentak tidak boleh sama-sama lolos batas.
+        const run = faucetBusy.then(async () => {
+          const state = loadFaucetState(FAUCET_FILE);
+          const balanceWei = await pub.getBalance({ address: getAddress(address) });
+          const d = faucetDecision(state, { userId, address, ip: clientIp(req, server), balanceWei, now: Date.now() }, faucetCfg);
+          if (!d.ok) return { status: d.reason === "saldo-cukup" ? 200 : 429, body: { ok: d.reason === "saldo-cukup", reason: d.reason, message: faucetMessage(d.reason) } };
+          const hash = await operator.sendTransaction({ to: getAddress(address), value: faucetCfg.amountWei });
+          state.records.push({ userId, address, ip: clientIp(req, server), at: Date.now(), wei: faucetCfg.amountWei.toString() });
+          saveFaucetState(FAUCET_FILE, state);
+          await pub.waitForTransactionReceipt({ hash });
+          return { status: 200, body: { ok: true, hash, amountEth: formatEther(faucetCfg.amountWei) } };
+        });
+        faucetBusy = run.then(() => {}, () => {});
+        try {
+          const r = await run;
+          return json(r.body, r.status);
+        } catch (e) {
+          return json({ ok: false, message: `Gagal mengirim ETH: ${(e as Error).message.slice(0, 160)}` }, 500);
+        }
       }
 
       if (p === "/api/deploy" && req.method === "POST") {
@@ -553,8 +652,7 @@ Bun.serve({
           if (workdir) return json({ error: "workdir hanya tersedia di mesin lokal" }, 400);
           if (ids.length > 3) return json({ error: "paling banyak 3 agent sekali jalan" }, 400);
           maxSteps = Math.min(maxSteps ?? 10, 10);
-          const ip = (process.env.TRUST_PROXY === "1" && req.headers.get("x-forwarded-for")?.split(",")[0].trim())
-            || server.requestIP(req)?.address || "?";
+          const ip = clientIp(req, server);
           if (!mock && RUN_PRICE > 0n) {
             try {
               paid = await Promise.all(ids.map((id) => checkPayment(id, payments?.[id] ?? "")));

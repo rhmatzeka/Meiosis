@@ -82,6 +82,21 @@ export function deployerWallet() {
   return wallet(k as `0x${string}`);
 }
 
+/**
+ * Wallet operator: membayar gas untuk faucet dan penetasan otomatis. Tidak
+ * pernah memegang agent atau dana pengguna — `hatch()` dan `reroll()` terbuka
+ * untuk siapa saja dan anak selalu jatuh ke pengawinnya. Di Anvil memakai akun
+ * deployer; di Sepolia dari OPERATOR_PRIVATE_KEY, dan null bila tidak diisi.
+ */
+export function operatorWallet() {
+  if (IS_LOCAL) return wallet(ACCOUNTS[0].key as `0x${string}`);
+  const k = process.env.OPERATOR_PRIVATE_KEY?.trim();
+  return k && /^0x[0-9a-fA-F]{64}$/.test(k) ? wallet(k as `0x${string}`) : null;
+}
+
+/** Perkiraan detik per blok, untuk hitung mundur di UI. */
+export const SEC_PER_BLOCK = IS_LOCAL ? 2 : 12;
+
 export const ownerName = (addr: string) => {
   const i = wallets.findIndex((w) => w.account.address.toLowerCase() === addr.toLowerCase());
   return i >= 0 ? ACCOUNTS[i].name : `${addr.slice(0, 6)}…${addr.slice(-4)}`;
