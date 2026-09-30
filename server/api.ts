@@ -17,6 +17,8 @@ import {
 import { deployAll } from "./deploy";
 import { startKeeper } from "./keeper";
 import { blockRanges } from "./ranges";
+import { checkRent, effectiveRentWei, type RentEvent } from "./rent";
+import { studioGenome, validateDesign, type Design } from "../packages/shared/src/studio";
 import { faucetDecision, faucetMessage, loadFaucetState, saveFaucetState, verifyPrivyToken } from "./faucet";
 import { toClaudeAgent, agentSlug } from "../runtime/export";
 import { express, relatedness, LOCUS_NAMES, traitName, LOCUS_COUNT } from "../packages/shared/src/genome";
@@ -110,6 +112,8 @@ const abis = {
   genesis: artifact("Genesis").abi,
   hatchery: artifact("Hatchery").abi,
   royalty: artifact("LineageRoyalty").abi,
+  studio: artifact("Studio").abi,
+  market: artifact("Market").abi,
 };
 
 /**
@@ -187,7 +191,13 @@ async function readAgent(d: Deployment, id: number) {
     read(d.hatchery, abis.hatchery, "readyAt", [id]) as Promise<bigint>,
     read(d.hatchery, abis.hatchery, "cooldownBlocks", [id]) as Promise<number>,
   ]);
-  const founderName = !chosenName && a.generation === 0
+  // Pasar & Studio: deployment lama belum punya, jadi dibaca hanya bila ada.
+  const [listing, rentWei, designed] = await Promise.all([
+    d.market ? read(d.market, abis.market, "listingOf", [id]) as Promise<[string, bigint, boolean]> : null,
+    d.market ? read(d.market, abis.market, "rentPrice", [id]) as Promise<bigint> : 0n,
+    d.studio ? read(d.studio, abis.studio, "designed", [id]) as Promise<boolean> : false,
+  ]);
+  const founderName = !chosenName && a.generation === 0 && !designed
     ? ((await read(d.genesis, abis.genesis, "founderName", [id])) as string) : "";
 
   // Seed kelahiran tidak tersimpan on-chain; untuk founder ia 0, dan untuk
@@ -212,6 +222,9 @@ async function readAgent(d: Deployment, id: number) {
     birthBlock: a.birthBlock,
     stud: { listed, feeWei: fee.toString(), feeEth: formatEther(fee) },
     readyAtBlock: Number(readyAt),
+    sale: listing && listing[2] ? { seller: listing[0], priceWei: listing[1].toString(), priceEth: formatEther(listing[1]) } : null,
+    rent: { ownerPriceWei: rentWei.toString(), priceWei: effectiveRentWei(rentWei, RUN_PRICE).toString(), priceEth: formatEther(effectiveRentWei(rentWei, RUN_PRICE)) },
+    designed,
     cooldownBlocks: Number(cooldown),
     traits: e.map((t, i) => ({ locus: i, name: LOCUS_NAMES[i], value: traitName(i, t) })),
     modules: manifest.traits.filter((t) => t.module).map((t) => t.module),
@@ -294,6 +307,15 @@ const listPregnancies = cached(async () => {
  * menghitung stud fee yang harus dibayar, dan menghitung manifestHash dari
  * genome — yang terakhir itu wajib identik dengan expand() di sini.
  */
+function parseDesign(x: unknown): Design {
+  const o = (x ?? {}) as Record<string, unknown>;
+  const n = (k: string) => Number(o[k]);
+  const d = { tier: n("tier"), discipline: n("discipline"), stack: n("stack"), verbosity: n("verbosity"), talentA: n("talentA"), talentB: n("talentB") };
+  const bad = validateDesign(d);
+  if (bad) throw new Error(bad);
+  return d;
+}
+
 async function buildTx(action: string, a: Record<string, unknown>, from?: string) {
   const d = dep!;
   const id = (k = "id") => {
@@ -353,6 +375,36 @@ async function buildTx(action: string, a: Record<string, unknown>, from?: string
       return call(d.royalty, abis.royalty, "pay", [id(), memo], value, `bayar agent #${a.id}`);
     }
     case "withdraw": return call(d.royalty, abis.royalty, "withdraw", [], 0n, "tarik saldo royalti");
+
+    // ---- Studio & Pasar
+    case "studioCreate": {
+      if (!d.studio) throw new Error("Studio belum di-deploy di chain ini");
+      const design = parseDesign(a.design);
+      const name = String(a.name ?? "").trim();
+      if (new TextEncoder().encode(name).length > 32) throw new Error("nama paling panjang 32 byte");
+      const mh = manifestHash(expand(studioGenome(design), 0n));
+      const fee = (await read(d.studio, abis.studio, "fee")) as bigint;
+      return call(d.studio, abis.studio, "create", [design, name, mh], fee, "buat agent di Studio");
+    }
+    case "approveMarket":
+      if (!d.market) throw new Error("Pasar belum di-deploy di chain ini");
+      return call(d.registry, abis.registry, "setApprovalForAll", [d.market, true], 0n, "izinkan Pasar menjual agent-mu");
+    case "list":
+      return call(d.market!, abis.market, "list", [id(), eth("priceEth")], 0n, `pasang #${a.id} untuk dijual`);
+    case "cancelListing":
+      return call(d.market!, abis.market, "cancel", [id()], 0n, `batal jual #${a.id}`);
+    case "buy": {
+      const [, price, valid] = (await read(d.market!, abis.market, "listingOf", [id()])) as [string, bigint, boolean];
+      if (!valid) throw new Error(`#${a.id} sedang tidak dijual`);
+      return call(d.market!, abis.market, "buy", [id()], price, `beli #${a.id}`);
+    }
+    case "setRentPrice":
+      return call(d.market!, abis.market, "setRentPrice", [id(), eth("priceEth")], 0n, `pasang harga sewa #${a.id}`);
+    case "rent": {
+      const price = effectiveRentWei((await read(d.market!, abis.market, "rentPrice", [id()])) as bigint, RUN_PRICE);
+      const job = /^0x[0-9a-f]{64}$/i.test(String(a.job)) ? String(a.job) : ("0x" + Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("hex"));
+      return call(d.market!, abis.market, "rent", [id(), job], price > 0n ? price : 1n, `sewa #${a.id} untuk satu tugas`);
+    }
     default: throw new Error(`aksi tidak dikenal: ${action}`);
   }
 }
@@ -369,21 +421,31 @@ const usedPayments = new Set<string>(
  * Memastikan sebuah tx benar-benar membayar agent `agentId` sebesar harga sewa
  * lewat LineageRoyalty, dan belum pernah dipakai untuk run lain.
  */
+/** Harga sewa satu tugas untuk agent ini: harga pemilik, atau bawaan platform. */
+async function rentPriceOf(agentId: number) {
+  const own = dep?.market ? ((await read(dep.market, abis.market, "rentPrice", [agentId])) as bigint) : 0n;
+  return effectiveRentWei(own, RUN_PRICE);
+}
+
+/**
+ * Memastikan tx `hash` adalah `Market.rent` untuk agent `agentId` sebesar
+ * harga sewanya, dan belum pernah dipakai untuk tugas lain.
+ */
 async function checkPayment(agentId: number, hash: string) {
   if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) throw new Error(`bukti bayar #${agentId} bukan hash tx`);
+  if (!dep?.market) throw new Error("Pasar belum di-deploy, sewa belum bisa dibayar");
   const h = hash.toLowerCase();
-  if (usedPayments.has(h)) throw new Error(`tx ${h.slice(0, 10)}… sudah dipakai untuk run lain`);
   const r = await pub.getTransactionReceipt({ hash: h as `0x${string}` });
-  if (r.status !== "success") throw new Error(`tx bayar #${agentId} gagal di chain`);
-  const paid = r.logs.some((l) => {
-    if (l.address.toLowerCase() !== dep!.royalty.toLowerCase()) return false;
+  if (r.status !== "success") throw new Error(`tx sewa #${agentId} gagal di chain`);
+  const events: RentEvent[] = r.logs.flatMap((l) => {
     try {
-      const ev = decodeEventLog({ abi: abis.royalty, data: l.data, topics: l.topics }) as unknown as
-        { eventName: string; args: { agentId: bigint; amount: bigint } };
-      return ev.eventName === "Paid" && Number(ev.args.agentId) === agentId && ev.args.amount >= RUN_PRICE;
-    } catch { return false; }
+      const ev = decodeEventLog({ abi: abis.market, data: l.data, topics: l.topics }) as unknown as
+        { eventName: string; args: { id: bigint; amount: bigint } };
+      return ev.eventName === "Rented" ? [{ agentId: Number(ev.args.id), amount: ev.args.amount, market: l.address }] : [];
+    } catch { return []; }
   });
-  if (!paid) throw new Error(`tx itu bukan pembayaran ≥ ${formatEther(RUN_PRICE)} ETH untuk agent #${agentId}`);
+  const c = checkRent(events, { agentId, priceWei: await rentPriceOf(agentId), market: dep.market, txHash: h, used: usedPayments });
+  if (!c.ok) throw new Error(c.error);
   return h;
 }
 
@@ -493,7 +555,26 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           keeper: !!operator,
           docker: DOCKER,
           secPerBlock: SEC_PER_BLOCK,
+          market: dep?.market ? {
+            feeBps: Number(await read(dep.market, abis.market, "feeBps")),
+            studioFeeEth: dep.studio ? formatEther((await read(dep.studio, abis.studio, "fee")) as bigint) : null,
+          } : null,
         });
+      }
+
+      if (p === "/api/studio/preview") {
+        try {
+          const design = parseDesign(JSON.parse(url.searchParams.get("d") ?? "{}"));
+          const genome = studioGenome(design);
+          const e = express(genome, 0n);
+          return json({
+            genome: "0x" + genome.toString(16).padStart(64, "0"),
+            traits: e.map((t, i) => ({ locus: i, name: LOCUS_NAMES[i], value: traitName(i, t) })),
+            modules: expand(genome, 0n).traits.filter((t) => t.module).map((t) => t.module),
+          });
+        } catch (e) {
+          return json({ error: (e as Error).message }, 400);
+        }
       }
 
       const rc = p.match(/^\/api\/receipt\/(0x[0-9a-fA-F]{64})$/);
@@ -543,6 +624,8 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         dep = await deployAll({
           deployer: wallets[0], founderOwners: [alice, bob, carol, carol], resume: dep,
           baseCooldownBlocks: process.env.BASE_COOLDOWN_BLOCKS ? Number(process.env.BASE_COOLDOWN_BLOCKS) : undefined,
+          studioFeeWei: parseEther(process.env.STUDIO_FEE_ETH ?? "0.002"),
+          marketFeeBps: Number(process.env.MARKET_FEE_BPS ?? 250),
         });
         return json({ ok: true, addresses: dep });
       }
@@ -572,11 +655,11 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         const { action, args = {}, as } = (await req.json()) as { action: string; args?: Record<string, unknown>; as?: string };
         const byAddr = (a: string) => wallets.find((w) => w.account.address.toLowerCase() === a.toLowerCase());
         let signer = as ? byAddr(as) : undefined;
-        if (!signer && args.id && ["setName", "listForStud", "unlistStud", "setManifestHash"].includes(action)) {
+        if (!signer && args.id && ["setName", "listForStud", "unlistStud", "setManifestHash", "approveMarket", "list", "cancelListing", "setRentPrice"].includes(action)) {
           signer = byAddr((await read(dep.registry, abis.registry, "ownerOf", [Number(args.id)])) as string);
         }
         // Tanpa pilihan lain: perkawinan dan penetasan oleh Alice, pembayaran oleh deployer sebagai pelanggan.
-        signer ??= ["breed", "hatch", "reroll"].includes(action) ? wallets[1] : wallets[0];
+        signer ??= ["breed", "hatch", "reroll", "studioCreate", "buy", "rent"].includes(action) ? wallets[1] : wallets[0];
         try {
           const tx = await buildTx(action, args, signer.account.address);
           const hash = await signer.sendTransaction({ to: tx.to, data: tx.data as `0x${string}`, value: BigInt(tx.value) });
@@ -720,15 +803,19 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           if (ids.length > 3) return json({ error: "paling banyak 3 agent sekali jalan" }, 400);
           maxSteps = Math.min(maxSteps ?? 10, 10);
           const ip = clientIp(req, server);
-          if (!mock && RUN_PRICE > 0n) {
+          // Setiap agent dengan harga sewa > 0 wajib dibayar lewat Market.rent.
+          const prices = mock ? ids.map(() => 0n) : await Promise.all(ids.map(rentPriceOf));
+          const due = ids.filter((_, i) => prices[i] > 0n);
+          if (due.length) {
             try {
-              paid = await Promise.all(ids.map((id) => checkPayment(id, payments?.[id] ?? "")));
+              paid = await Promise.all(due.map((id) => checkPayment(id, payments?.[id] ?? "")));
             } catch (e) {
-              return json({ error: (e as Error).message, priceEth: formatEther(RUN_PRICE) }, 402);
+              return json({ error: (e as Error).message, prices: Object.fromEntries(ids.map((id, i) => [id, formatEther(prices[i])])) }, 402);
             }
             if (new Set(paid).size !== paid.length) return json({ error: "satu tx pembayaran hanya untuk satu agent" }, 400);
             markPaid(paid);
-          } else if (!mock && !allowRun(ip)) {
+          }
+          if (due.length < ids.length && !mock && !allowRun(ip)) {
             return json({ error: `batas ${RUN_LIMIT_PER_HOUR} run per jam tercapai, coba lagi nanti` }, 429);
           }
         }

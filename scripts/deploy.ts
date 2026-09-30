@@ -14,6 +14,8 @@
  *                          Kosong = semua tetap milik deployer.
  *   STUD_FEE_ETH           opsional — stud fee awal tiap founder, bawaan 0
  *   BASE_COOLDOWN_BLOCKS   opsional — jeda kawin dasar dalam blok, bawaan kontrak 10
+ *   STUDIO_FEE_ETH         opsional — biaya merancang agent di Studio, bawaan 0.002
+ *   MARKET_FEE_BPS         opsional — biaya platform pasar & sewa, bawaan 250 (2,5%)
  */
 process.env.CHAIN ??= "sepolia";
 
@@ -70,6 +72,8 @@ const dep = await deployAll({
   founderOwners: owners.length ? owners.map((a) => getAddress(a)) : [me],
   studFeeWei: parseEther(process.env.STUD_FEE_ETH ?? "0"),
   baseCooldownBlocks: process.env.BASE_COOLDOWN_BLOCKS ? Number(process.env.BASE_COOLDOWN_BLOCKS) : undefined,
+  studioFeeWei: parseEther(process.env.STUDIO_FEE_ETH ?? "0.002"),
+  marketFeeBps: Number(process.env.MARKET_FEE_BPS ?? 250),
   resume,
   log: ok,
 });

@@ -27,6 +27,10 @@ export interface DeployOptions {
    * Nilai kecil membuat founder bisa dikawinkan banyak orang berturut-turut.
    */
   baseCooldownBlocks?: number;
+  /** Biaya merancang agent di Studio, dalam wei. */
+  studioFeeWei?: bigint;
+  /** Biaya platform pasar & sewa dalam basis poin (bawaan 250 = 2,5%). */
+  marketFeeBps?: number;
   /** Deployment sebelumnya yang belum selesai, untuk dilanjutkan. */
   resume?: Partial<Deployment> | null;
   log?: (s: string) => void;
@@ -44,6 +48,7 @@ const abis = () => ({
   hatchery: artifact("Hatchery").abi,
   royalty: artifact("LineageRoyalty").abi,
   skills: artifact("SkillRegistry").abi,
+  studio: artifact("Studio").abi,
 });
 
 export async function deployAll(o: DeployOptions): Promise<Deployment> {
@@ -86,13 +91,15 @@ export async function deployAll(o: DeployOptions): Promise<Deployment> {
   out.royalty = await put("royalty", "LineageRoyalty", [out.registry]);
   out.hatchery = await put("hatchery", "Hatchery", [out.registry, out.royalty]);
   out.skills = await put("skills", "SkillRegistry");
+  out.studio = await put("studio", "Studio", [out.registry, o.studioFeeWei ?? 2_000_000_000_000_000n]);
+  out.market = await put("market", "Market", [out.registry, out.royalty, o.marketFeeBps ?? 250]);
   out.block = prev.block ?? Number(await pub.getBlockNumber());
 
   // Simpan sekarang juga: kalau langkah berikut putus, alamat ini dipakai ulang.
   saveDeployment(out as Deployment);
   const dep = out as Deployment;
 
-  for (const m of [dep.genesis, dep.hatchery]) {
+  for (const m of [dep.genesis, dep.hatchery, dep.studio!]) {
     if (!(await read(dep.registry, A.registry, "isMinter", [m]))) {
       await send(dep.registry, A.registry, "setMinter", [m, true]);
       log(`minter diizinkan: ${m}`);

@@ -112,6 +112,9 @@ export interface Deployment {
   hatchery: Address;
   royalty: Address;
   skills: Address;
+  /** Pasar & Studio (marketplace). Opsional: deployment lama belum punya. */
+  studio?: Address;
+  market?: Address;
   block: number;
 }
 
