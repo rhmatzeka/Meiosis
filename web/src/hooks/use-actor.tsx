@@ -35,6 +35,8 @@ export interface Actor {
   busy: string | null;
   /** Hasil faucet terakhir untuk ditampilkan di Dompet. */
   funding: { ok: boolean; message: string } | null;
+  /** Alasan login tidak bisa dipakai (mis. App ID Privy salah), atau null. */
+  loginProblem: string | null;
 }
 
 const Ctx = createContext<Actor | null>(null);
@@ -112,6 +114,15 @@ export function PrivyActorProvider({ children }: { children: ReactNode }) {
   const [funding, setFunding] = useState<Actor["funding"]>(null);
   const funded = useRef(new Set<string>());
 
+  // Privy yang tidak kunjung siap hampir selalu berarti App ID salah atau
+  // origin belum didaftarkan di dashboard Privy. Katakan itu, jangan diam.
+  const [stalled, setStalled] = useState(false);
+  useEffect(() => {
+    if (ready) { setStalled(false); return; }
+    const t = setTimeout(() => setStalled(true), 10_000);
+    return () => clearTimeout(t);
+  }, [ready]);
+
   // Wallet yang dipakai: yang tertaut ke akun, embedded lebih dulu.
   const wallet: ConnectedWallet | undefined = authenticated
     ? wallets.find((w) => w.walletClientType === "privy") ?? wallets.find((w) => same(w.address, user?.wallet?.address)) ?? wallets[0]
@@ -161,6 +172,7 @@ export function PrivyActorProvider({ children }: { children: ReactNode }) {
     login,
     logout: async () => { await logout(); setFunding(null); },
     act, busy, funding,
+    loginProblem: stalled ? "Login belum bisa dipakai: Privy tidak merespons. Periksa PRIVY_APP_ID dan daftar origin di dashboard Privy." : null,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -217,6 +229,7 @@ export function PlainActorProvider({ children }: { children: ReactNode }) {
     login,
     logout: async () => setAddress(undefined),
     act, busy, funding: null,
+    loginProblem: eth() ? null : status?.local ? null : "Login belum diaktifkan di server ini (PRIVY_APP_ID kosong) dan browser ini tidak punya wallet.",
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -32,8 +32,8 @@ export function WalletPage() {
 
   if (actor.mode === "none") {
     return (
-      <Empty title="Masuk untuk melihat dompetmu" action={<button className="btn btn-primary" onClick={actor.login}>Masuk</button>}>
-        Masuk dengan email atau Google. Wallet dibuatkan otomatis kalau kamu belum punya.
+      <Empty title="Masuk untuk melihat dompetmu" action={actor.loginProblem ? undefined : <button className="btn btn-primary" onClick={actor.login}>Masuk</button>}>
+        {actor.loginProblem ?? "Masuk dengan email atau Google. Wallet dibuatkan otomatis kalau kamu belum punya."}
       </Empty>
     );
   }

@@ -69,7 +69,8 @@ function Pick() {
   if (loading) return <div className="skeleton" style={{ height: 420 }} />;
   if (!agents.length) return <Empty title="Belum ada agent">Pasang kontrak dulu lewat banner di atas.</Empty>;
 
-  const blocked = !a || !b || !!cdA || !!cdB || sending || !!actor.busy;
+  const cantLogin = actor.mode === "none" && !!actor.loginProblem;
+  const blocked = !a || !b || !!cdA || !!cdB || sending || !!actor.busy || cantLogin;
   const gasNote = actor.mode === "demo" ? "Akun demo, tanpa biaya."
     : status?.faucet.enabled ? "Biaya jaringan ditanggung untuk transaksi pertamamu."
     : "Kamu membayar biaya jaringan yang kecil.";
@@ -97,6 +98,7 @@ function Pick() {
           <button className="btn btn-primary btn-lg" disabled={blocked} onClick={breed}>
             {sending ? <><Spinner />Mengawinkan…</> : actor.mode === "none" ? "Masuk untuk mengawinkan" : "Kawinkan"}
           </button>
+          {cantLogin && <span className="small" style={{ color: "var(--danger)" }}>{actor.loginProblem}</span>}
           <span className="small muted">
             {due > 0n ? `Tarif kawin ${formatEther(due)} ETH. ` : a && b ? "Tarif kawin gratis. " : ""}{gasNote}
           </span>

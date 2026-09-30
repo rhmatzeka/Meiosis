@@ -100,7 +100,8 @@ function AccountMenu() {
 
   const signedIn = actor.mode === "privy" || actor.mode === "injected";
   if (!signedIn && actor.mode === "none") {
-    return <button className="btn btn-primary btn-sm" onClick={actor.login} disabled={!actor.ready}>Masuk</button>;
+    if (actor.loginProblem) return <button className="btn btn-sm" disabled title={actor.loginProblem}>Login tidak tersedia</button>;
+    return <button className="btn btn-primary btn-sm" onClick={actor.login} disabled={!actor.ready}>{actor.ready ? "Masuk" : <Spinner />}</button>;
   }
 
   return (
@@ -120,7 +121,9 @@ function AccountMenu() {
           <Link to="/dompet">Dompet & agent milikku</Link>
           {signedIn
             ? <button className="item" onClick={() => actor.logout()}>Keluar</button>
-            : actor.canLogin && <button className="item" onClick={actor.login}>Masuk dengan akunmu sendiri</button>}
+            : actor.loginProblem
+              ? <p className="xs muted" style={{ padding: "4px 10px" }}>{actor.loginProblem}</p>
+              : actor.canLogin && <button className="item" onClick={actor.login} disabled={!actor.ready}>Masuk dengan akunmu sendiri</button>}
         </div>
       )}
     </div>
