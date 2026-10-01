@@ -19,20 +19,30 @@ try {
 
   section("STUDIO");
   await page.goto(`${BASE}/studio`, { waitUntil: "networkidle" });
-  await page.click("text=Desain");
-  const talents = page.locator("section:has(h2:text-is('Bakat')) .choice[aria-pressed=true]");
-  await page.click(".choice-row >> text=Estetika");       // bakat kedua (keamanan sudah terpilih)
-  await page.click(".choice-row >> text=Ketekunan");      // ketiga: menggeser bakat paling lama
-  ok("paling banyak dua bakat terpilih", (await talents.count()) === 2, `${await talents.count()} terpilih`);
+  await page.fill(".studio-block textarea >> nth=0", "Perancang landing page React yang modern, aman, dan teliti dengan tesnya");
+  await page.click("text=Rancang dengan AI");
+  await page.waitForFunction(() => (document.querySelector<HTMLTextAreaElement>(".studio-soul")?.value.length ?? 0) > 20, undefined, { timeout: 60_000 });
+  ok("rancangan mengisi nama dan instruksi", (await page.inputValue(".studio-preview input")).length > 0);
+  const SOUL = "Kamu perancang antarmuka. Selalu akhiri jawaban dengan kata SELESAI-UJI.";
+  await page.fill(".studio-soul", SOUL);
+  // Tanpa batasan: otak terkuat dan semua bakat tinggi sekaligus.
+  for (const label of ["Otak", "Keamanan", "Estetika", "Ketekunan", "Ketelitian tes"]) {
+    const row = page.locator(`.trait-row:has(.trait-label:has-text("${label}"))`).first();
+    if (await row.count()) await row.locator("button").last().click();
+  }
+  const maxed = await page.locator(".trait-row button:last-child[aria-checked=true]").count();
+  ok("semua sifat bebas diatur ke nilai tertinggi", maxed >= 4, `${maxed} sifat di nilai tertinggi`);
   await page.fill(".studio-preview input", "Perancang Uji");
   const preview = await page.innerText(".studio-preview");
-  ok("pratinjau menunjukkan sifat pilihan", preview.includes("Keahlian utama desain") && preview.includes("Ketekunan tinggi"));
+  ok("pratinjau menandai instruksi khusus", preview.includes("instruksi khusus"));
   await page.click(".studio-preview .btn-primary");
   await page.waitForURL(/\/agent\/\d+\?baru=1$/, { timeout: 30_000 });
   const id = Number(new URL(page.url()).pathname.split("/").pop());
   const made = (await agents()).find((a) => a.id === id)!;
   ok("agent Studio jadi milik pembuatnya", made.owner.toLowerCase() === account.address.toLowerCase(), `#${id}`);
   ok("nama terpasang", made.name === "Perancang Uji");
+  ok("instruksi khusus tercatat lewat hash, isinya tidak ikut terkirim", !!made.soulHash && made.soulFrom.includes(id) && !JSON.stringify(made).includes("SELESAI-UJI"));
+  ok("otak terkuat diperbolehkan", made.traits[0].value === "model-opus" || /opus|strong|kuat/i.test(String(made.traits[0].value)), String(made.traits[0].value));
   ok("manifest langsung tercatat", made.manifestHashOnChain === made.manifestHashComputed);
   ok("halaman menyambut agent baru", (await page.innerText("main")).includes("sudah jadi dan milikmu"));
 

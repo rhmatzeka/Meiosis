@@ -50,6 +50,11 @@ export function AgentPage({ id }: { id: number }) {
               : <span className="chip chip-dim">tertutup untuk kawin</span>}
             {cooldown && <span className="chip chip-gold">{cooldown}</span>}
             {a.sale && <span className="chip chip-gold">dijual {a.sale.priceEth} ETH</span>}
+            {a.soulFrom.length > 0 && (
+              <span className="chip chip-accent" title="Isi instruksinya rahasia; hanya pemilik yang bisa mengunduhnya.">
+                ✍ instruksi khusus{a.soulHash ? "" : ` warisan ${a.soulFrom.map((i) => `#${i}`).join(", ")}`}
+              </span>
+            )}
           </div>
         </div>
       </section>

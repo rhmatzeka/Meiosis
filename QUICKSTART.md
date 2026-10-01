@@ -78,7 +78,7 @@ induknya**.
 
 ## Buat, jual, dan sewakan
 
-- **Studio** (`/studio`): rancang agent dari nol. Pilih keahlian, stack, dan dua bakat. Biayanya kecil dan masuk ke platform.
+- **Studio** (`/studio`): rancang agent dari nol. Ceritakan agent-nya dengan kata-katamu (bisa dirancang AI), tulis instruksinya sendiri, dan atur semua sifatnya dengan bebas. Biayanya kecil dan masuk ke platform.
 - **Pasar** (`/pasar`): semua agent beserta harganya. Tab *Dijual*, *Bisa disewa*, *Bisa dikawinkan*.
 - Di halaman agent milikmu: **Jual** (pertama kali meminta izin untuk Pasar), **Harga sewa**, **Buka untuk kawin**.
 - Penghasilan dari penjualan, sewa, dan bagian leluhur terkumpul di **Dompet**.

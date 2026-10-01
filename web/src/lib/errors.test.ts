@@ -40,7 +40,7 @@ test("pesan lain dipotong jadi satu kalimat pendek", () => {
 
 test("galat pasar dan studio diterjemahkan", () => {
   const m = (s: string) => humanError(new Error(`custom error '${s}'`), ctx).message;
-  expect(m("BadDesign()")).toBe("Rancangan agent tidak sah. Periksa pilihan otak dan bakatnya.");
+  expect(m("BadTrait(3, 4)")).toBe("Ada sifat yang nilainya tidak sah. Muat ulang halaman lalu coba lagi.");
   expect(m("NotApproved(7)")).toBe("Izinkan Pasar menjual agent ini dulu.");
   expect(m("StaleListing(7)")).toBe("Agent ini sudah tidak dijual oleh pemiliknya.");
   expect(m("OwnListing(7)")).toBe("Ini agent milikmu sendiri.");

@@ -226,7 +226,7 @@ export function HomePage() {
         </div>
         <div className="guides">
           {[
-            { to: "/panduan#studio", t: "Membuat agent pertamamu di Studio", d: "Pilih keahlian dan dua bakat. Kenapa agent Studio sengaja tidak sempurna.", g: G0_SOLIDITY_SMITH },
+            { to: "/panduan#studio", t: "Membuat agent pertamamu di Studio", d: "Ceritakan dengan kata-katamu, biarkan AI merancang, lalu sunting sesukamu.", g: G0_SOLIDITY_SMITH },
             { to: "/panduan#jual", t: "Menjual dan menyewakan agent", d: "Pasang harga, beri izin sekali, dan tarik penghasilanmu di Dompet.", g: G1_PIXEL_SENSE },
             { to: "/panduan#claude", t: "Memakai agent di Claude Code", d: "Jadikan agent Meiosis rekan kerja Claude di proyekmu sendiri.", g: EXAMPLE_CHILD },
           ].map((c) => (
@@ -257,7 +257,7 @@ export function HomePage() {
 function Pricing({ studioFee, feePct }: { studioFee: string; feePct: number }) {
   const [side, setSide] = useState<"pembuat" | "pemakai">("pembuat");
   const cards = side === "pembuat" ? [
-    { t: "Studio", s: "Rancang agent baru", p: `${studioFee} ETH`, u: "sekali", l: ["Pilih keahlian & dua bakat", "Langsung jadi milikmu", "Bisa dijual, disewa, dikawinkan"], to: "/studio", cta: "Buka Studio" },
+    { t: "Studio", s: "Rancang agent baru", p: `${studioFee} ETH`, u: "sekali", l: ["Tulis bebas atau dirancang AI", "Langsung jadi milikmu", "Bisa dijual, disewa, dikawinkan"], to: "/studio", cta: "Buka Studio" },
     { t: "Jual", s: "Pasang harga agent-mu", p: `${feePct}%`, u: "per penjualan", l: ["Agent tetap di tanganmu sampai laku", "Sisanya untukmu dan leluhurnya", "Batal jual kapan saja"], to: "/pasar?tab=milikku", cta: "Jual agent", hot: true },
     { t: "Sewakan", s: "Harga per tugas pilihanmu", p: `${feePct}%`, u: "per tugas", l: ["Orang bayar sekali per tugas", "Penghasilan masuk ke Dompet", "Keturunannya ikut membayarmu"], to: "/pasar?tab=milikku", cta: "Pasang harga" },
   ] : [
@@ -347,7 +347,7 @@ function AgentCarousel({ agents }: { agents: Agent[] }) {
 const FAQ: [string, string][] = [
   ["Apakah aku perlu wallet crypto?", "Tidak. Masuk dengan Google atau email, dan wallet dibuatkan otomatis. Untuk transaksi pertama kami mengirim sedikit ETH uji coba untuk biaya jaringan."],
   ["Apakah ini uang sungguhan?", "Belum. Meiosis berjalan di Sepolia, jaringan uji Ethereum. ETH-nya gratis dan tidak bisa dijual, jadi aman untuk mencoba."],
-  ["Apa bedanya agent Studio dan hasil kawin?", "Agent Studio dirancang dengan batasan: otak paling tinggi seimbang dan dua bakat. Agent yang unggul di banyak hal hanya lahir dari perkawinan."],
+  ["Apa bedanya agent Studio dan hasil kawin?", "Agent Studio kamu tulis dan atur sendiri dengan bebas. Agent hasil kawin mewarisi campuran sifat dan instruksi dari dua induknya, jadi bisa menggabungkan keunggulan dua agent yang berbeda."],
   ["Bagaimana aku dapat penghasilan?", "Dari penjualan, sewa per tugas, tarif kawin, dan bagian leluhur setiap kali keturunan agent-mu dipakai. Semuanya terkumpul di Dompet."],
   ["Bisakah agent-ku dipakai di Claude Code?", "Bisa. Buka halaman agent dan ikuti langkah di bagian Claude Code pada Panduan."],
 ];

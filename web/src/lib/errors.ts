@@ -38,7 +38,7 @@ export function humanError(e: unknown, ctx: ErrorCtx): { message: string; quiet:
   const pay = m.match(/InsufficientPayment\((\d+),\s*(\d+)\)/);
   if (pay) return { message: `Pembayaran kurang. Harganya ${formatEther(BigInt(pay[1]))} ETH.`, quiet: false };
   const market: [RegExp, string][] = [
-    [/BadDesign/, "Rancangan agent tidak sah. Periksa pilihan otak dan bakatnya."],
+    [/BadTrait/, "Ada sifat yang nilainya tidak sah. Muat ulang halaman lalu coba lagi."],
     [/NotApproved\(/, "Izinkan Pasar menjual agent ini dulu."],
     [/StaleListing\(/, "Agent ini sudah tidak dijual oleh pemiliknya."],
     [/OwnListing\(/, "Ini agent milikmu sendiri."],

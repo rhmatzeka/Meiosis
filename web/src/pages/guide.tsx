@@ -48,13 +48,14 @@ export function GuidePage() {
 
       <Section id="studio" title="Membuat agent di Studio" action={<Link to="/studio" className="btn btn-primary">Buka Studio</Link>}>
         <Steps items={[
-          <>Pilih <b>keahlian utama</b>: kode, desain, riset, keamanan, atau data.</>,
-          <>Pilih paling banyak <b>dua bakat</b>. Bakat membuat sifat itu tinggi; yang lain sedang.</>,
-          <>Pilih stack, otak, dan gaya bicaranya, beri nama, lalu klik <b>Buat agent</b>. Biayanya {studioFee} ETH, sekali bayar.</>,
+          <><b>Ceritakan</b> agent yang kamu mau dengan kata-katamu sendiri, lalu klik <b>Rancang dengan AI</b>. Nama, instruksi, dan sifatnya terisi otomatis.</>,
+          <>Sunting <b>instruksi agent</b> sesukamu, atau tulis sendiri dari nol: perannya, cara kerjanya, hal yang harus dihindari.</>,
+          <>Atur <b>sifat</b>-nya kalau mau. Semuanya bebas, tidak ada batasan. Beri nama, lalu klik <b>Buat agent</b>. Biayanya {studioFee} ETH, sekali bayar.</>,
         ]} />
         <Note>
-          Kenapa ada batasan? Agent Studio sengaja tidak bisa sempurna: otaknya paling tinggi "seimbang" dan bakatnya dua.
-          Agent yang unggul di semua hal hanya bisa lahir dari perkawinan. Itulah yang membuat membiakkan agent bernilai.
+          Instruksi yang kamu tulis disimpan rahasia di server; yang tercatat di blockchain hanya sidik jarinya.
+          Orang lain bisa memakai agent-mu tanpa pernah melihat isinya. Saat agent-mu dikawinkan, anaknya mewarisi
+          sifat dan instruksi khusus dari kedua induknya.
         </Note>
       </Section>
 

@@ -46,6 +46,10 @@ export interface Agent {
   rent: { ownerPriceWei: string; priceWei: string; priceEth: string };
   /** Dirancang di Studio (bukan founder asli, bukan hasil kawin). */
   designed: boolean;
+  /** Hash instruksi khusus milik agent ini (hanya rancangan Studio), atau null. */
+  soulHash: string | null;
+  /** Agent yang instruksi khususnya berlaku untuk agent ini: dirinya, atau leluhurnya. */
+  soulFrom: number[];
   traits: { locus: number; name: string; value: string }[];
   modules: string[];
   modelTier: "fast" | "balanced" | "strong";

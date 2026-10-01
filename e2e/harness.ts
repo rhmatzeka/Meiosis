@@ -44,7 +44,7 @@ export const api = async <T,>(path: string, body?: unknown): Promise<T> =>
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
   })).json() as Promise<T>;
 
-interface AgentRow { id: number; generation: number; owner: string; readyAtBlock: number; stud: { listed: boolean }; manifestHashOnChain: string; manifestHashComputed: string; name: string }
+interface AgentRow { id: number; generation: number; owner: string; readyAtBlock: number; stud: { listed: boolean }; manifestHashOnChain: string; manifestHashComputed: string; name: string; soulHash: string | null; soulFrom: number[]; traits: { locus: number; value: string }[] }
 export const agents = () => api<AgentRow[]>("/api/agents?fresh=1");
 export const block = async () => (await api<{ block: number }>("/api/status")).block;
 

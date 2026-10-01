@@ -10,6 +10,7 @@ contract StudioTest is Test {
     Studio studio;
     address alice = makeAddr("alice");
     uint256 constant FEE = 0.002 ether;
+    bytes32 constant SOUL = keccak256("Kamu agent yang ramah dan teliti.");
 
     function setUp() public {
         reg = new AgentRegistry();
@@ -18,42 +19,61 @@ contract StudioTest is Test {
         vm.deal(alice, 1 ether);
     }
 
-    function _d(uint8 tier, uint8 disc, uint8 stack, uint8 verb, uint8 ta, uint8 tb)
-        internal pure returns (Studio.Design memory)
-    {
-        return Studio.Design(tier, disc, stack, verb, ta, tb);
+    function _t(uint8[16] memory v) internal pure returns (uint8[16] memory) { return v; }
+
+    function _default() internal pure returns (uint8[16] memory) {
+        return [1, 1, 0, 0, 1, 1, 1, 1, 1, 3, 0, 1, 1, 1, 1, 0];
     }
 
     // Sama persis dengan STUDIO_VECTORS di packages/shared/src/studio.ts.
     function test_PreviewMatchesTypeScriptVectors() public view {
-        assertEq(studio.preview(_d(1, 1, 1, 0, 6, 4)), 0x4040414141414141404040404343414141414242414142424141404041414141);
-        assertEq(studio.preview(_d(0, 2, 0, 1, 255, 255)), 0x4040414141414141414140404343414141414141414141414040404042424040);
-        assertEq(studio.preview(_d(1, 5, 3, 2, 14, 5)), 0x4040424241414141424240404343414141414141424241414343404045454141);
+        assertEq(studio.preview(_default()), 0x8080818181818181818180808383818181818181818181818080808081818181);
+        assertEq(studio.preview(_t([2, 5, 5, 3, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 0])),
+            0x8080828282828282828283838383828282828282828282828383858585858282);
+        assertEq(studio.preview(_t([2, 2, 4, 1, 2, 0, 2, 1, 2, 1, 3, 0, 2, 2, 0, 0])),
+            0x8080808082828282808083838181828281818282808082828181848482828282);
     }
 
-    function test_CreateMintsToCreatorWithNameAndManifest() public {
+    function test_StrongBrainAndAllTalentsAreAllowed() public {
         vm.prank(alice);
-        uint64 id = studio.create{value: FEE}(_d(1, 1, 1, 0, 6, 4), "Penjaga Form", 0x1234);
+        uint64 id = studio.create{value: FEE}(_t([2, 1, 4, 1, 2, 2, 2, 2, 2, 3, 3, 0, 2, 2, 2, 0]), "Serba Unggul", 0, bytes32(0));
+        assertEq(reg.ownerOf(id), alice);
+    }
+
+    function test_CreateStoresNameManifestAndSoulHash() public {
+        vm.prank(alice);
+        uint64 id = studio.create{value: FEE}(_default(), "Penjaga Form", 0x1234, SOUL);
         assertEq(reg.ownerOf(id), alice);
         assertEq(reg.nameOf(id), "Penjaga Form");
         assertEq(reg.agentOf(id).manifestHash, 0x1234);
-        assertEq(reg.agentOf(id).genome, studio.preview(_d(1, 1, 1, 0, 6, 4)));
+        assertEq(reg.agentOf(id).genome, studio.preview(_default()));
         assertEq(reg.generationOf(id), 0);
         assertTrue(studio.designed(id));
+        assertEq(studio.soulOf(id), SOUL);
     }
 
-    function test_CreateWithoutNameKeepsDefault() public {
+    function test_CreateWithoutNameOrSoul() public {
         vm.prank(alice);
-        uint64 id = studio.create{value: FEE}(_d(0, 2, 0, 1, 255, 255), "", 0);
-        assertEq(reg.ownerOf(id), alice);
+        uint64 id = studio.create{value: FEE}(_default(), "", 0, bytes32(0));
         assertEq(bytes(reg.nameOf(id)).length, 0);
-        assertEq(reg.agentOf(id).manifestHash, 0);
+        assertEq(studio.soulOf(id), bytes32(0));
+    }
+
+    function test_RejectsTraitOutOfRangeForItsLocus() public {
+        uint8[16] memory t = _default();
+        t[3] = 4; // stack hanya 0..3
+        vm.expectRevert(abi.encodeWithSelector(Studio.BadTrait.selector, 3, 4));
+        studio.preview(t);
+        t = _default();
+        t[15] = 1; // lokus cadangan hanya 0
+        vm.expectRevert(abi.encodeWithSelector(Studio.BadTrait.selector, 15, 1));
+        studio.preview(t);
     }
 
     function test_ExcessIsRefundedAndFeeKept() public {
         uint256 before = alice.balance;
         vm.prank(alice);
-        studio.create{value: 0.01 ether}(_d(1, 1, 1, 0, 6, 4), "", 0);
+        studio.create{value: 0.01 ether}(_default(), "", 0, bytes32(0));
         assertEq(alice.balance, before - FEE);
         assertEq(address(studio).balance, FEE);
     }
@@ -61,36 +81,12 @@ contract StudioTest is Test {
     function test_RejectsInsufficientFee() public {
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Studio.InsufficientFee.selector, FEE, FEE - 1));
-        studio.create{value: FEE - 1}(_d(1, 1, 1, 0, 6, 4), "", 0);
-    }
-
-    function test_RejectsStrongBrain() public {
-        vm.expectRevert(Studio.BadDesign.selector);
-        studio.preview(_d(2, 1, 1, 0, 6, 4));
-    }
-
-    function test_RejectsTwinTalents() public {
-        vm.expectRevert(Studio.BadDesign.selector);
-        studio.preview(_d(1, 1, 1, 0, 6, 6));
-    }
-
-    function test_RejectsTalentOutsideList() public {
-        vm.expectRevert(Studio.BadDesign.selector);
-        studio.preview(_d(1, 1, 1, 0, 0, 255));
-    }
-
-    function test_RejectsOutOfRangeChoices() public {
-        vm.expectRevert(Studio.BadDesign.selector);
-        studio.preview(_d(1, 6, 1, 0, 255, 255));
-        vm.expectRevert(Studio.BadDesign.selector);
-        studio.preview(_d(1, 1, 4, 0, 255, 255));
-        vm.expectRevert(Studio.BadDesign.selector);
-        studio.preview(_d(1, 1, 1, 3, 255, 255));
+        studio.create{value: FEE - 1}(_default(), "", 0, bytes32(0));
     }
 
     function test_OwnerSetsFeeAndWithdraws() public {
         vm.prank(alice);
-        studio.create{value: FEE}(_d(1, 1, 1, 0, 6, 4), "", 0);
+        studio.create{value: FEE}(_default(), "", 0, bytes32(0));
         studio.setFee(0.005 ether);
         assertEq(studio.fee(), 0.005 ether);
         uint256 before = address(this).balance;

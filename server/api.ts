@@ -18,7 +18,9 @@ import { deployAll } from "./deploy";
 import { startKeeper } from "./keeper";
 import { blockRanges } from "./ranges";
 import { checkRent, effectiveRentWei, type RentEvent } from "./rent";
-import { studioGenome, validateDesign, type Design } from "../packages/shared/src/studio";
+import { studioGenome, validateTraits } from "../packages/shared/src/studio";
+import { SoulStore, inheritedSoul } from "./souls";
+import { parseSuggestion, suggestFromText, suggestPrompt } from "./suggest";
 import { faucetDecision, faucetMessage, loadFaucetState, saveFaucetState, verifyPrivyToken } from "./faucet";
 import { toClaudeAgent, toRemoteAgent, licenseStatement, agentSlug } from "../runtime/export";
 import { catalog, promptsAvailable } from "../runtime/genome/catalog";
@@ -122,8 +124,12 @@ const abis = {
   credits: artifact("Credits").abi,
 };
 
-/** Jawaban agent tidak boleh memuat prompt modul; bila memuat, diganti penolakan. */
-const guardOutput = (output: string) => redactPromptLeak(output, [...catalog().values()].map((m) => m.prompt));
+/** Instruksi khusus agent rancangan Studio: teks rahasia, kuncinya hash yang tercatat di chain. */
+const soulStore = new SoulStore(`.runs/souls-${CHAIN}.json`);
+
+/** Jawaban agent tidak boleh memuat prompt modul maupun instruksi khususnya; bila memuat, diganti penolakan. */
+const guardOutput = (output: string, soul = "") =>
+  redactPromptLeak(output, [...[...catalog().values()].map((m) => m.prompt), soul]);
 
 /** API key Claude Code dan lisensi `.md` lengkap, disimpan per chain. */
 const keyStore = new KeyStore(`.runs/api-keys-${CHAIN}.json`);
@@ -222,6 +228,8 @@ async function readAgent(d: Deployment, id: number) {
     d.market ? read(d.market, abis.market, "rentPrice", [id]) as Promise<bigint> : 0n,
     d.studio ? read(d.studio, abis.studio, "designed", [id]) as Promise<boolean> : false,
   ]);
+  const soulRaw = d.studio ? ((await read(d.studio, abis.studio, "soulOf", [id])) as string) : null;
+  const ownSoul = soulRaw && !/^0x0+$/.test(soulRaw) ? soulRaw : null;
   const founderName = !chosenName && a.generation === 0 && !designed
     ? ((await read(d.genesis, abis.genesis, "founderName", [id])) as string) : "";
 
@@ -250,6 +258,7 @@ async function readAgent(d: Deployment, id: number) {
     sale: listing && listing[2] ? { seller: listing[0], priceWei: listing[1].toString(), priceEth: formatEther(listing[1]) } : null,
     rent: { ownerPriceWei: rentWei.toString(), priceWei: effectiveRentWei(rentWei, RUN_PRICE).toString(), priceEth: formatEther(effectiveRentWei(rentWei, RUN_PRICE)) },
     designed,
+    soulHash: ownSoul,
     cooldownBlocks: Number(cooldown),
     traits: e.map((t, i) => ({ locus: i, name: LOCUS_NAMES[i], value: traitName(i, t) })),
     modules: manifest.traits.filter((t) => t.module).map((t) => t.module),
@@ -259,10 +268,16 @@ async function readAgent(d: Deployment, id: number) {
 }
 
 const listAgents = cached(async () => {
-  if (!dep) return [] as AgentRow[];
+  if (!dep) return [];
   const d = dep;
   const total = Number(await read(d.registry, abis.registry, "totalMinted"));
-  return Promise.all(Array.from({ length: total }, (_, i) => readAgent(d, i + 1)));
+  const rows = await Promise.all(Array.from({ length: total }, (_, i) => readAgent(d, i + 1)));
+  // Dari agent mana instruksi khususnya berasal (dirinya, atau leluhur). Isinya tidak pernah dikirim.
+  const byId = new Map(rows.map((a) => [a.id, a]));
+  return rows.map((a) => ({
+    ...a,
+    soulFrom: inheritedSoul(a.id, (i) => { const x = byId.get(i); return x && { soulHash: x.soulHash, parents: x.parents }; }, (h) => soulStore.get(h)).sources,
+  }));
 });
 
 /**
@@ -295,6 +310,13 @@ async function scanHatched(d: Deployment) {
     console.warn(`  pemindaian Hatched berhenti di blok ${hatchScan.to}: ${(e as Error).message.split("\n")[0].slice(0, 120)}`);
   }
   return hatchScan.child;
+}
+
+/** Instruksi khusus yang berlaku untuk agent ini: miliknya, atau warisan leluhurnya. */
+async function soulFor(id: number) {
+  const all = await listAgents();
+  const byId = new Map(all.map((a) => [a.id, a]));
+  return inheritedSoul(id, (i) => { const a = byId.get(i); return a && { soulHash: a.soulHash, parents: a.parents }; }, (h) => soulStore.get(h));
 }
 
 const listPregnancies = cached(async () => {
@@ -332,13 +354,11 @@ const listPregnancies = cached(async () => {
  * menghitung stud fee yang harus dibayar, dan menghitung manifestHash dari
  * genome — yang terakhir itu wajib identik dengan expand() di sini.
  */
-function parseDesign(x: unknown): Design {
-  const o = (x ?? {}) as Record<string, unknown>;
-  const n = (k: string) => Number(o[k]);
-  const d = { tier: n("tier"), discipline: n("discipline"), stack: n("stack"), verbosity: n("verbosity"), talentA: n("talentA"), talentB: n("talentB") };
-  const bad = validateDesign(d);
+function parseTraits(x: unknown): number[] {
+  const traits = Array.isArray(x) ? x.map(Number) : [];
+  const bad = validateTraits(traits);
   if (bad) throw new Error(bad);
-  return d;
+  return traits;
 }
 
 async function buildTx(action: string, a: Record<string, unknown>, from?: string) {
@@ -414,12 +434,14 @@ async function buildTx(action: string, a: Record<string, unknown>, from?: string
     // ---- Studio & Pasar
     case "studioCreate": {
       if (!d.studio) throw new Error("Studio belum di-deploy di chain ini");
-      const design = parseDesign(a.design);
+      const traits = parseTraits(a.traits);
       const name = String(a.name ?? "").trim();
       if (new TextEncoder().encode(name).length > 32) throw new Error("nama paling panjang 32 byte");
-      const mh = manifestHash(expand(studioGenome(design), 0n));
+      const soul = String(a.soulHash ?? "");
+      if (soul && (!/^0x[0-9a-f]{64}$/i.test(soul) || !soulStore.get(soul))) throw new Error("instruksi belum tersimpan di server, simpan ulang");
+      const mh = manifestHash(expand(studioGenome(traits), 0n));
       const fee = (await read(d.studio, abis.studio, "fee")) as bigint;
-      return call(d.studio, abis.studio, "create", [design, name, mh], fee, "buat agent di Studio");
+      return call(d.studio, abis.studio, "create", [traits, name, mh, soul || "0x" + "0".repeat(64)], fee, "buat agent di Studio");
     }
     case "approveMarket":
       if (!d.market) throw new Error("Pasar belum di-deploy di chain ini");
@@ -615,9 +637,10 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
             const env = { ...process.env, MOCK_LLM: mock ? "1" : "0" };
             const provider = mock ? undefined : getProvider(env);
             const genome = (await read(d.registry, abis.registry, "genomeOf", [id])) as bigint;
-            const agent = materialize(genome, 0n, { id, provider, env });
+            const soul = (await soulFor(id)).text;
+            const agent = materialize(genome, 0n, { id, provider, env, extraInstructions: soul });
             const r = await agent.run(context.trim() ? `${task}\n\n---\n\nKonteks dari proyek pemakai:\n${context}` : task);
-            const g = guardOutput(r.output);
+            const g = guardOutput(r.output, soul);
             return { output: g.output, model: r.model ?? "mock", leaked: g.leaked };
           },
           charge: async (user, id, amount, job) => {
@@ -655,18 +678,25 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         return keyStore.revoke(who.address, String(b.prefix ?? "")) ? json({ ok: true }) : json({ error: "kunci tidak ditemukan" }, 404);
       }
 
-      if (p === "/api/studio/preview") {
+      if (p === "/api/studio/soul" && req.method === "POST") {
+        const { text } = (await req.json().catch(() => ({}))) as { text?: string };
+        try { return json({ hash: soulStore.put(String(text ?? "")) }); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+
+      if (p === "/api/studio/suggest" && req.method === "POST") {
+        const { description } = (await req.json().catch(() => ({}))) as { description?: string };
+        const d = String(description ?? "").slice(0, 2000);
+        const fallback = suggestFromText(d);
+        if (!d.trim() || modelMissing() || process.env.MOCK_LLM === "1") return json(fallback);
+        if (!allowRun(`suggest:${clientIp(req, server)}`)) return json(fallback);
         try {
-          const design = parseDesign(JSON.parse(url.searchParams.get("d") ?? "{}"));
-          const genome = studioGenome(design);
-          const e = express(genome, 0n);
-          return json({
-            genome: "0x" + genome.toString(16).padStart(64, "0"),
-            traits: e.map((t, i) => ({ locus: i, name: LOCUS_NAMES[i], value: traitName(i, t) })),
-            modules: expand(genome, 0n).traits.filter((t) => t.module).map((t) => t.module),
-          });
-        } catch (e) {
-          return json({ error: (e as Error).message }, 400);
+          const provider = getProvider({ ...process.env, MOCK_LLM: "0" });
+          const pr = suggestPrompt(d);
+          const r = await provider.chat("balanced", { system: pr.system, messages: [{ role: "user", content: pr.user }], temperature: 0.4, maxTokens: 900 });
+          return json(parseSuggestion(r.text, fallback));
+        } catch {
+          return json(fallback);
         }
       }
 
@@ -818,7 +848,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         all.push({ licenseId, licensee: who.address, agentId: a.id, issuedAt, manifestHash: a.manifestHashComputed });
         mkdirSync(".runs", { recursive: true });
         writeFileSync(LICENSES, JSON.stringify(all, null, 2));
-        const md = toClaudeAgent(info, { licenseId, licensee: who.address, issuedAt, signature });
+        const md = toClaudeAgent(info, { licenseId, licensee: who.address, issuedAt, signature }, (await soulFor(a.id)).text);
         return new Response(md, {
           headers: {
             "content-type": "text/markdown; charset=utf-8",
@@ -955,7 +985,8 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
               const slot = job.agents[id];
               try {
                 const genome = (await read(dep!.registry, abis.registry, "genomeOf", [id])) as bigint;
-                const agent = materialize(genome, 0n, { id, provider, env });
+                const soul = (await soulFor(id)).text;
+                const agent = materialize(genome, 0n, { id, provider, env, extraInstructions: soul });
                 slot.modules = agent.manifest.traits.filter((x) => x.module).map((x) => x.module!);
                 slot.model = provider?.modelFor(agent.manifest.modelTier) ?? "mock";
 
@@ -1017,7 +1048,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
                       promptTokens: loop.totalPromptTokens, completionTokens: loop.totalCompletionTokens,
                     },
                     built,
-                    output: guardOutput(loop.summary).output,
+                    output: guardOutput(loop.summary, soul).output,
                   };
                 } else {
                   const r = await agent.run(`${task}\n\n---\n\n${BUILD_CONTRACT}`);
@@ -1036,7 +1067,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
                     toolsDeclared: r.toolsDeclared, toolsAvailable: r.toolsAvailable,
                     promptTokens: r.promptTokens, completionTokens: r.completionTokens,
                     durationMs: r.durationMs, mocked: r.mocked,
-                    built, output: guardOutput(r.output).output,
+                    built, output: guardOutput(r.output, soul).output,
                   };
                 }
               } catch (e) {

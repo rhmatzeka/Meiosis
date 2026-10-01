@@ -47,6 +47,11 @@ export interface MaterializeOptions {
   env?: Record<string, string | undefined>;
   /** Tool yang sungguh disediakan runner. Kosong sampai loop tool ada. */
   tools?: string[];
+  /**
+   * Instruksi khusus dari pembuat agent (Studio), termasuk yang diwarisi dari
+   * leluhurnya. Di luar manifest: tidak mengubah manifestHash.
+   */
+  extraInstructions?: string;
 }
 
 export function materialize(genome: bigint, birthSeed: bigint, opts: MaterializeOptions = {}): Agent {
@@ -71,7 +76,10 @@ export function materialize(genome: bigint, birthSeed: bigint, opts: Materialize
 
   // Prompt modul rahasia; pembuka penjaga melarang model membukanya. Lapis
   // kedua (pemeriksaan keluaran) ada di runtime/guard.ts dan dipakai server.
-  const base = systemPrompt(manifest) + `\n\n---\n\n${GUARD_PREAMBLE}`;
+  const extra = opts.extraInstructions?.trim();
+  const base = systemPrompt(manifest)
+    + (extra ? `\n\n---\n\nInstruksi khusus dari pembuat agent ini:\n${extra}` : "")
+    + `\n\n---\n\n${GUARD_PREAMBLE}`;
   const sys = missing.length
     ? base +
       `\n\n---\n\nPADA RUN INI KAMU TIDAK PUNYA AKSES TOOL APA PUN.` +

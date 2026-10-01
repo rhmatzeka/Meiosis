@@ -50,6 +50,9 @@ export const agentSlug = (id: number, name: string) =>
 const PROVENANCE_START = "<!-- meiosis:provenance";
 const PROMPT_START = "<!-- meiosis:prompt -->";
 const PROMPT_END = "<!-- /meiosis:prompt -->";
+/** Instruksi khusus pembuat agent (Studio), termasuk warisan leluhur. Di luar manifest. */
+const SOUL_START = "<!-- meiosis:soul -->";
+const SOUL_END = "<!-- /meiosis:soul -->";
 
 /** Lisensi pemilik: siapa pemegangnya, kapan diterbitkan, dan tanda tangan operator. */
 export interface License { licenseId: string; licensee: string; issuedAt: string; signature: string }
@@ -62,7 +65,7 @@ export const licenseStatement = (agentId: number, licensee: string, licenseId: s
  * `.md` LENGKAP: berisi system prompt. Hanya untuk pemilik agent; dengan
  * `license`, berkas diberi header lisensi dan watermark tak terlihat.
  */
-export function toClaudeAgent(a: ExportInfo, license?: License): string {
+export function toClaudeAgent(a: ExportInfo, license?: License, soul = ""): string {
   const m = expand(a.genome, 0n);
   const hash = "0x" + manifestHash(m).toString(16).padStart(16, "0");
   const modules = m.traits.filter((t) => t.module).map((t) => t.module!);
@@ -105,6 +108,7 @@ export function toClaudeAgent(a: ExportInfo, license?: License): string {
     PROMPT_START,
     license ? embedWatermark(systemPrompt(m), license.licenseId) : systemPrompt(m),
     PROMPT_END,
+    ...(soul.trim() ? ["", SOUL_START, license ? embedWatermark(soul.trim(), license.licenseId) : soul.trim(), SOUL_END] : []),
     "",
     `Batasi dirimu sekitar ${m.params.maxSteps} langkah kerja. ` +
       (m.params.temperature <= 0.3 ? "Utamakan jawaban yang pasti dan konservatif." :
