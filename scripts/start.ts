@@ -155,21 +155,21 @@ if (await reachable(`${UI}/api/status`)) {
 } else {
   c.work("menyalakan server…");
   // --test: akun Anvil dan LLM tiruan untuk `bun run e2e`. Tanpa flag, server berperilaku seperti produksi.
-  detach(TEST ? "TEST_ACCOUNTS=1 MOCK_LLM=1 bun run server/api.ts" : "TEST_ACCOUNTS=0 bun run server/api.ts", ".runs/server.log");
+  detach(TEST ? "env TEST_ACCOUNTS=1 MOCK_LLM=1 bun run server/api.ts" : "env TEST_ACCOUNTS=0 bun run server/api.ts", ".runs/server.log");
   if (!(await waitFor(() => reachable(`${UI}/api/status`), 25, "server"))) process.exit(1);
   c.ok("server jalan di :5173");
 }
 
 // ---------------------------------------------------------------- deploy
-c.head("6. Kontrak & generasi nol");
+c.head("6. Kontrak");
 const status = (await (await fetch(`${UI}/api/status`)).json()) as { deployed: boolean };
 if (status.deployed) {
   c.ok("kontrak sudah ter-deploy");
 } else {
-  c.work("men-deploy dan mencetak empat founder…");
+  c.work("men-deploy kontrak (pasar dimulai kosong)…");
   const r = await fetch(`${UI}/api/deploy`, { method: "POST" });
   if (!r.ok) { c.bad("deploy gagal"); console.log(await r.text()); process.exit(1); }
-  c.ok("empat founder ter-mint ke tiga pemilik berbeda, generasi nol disegel");
+  c.ok("kontrak siap, generasi nol disegel tanpa founder");
 }
 
 const agents = (await (await fetch(`${UI}/api/agents`)).json()) as { id: number; name: string }[];

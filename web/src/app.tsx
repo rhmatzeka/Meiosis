@@ -215,14 +215,14 @@ function StatusBanner() {
   if (!status.deployed) {
     const deploy = async () => {
       setBusy(true);
-      try { await post("/api/deploy", {}); await refresh(true); toast("Kontrak siap, empat agent pertama sudah lahir.", "ok"); }
+      try { await post("/api/deploy", {}); await refresh(true); toast("Kontrak siap. Buat agent pertamamu di Studio.", "ok"); }
       catch (e) { toast((e as Error).message, "bad"); }
       finally { setBusy(false); }
     };
     return (
       <div className="banner banner-info" role="status">
         <div className="spread" style={{ flex: 1 }}>
-          <span><b>Kontrak belum dipasang di chain ini.</b> {status.local ? "Pasang sekarang untuk memunculkan empat agent pertama." : "Jalankan bun run deploy:sepolia di server."}</span>
+          <span><b>Kontrak belum dipasang di chain ini.</b> {status.local ? "Pasang kontrak. Pasar dimulai kosong; agent pertama dibuat di Studio." : "Jalankan bun run deploy:sepolia di server."}</span>
           {status.local && <button className="btn btn-primary btn-sm" onClick={deploy} disabled={busy}>{busy ? <Spinner /> : null}Pasang kontrak</button>}
         </div>
       </div>

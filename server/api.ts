@@ -638,7 +638,8 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           runReady: !modelMissing(),
           accounts: TEST ? wallets.map((w, i) => ({ name: ["deployer", "Alice", "Bob", "Carol"][i], address: w.account.address })) : [],
           testMode: TEST,
-          privyAppId: PRIVY_APP_ID || null,
+          // Mode uji memakai wallet tiruan (window.ethereum); login Privy diuji manual di Sepolia.
+          privyAppId: TEST ? null : PRIVY_APP_ID || null,
           faucet: { enabled: FAUCET_ON, amountEth: formatEther(faucetCfg.amountWei) },
           keeper: !!operator,
           docker: DOCKER,
@@ -783,13 +784,12 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
       if (p === "/api/deploy" && req.method === "POST") {
         if (!IS_LOCAL) return json({ error: "Di Sepolia deploy dijalankan dari terminal: bun run deploy:sepolia" }, 400);
         if (!(await isLive())) return json({ error: "Anvil tidak berjalan. Jalankan `bun run anvil` lebih dulu." }, 503);
-        // Empat founder ke tiga pemilik berbeda, supaya royalti bermakna.
-        const [, alice, bob, carol] = wallets.map((w) => w.account.address);
+        // Tanpa founder: pasar dimulai kosong, agent pertama lahir dari Studio.
         dep = await deployAll({
-          deployer: wallets[0], founderOwners: [alice, bob, carol, carol], resume: dep,
+          deployer: wallets[0], resume: dep,
           baseCooldownBlocks: process.env.BASE_COOLDOWN_BLOCKS ? Number(process.env.BASE_COOLDOWN_BLOCKS) : undefined,
-          studioFeeWei: parseEther(process.env.STUDIO_FEE_ETH ?? "0.002"),
-          marketFeeBps: Number(process.env.MARKET_FEE_BPS ?? 250),
+          studioFeeWei: parseEther(process.env.STUDIO_FEE_ETH ?? "0"),
+          marketFeeBps: Number(process.env.MARKET_FEE_BPS ?? 1000),
         });
         return json({ ok: true, addresses: dep });
       }

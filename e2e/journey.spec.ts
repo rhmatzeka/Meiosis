@@ -25,6 +25,9 @@ try {
   ok("tiga cara pakai dijelaskan", (await page.innerText("main")).includes("tiga langkah"));
   ok("mode demo terlihat di header", (await page.textContent(".header"))?.includes("Akun demo") ?? false);
 
+  section("TANPA AGENT BAWAAN");
+  ok("tidak ada founder/agent bawaan di chain", (await agents()).every((a) => a.generation > 0 || (a as unknown as { designed: boolean }).designed));
+
   section("PILIH INDUK");
   const [x, y] = await freePair();
   await page.goto(`${BASE}/kawin?a=${x}&b=${y}`, { waitUntil: "networkidle" });
@@ -105,6 +108,7 @@ try {
     await r.fulfill({ json: { ...real, chainLive: false } });
   });
   await p3.goto(BASE, { waitUntil: "networkidle" });
+  await p3.waitForSelector("text=Chain tidak terjangkau", { timeout: 8000 }).catch(() => {});
   ok("banner menjelaskan chain mati", (await p3.innerText("body")).includes("Chain tidak terjangkau"));
   await p3.close();
 
@@ -112,11 +116,11 @@ try {
   const moving = await browser.newPage({ viewport: { width: 1280, height: 900 }, reducedMotion: "no-preference" });
   const movingErrors = watchErrors(moving);
   await moving.goto(BASE, { waitUntil: "networkidle" });
-  await moving.waitForTimeout(2500);
+  await moving.waitForFunction(() => getComputedStyle(document.querySelector(".hero-cta")!).opacity === "1", undefined, { timeout: 8000 }).catch(() => {});
   const heroOpacity = await moving.evaluate(() => getComputedStyle(document.querySelector(".hero-cta")!).opacity);
   ok("animasi pembuka selesai dan ajakan terlihat", heroOpacity === "1", `opacity ${heroOpacity}`);
   await moving.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  await moving.waitForTimeout(1500);
+  await moving.waitForFunction(() => [...document.querySelectorAll("[data-reveal]")].filter((e) => getComputedStyle(e).opacity === "0").length <= 2, undefined, { timeout: 8000 }).catch(() => {});
   const hidden = await moving.evaluate(() => [...document.querySelectorAll("[data-reveal]")].filter((e) => getComputedStyle(e).opacity === "0").length);
   ok("isi yang digulir ikut muncul", hidden <= 2, `${hidden} masih tersembunyi`);
   ok("GSAP tanpa galat", movingErrors.length === 0, movingErrors.join(" | "));

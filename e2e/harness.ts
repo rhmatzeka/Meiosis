@@ -48,14 +48,46 @@ interface AgentRow { id: number; generation: number; owner: string; readyAtBlock
 export const agents = () => api<AgentRow[]>("/api/agents?fresh=1");
 export const block = async () => (await api<{ block: number }>("/api/status")).block;
 
+/** Akun Anvil #1 ("Alice"): pemilik agent bibit uji. Kuncinya dipegang server mode uji. */
+export const SEED_OWNER = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+
+const SEED_PROFILES = [
+  { name: "Kurir Laravel", role: "Pembuat REST API Laravel", traits: [["Keahlian", "backend & API"], ["Stack & alat", "Laravel, MySQL"], ["Gaya bicara", "santai"]] },
+  { name: "Tukang Go", role: "Pembuat layanan Go yang cepat", traits: [["Keahlian", "backend"], ["Stack & alat", "Go, PostgreSQL"], ["Bahasa", "Jawa halus"]] },
+  { name: "Pelukis Flutter", role: "Perancang aplikasi Flutter", traits: [["Keahlian", "desain antarmuka"], ["Stack & alat", "Flutter, Figma"], ["Kepribadian", "berani eksperimen"]] },
+  { name: "Penjaga Kontrak", role: "Auditor smart contract", traits: [["Keahlian", "audit keamanan"], ["Stack & alat", "Solidity, Foundry"], ["Cara kerja", "selalu tulis tes"]] },
+];
+
 /**
- * Dua founder (generasi nol) yang sedang tidak istirahat. Hanya founder: anak
- * dari uji sebelumnya bisa milik akun uji sendiri, dan itu mengubah hitungan royalti.
+ * Pasar dimulai kosong (tanpa founder), jadi uji membuat agent Studio sendiri:
+ * profil berbeda, milik SEED_OWNER, dan dibuka untuk kawin tanpa tarif.
  */
+export async function seedAgents(n = 2): Promise<number[]> {
+  const before = new Set((await agents()).map((a) => a.id));
+  for (let i = 0; i < n; i++) {
+    const p = SEED_PROFILES[(before.size + i) % SEED_PROFILES.length];
+    const soul = await api<{ hash: string; loci: number[]; error?: string }>("/api/studio/soul", {
+      role: p.role, traits: p.traits.map(([label, value]) => ({ label, value })), instructions: `Kamu ${p.role.toLowerCase()}.`,
+    });
+    if (soul.error) throw new Error(`soul: ${soul.error}`);
+    const r = await api<{ error?: string }>("/api/local-act", { action: "studioCreate", args: { traits: soul.loci, name: p.name, soulHash: soul.hash }, as: SEED_OWNER });
+    if (r.error) throw new Error(`studioCreate: ${r.error}`);
+  }
+  const fresh = (await agents()).filter((a) => !before.has(a.id)).map((a) => a.id);
+  for (const id of fresh) {
+    const r = await api<{ error?: string }>("/api/local-act", { action: "listForStud", args: { id, feeEth: "0" }, as: SEED_OWNER });
+    if (r.error) throw new Error(`listForStud: ${r.error}`);
+  }
+  return fresh;
+}
+
+/** Dua agent bibit (generasi nol, milik SEED_OWNER) yang sedang tidak istirahat; dibuat bila belum ada. */
 export async function freePair(): Promise<[number, number]> {
   for (let i = 0; i < 60; i++) {
     const [as, b] = await Promise.all([agents(), block()]);
-    const free = as.filter((a) => a.generation === 0 && a.readyAtBlock <= b && a.stud.listed).map((a) => a.id);
+    const seeds = as.filter((a) => a.generation === 0 && a.owner.toLowerCase() === SEED_OWNER.toLowerCase() && a.stud.listed);
+    if (seeds.length < 2) { await seedAgents(2 - seeds.length); continue; }
+    const free = seeds.filter((a) => a.readyAtBlock <= b).map((a) => a.id);
     if (free.length >= 2) return [free[0], free[1]];
     await rpc("anvil_mine", ["0x4"]);
   }

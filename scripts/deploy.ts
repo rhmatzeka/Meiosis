@@ -10,20 +10,17 @@
  * Variabel .env yang dipakai:
  *   DEPLOYER_PRIVATE_KEY   wajib — kunci khusus proyek ini, jangan kunci utama
  *   SEPOLIA_RPC_URL        opsional — tanpa ini dipakai RPC publik
- *   FOUNDER_OWNERS         opsional — alamat dipisah koma, founder dibagi bergiliran.
- *                          Kosong = semua tetap milik deployer.
- *   STUD_FEE_ETH           opsional — stud fee awal tiap founder, bawaan 0
  *   BASE_COOLDOWN_BLOCKS   opsional — jeda kawin dasar dalam blok, bawaan kontrak 10
- *   STUDIO_FEE_ETH         opsional — biaya merancang agent di Studio, bawaan 0.002
- *   MARKET_FEE_BPS         opsional — biaya platform pasar & sewa, bawaan 250 (2,5%)
+ *   STUDIO_FEE_ETH         opsional — biaya merancang agent di Studio, bawaan 0 (gratis selama beta)
+ *   MARKET_FEE_BPS         opsional — biaya platform pasar & sewa, bawaan 1000 (10%)
  *   OPERATOR_PRIVATE_KEY   dipakai untuk mengetahui alamat operator saldo pakai (kuncinya tidak disimpan)
- *   CREDITS_DEFAULT_PRICE_ETH  opsional — harga satu tugas lewat Claude Code bila pemilik tak memasang, bawaan 0.0005
+ *   CREDITS_DEFAULT_PRICE_ETH  opsional — harga satu tugas lewat Claude Code bila pemilik tak memasang, bawaan 0 (beta: dibatasi jatah, bukan harga)
  */
 process.env.CHAIN ??= "sepolia";
 
 const { pub, deployerWallet, loadDeployment, CHAIN, EXPLORER, IS_LOCAL } = await import("../server/chain");
 const { deployAll } = await import("../server/deploy");
-const { formatEther, parseEther, isAddress, getAddress } = await import("viem");
+const { formatEther, parseEther } = await import("viem");
 const { privateKeyToAccount } = await import("viem/accounts");
 const { existsSync } = await import("node:fs");
 
@@ -41,8 +38,6 @@ let deployer;
 try { deployer = deployerWallet(); } catch (e) { bad((e as Error).message); process.exit(1); }
 const me = deployer.account.address;
 
-const owners = (process.env.FOUNDER_OWNERS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-for (const a of owners) if (!isAddress(a)) { bad(`FOUNDER_OWNERS berisi alamat tidak sah: ${a}`); process.exit(1); }
 
 /**
  * Diukur dari deploy penuh di Anvil: 7,9 juta gas untuk 36 transaksi.
@@ -72,13 +67,11 @@ if (!IS_LOCAL && balance < need && !resume) {
 
 const dep = await deployAll({
   deployer,
-  founderOwners: owners.length ? owners.map((a) => getAddress(a)) : [me],
-  studFeeWei: parseEther(process.env.STUD_FEE_ETH ?? "0"),
   baseCooldownBlocks: process.env.BASE_COOLDOWN_BLOCKS ? Number(process.env.BASE_COOLDOWN_BLOCKS) : undefined,
-  studioFeeWei: parseEther(process.env.STUDIO_FEE_ETH ?? "0.002"),
-  marketFeeBps: Number(process.env.MARKET_FEE_BPS ?? 250),
+  studioFeeWei: parseEther(process.env.STUDIO_FEE_ETH ?? "0"),
+  marketFeeBps: Number(process.env.MARKET_FEE_BPS ?? 1000),
   operator: process.env.OPERATOR_PRIVATE_KEY ? privateKeyToAccount(process.env.OPERATOR_PRIVATE_KEY.trim() as `0x${string}`).address : undefined,
-  creditsDefaultPriceWei: parseEther(process.env.CREDITS_DEFAULT_PRICE_ETH ?? "0.0005"),
+  creditsDefaultPriceWei: parseEther(process.env.CREDITS_DEFAULT_PRICE_ETH ?? "0"),
   resume,
   log: ok,
 });

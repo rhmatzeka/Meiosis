@@ -18,8 +18,13 @@ type Wallet = ReturnType<typeof deployerWallet>;
 
 export interface DeployOptions {
   deployer: Wallet;
-  /** Pemilik akhir tiap founder. Dibagi ke beberapa alamat supaya royalti bermakna — PLAN.md §12.1b. */
-  founderOwners: Address[];
+  /**
+   * Cetak empat founder di generasi nol (alat riset: gene-sim, demo lama).
+   * Bawaan false: pasar dimulai kosong dan agent pertama lahir dari Studio.
+   */
+  founders?: boolean;
+  /** Pemilik akhir tiap founder bila `founders` true. */
+  founderOwners?: Address[];
   /** Stud fee awal tiap founder, dalam wei. */
   studFeeWei?: bigint;
   /**
@@ -134,14 +139,14 @@ export async function deployAll(o: DeployOptions): Promise<Deployment> {
   // dipindahkan ke pemilik akhirnya.
   const minted = Number(await read(dep.genesis, A.genesis, "founderCount"));
   const sealed = (await read(dep.genesis, A.genesis, "sealed_")) as boolean;
-  if (!sealed) {
+  if (!sealed && o.founders) {
     for (let i = minted; i < FOUNDERS.length; i++) {
       await send(dep.genesis, A.genesis, "mintFounder", [me, FOUNDERS[i].genome, FOUNDERS[i].name]);
       log(`founder #${i + 1} ${FOUNDERS[i].name} dicetak`);
     }
   }
 
-  for (let id = 1; id <= FOUNDERS.length; id++) {
+  for (let id = 1; o.founders && id <= FOUNDERS.length; id++) {
     const owner = ((await read(dep.registry, A.registry, "ownerOf", [id])) as string).toLowerCase();
     if (owner !== me.toLowerCase()) continue; // sudah dipindahkan pada percobaan sebelumnya
 
@@ -169,7 +174,7 @@ export async function deployAll(o: DeployOptions): Promise<Deployment> {
     log("generasi nol disegel");
   }
 
-  for (let id = 1; id <= FOUNDERS.length; id++) {
+  for (let id = 1; o.founders && o.founderOwners?.length && id <= FOUNDERS.length; id++) {
     const target = o.founderOwners[(id - 1) % o.founderOwners.length];
     const owner = ((await read(dep.registry, A.registry, "ownerOf", [id])) as string).toLowerCase();
     if (!target || owner !== me.toLowerCase() || target.toLowerCase() === owner) continue;

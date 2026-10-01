@@ -64,7 +64,9 @@ try {
   const after = (await agents()).find((a) => a.id === id)!;
   ok("agent pindah ke pembeli", after.owner.toLowerCase() === BOB.toLowerCase());
   const gained = (await pending()) - p0;
-  ok("penjual mendapat 97,5% (tanpa leluhur)", gained === 195n * 10n ** 14n, `${Number(gained) / 1e18} ETH`);
+  const feeBps = BigInt((await api<{ market: { feeBps: number } }>("/api/status")).market.feeBps);
+  const salePrice = 2n * 10n ** 16n;
+  ok(`penjual mendapat ${(10000 - Number(feeBps)) / 100}% (tanpa leluhur)`, gained === (salePrice * (10000n - feeBps)) / 10000n, `${Number(gained) / 1e18} ETH`);
 
   await page.goto(`${BASE}/agent/${id}`, { waitUntil: "networkidle" });
   ok("bekas pemilik tidak lagi melihat tombol pemilik", !(await page.isVisible("text=Ubah harga jual")) && !(await page.isVisible(".agent-side >> text=Jual")));

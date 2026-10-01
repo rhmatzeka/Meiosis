@@ -53,7 +53,8 @@ try {
   const c2 = await credits(account.address);
   const price = c1 - c2;
   ok("saldo dipotong sebesar harga satu tugas", price > 0n && price <= 10n ** 15n, `${Number(price) / 1e18} ETH`);
-  ok("pemilik agent menerima 97,5%", (await royalty(ALICE)) - r0 === (price * 975n) / 1000n);
+  const feeBps = BigInt((await api<{ market: { feeBps: number } }>("/api/status")).market.feeBps);
+  ok(`pemilik agent menerima ${(10000 - Number(feeBps)) / 100}%`, (await royalty(ALICE)) - r0 === (price * (10000n - feeBps)) / 10000n);
   const bad = await mcp({ method: "tools/call", params: { name: "meiosis_run", arguments: { agent_id: 1, task: "x", context: "a".repeat(70_000), mock: true } } });
   ok("konteks terlalu besar ditolak tanpa memotong saldo", !!bad.result?.isError && (await credits(account.address)) === c2);
 
