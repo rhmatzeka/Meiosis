@@ -18,7 +18,7 @@ export function PrivyAuth({ appId, chain, children }: { appId: string; chain: Ch
         loginMethods: ["email", "google", "wallet"],
         appearance: {
           theme: "#04080d",
-          accentColor: "#5fe0cb",
+          accentColor: "#5b5cf6",
           landingHeader: "Masuk ke Meiosis",
           loginMessage: "Wallet dibuatkan otomatis kalau kamu belum punya.",
           walletList: ["detected_wallets", "metamask", "rabby_wallet", "coinbase_wallet", "wallet_connect"],
