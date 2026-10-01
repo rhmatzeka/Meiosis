@@ -7,13 +7,33 @@
  * masuk manifest, berpindah penyedia akan membatalkan setiap manifestHash yang
  * sudah tercatat on-chain. Lihat PLAN.md §8.1.
  */
-import type { Provider } from "./types";
+import type { ModelTier, Provider } from "./types";
 import { OpenAICompatProvider } from "./openai-compat";
 
 export * from "./types";
 export { RateLimiter } from "./ratelimit";
 
+const RANK: Record<ModelTier, number> = { fast: 0, balanced: 1, strong: 2 };
+
+/** Kelas model yang benar-benar dipakai: tidak pernah melebihi batas admin (MAX_TIER). */
+export function clampTier(requested: ModelTier, max: ModelTier): ModelTier {
+  return RANK[requested] > RANK[max] ? max : requested;
+}
+
+/**
+ * Model dipilih admin, bukan pembuat agent: kelas yang diminta genome dipotong
+ * ke MAX_TIER (bawaan "balanced") sebelum sampai ke penyedia.
+ */
 export function getProvider(env: Record<string, string | undefined> = process.env): Provider {
+  const p = buildProvider(env);
+  const max = (["fast", "balanced", "strong"].includes(env.MAX_TIER ?? "") ? env.MAX_TIER : "balanced") as ModelTier;
+  const chat = p.chat.bind(p), modelFor = p.modelFor.bind(p);
+  p.chat = (tier, req) => chat(clampTier(tier, max), req);
+  p.modelFor = (tier) => modelFor(clampTier(tier, max));
+  return p;
+}
+
+function buildProvider(env: Record<string, string | undefined>): Provider {
   const which = (env.PROVIDER ?? "groq").toLowerCase();
   const maxRpm = Number(env.MAX_RPM ?? 30);
   const maxTpm = Number(env.MAX_TPM ?? 8000);

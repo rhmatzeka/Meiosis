@@ -8,8 +8,12 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { keccak256, toBytes } from "viem";
+import { inheritProfile } from "../packages/shared/src/inherit";
+import { parseSoul, type FreeTrait, type Profile, type Soul } from "../packages/shared/src/profile";
 
 export const MAX_SOUL = 4000;
+/** Instruksi 4000 karakter ditambah blok profil (peran 120, 12 sifat x ±240). */
+export const MAX_SOUL_STORED = 7000;
 const normalize = (t: string) => t.replace(/\r\n/g, "\n").trim();
 
 export const soulHash = (text: string) => keccak256(toBytes(normalize(text)));
@@ -23,7 +27,7 @@ export class SoulStore {
   put(text: string): string {
     const t = normalize(text);
     if (!t) throw new Error("instruksi masih kosong");
-    if (t.length > MAX_SOUL) throw new Error(`instruksi paling panjang ${MAX_SOUL} karakter`);
+    if (t.length > MAX_SOUL_STORED) throw new Error(`profil dan instruksi paling panjang ${MAX_SOUL_STORED} karakter`);
     const h = soulHash(t);
     if (this.map[h] !== t) {
       this.map[h] = t;
@@ -74,4 +78,41 @@ export function inheritedSoul(
     used += Math.min(p.text.length, room) + (kept.length > 1 ? 2 : 0);
   }
   return { text: kept.map((p) => p.text).join("\n\n"), sources: kept.map((p) => p.id) };
+}
+
+/** Yang dibutuhkan untuk menghitung profil seorang agent. */
+export interface ProfileNode { genome: bigint; seed: bigint; parents: [number, number] | number[]; soulText: string | null }
+export interface PublicProfile { role: string; traits: FreeTrait[]; inherited: boolean; from?: Record<string, "a" | "b"> }
+
+/**
+ * Profil publik: miliknya sendiri bila agent punya soul (rancangan Studio, atau
+ * anak yang sudah disunting pemiliknya); selain itu diwariskan dari kedua
+ * induk mengikuti alel yang terekspresi (inheritProfile). Instruksi tidak ikut.
+ */
+export function profileFor(id: number, node: (id: number) => ProfileNode | undefined, memo = new Map<number, PublicProfile>()): PublicProfile {
+  const hit = memo.get(id);
+  if (hit) return hit;
+  const n = node(id);
+  let out: PublicProfile = { role: "", traits: [], inherited: false };
+  if (n?.soulText) {
+    const p = parseSoul(n.soulText);
+    out = { role: p.role, traits: p.traits, inherited: false };
+  } else if (n && n.parents[0] && n.parents[1]) {
+    const a = profileFor(n.parents[0], node, memo), b = profileFor(n.parents[1], node, memo);
+    const p = inheritProfile(a, b, n.genome, n.seed);
+    out = { role: p.role, traits: p.traits, inherited: true, from: p.from };
+  }
+  memo.set(id, out);
+  return out;
+}
+
+/** Soul lengkap untuk prompt: profil publik + instruksi rahasia garis keturunannya (tanpa blok profil). */
+export function promptSoul(
+  id: number,
+  profile: Profile,
+  lookup: (id: number) => { soulHash: string | null; parents: number[] } | undefined,
+  get: (hash: string) => string | null,
+): Soul {
+  const own = inheritedSoul(id, lookup, (h) => { const t = get(h); return t === null ? null : parseSoul(t).instructions || null; });
+  return { role: profile.role, traits: profile.traits, instructions: own.text };
 }

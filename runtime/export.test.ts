@@ -71,3 +71,15 @@ needsPrompts("`.md` lengkap membawa lisensi dan watermark yang terbaca", () => {
   expect(readWatermark(md)).toBe("LIC-00ab12cd");
   expect(stripWatermark(p.prompt)).toBe(systemPrompt(expand(FOUNDERS[0].genome, 0n)).trim());
 });
+
+test("seed kelahiran ikut diekspor dan dipakai merakit prompt; berkas lama tanpa seed = 0", () => {
+  const { meiosis } = require("../packages/shared/src/genome") as typeof import("../packages/shared/src/genome");
+  const seed = 0xabcdefn;
+  const genome = meiosis(FOUNDERS[0].genome, FOUNDERS[1].genome, seed);
+  const info = { id: 9, name: "Anak", generation: 1, parents: [1, 2] as [number, number], owner: "0x0000000000000000000000000000000000000001", genome, birthSeed: seed, chainId: 31337, chainName: "anvil", registry: "0x0000000000000000000000000000000000000002" };
+  const md = toClaudeAgent(info);
+  const x = parseExport(md);
+  expect(x.birthSeed).toBe(seed);
+  expect(x.prompt).toBe(systemPrompt(expand(genome, seed)).trim());
+  expect(parseExport(md.replace(/^birthSeed: .+\n/m, "")).birthSeed).toBe(0n);
+});

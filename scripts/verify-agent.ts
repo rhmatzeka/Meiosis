@@ -49,7 +49,7 @@ console.log(`\nagent #${x.agentId} di ${chain.name}, registry ${x.registry}\n`);
 const onChain = await pub.readContract({ address: x.registry as `0x${string}`, abi, functionName: "agentOf", args: [BigInt(x.agentId)] });
 onChain.genome === x.genome ? ok("genome di berkas sama dengan genome di chain") : bad("genome di berkas BERBEDA dari chain");
 
-const m = expand(onChain.genome, 0n);
+const m = expand(onChain.genome, x.birthSeed);
 const h = "0x" + manifestHash(m).toString(16).padStart(16, "0");
 h === x.manifestHash ? ok(`manifestHash cocok ${h}`) : bad(`manifestHash berkas ${x.manifestHash}, hasil hitung ${h}`);
 

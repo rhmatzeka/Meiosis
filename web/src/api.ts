@@ -37,6 +37,8 @@ export interface Agent {
   manifestHashOnChain: string;
   manifestHashComputed: string;
   birthBlock: number;
+  /** Seed kelahiran dari event Hatched (hex); 0x0 untuk agent Studio. */
+  birthSeed: string;
   stud: { listed: boolean; feeWei: string; feeEth: string };
   readyAtBlock: number;
   cooldownBlocks: number;
@@ -50,6 +52,8 @@ export interface Agent {
   soulHash: string | null;
   /** Agent yang instruksi khususnya berlaku untuk agent ini: dirinya, atau leluhurnya. */
   soulFrom: number[];
+  /** Profil publik: milik sendiri, atau warisan kedua induk. Tanpa instruksi. */
+  profile: { role: string; traits: { label: string; value: string }[]; inherited: boolean; from?: Record<string, "a" | "b"> };
   traits: { locus: number; name: string; value: string }[];
   modules: string[];
   modelTier: "fast" | "balanced" | "strong";

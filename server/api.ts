@@ -19,7 +19,9 @@ import { startKeeper } from "./keeper";
 import { blockRanges } from "./ranges";
 import { checkRent, effectiveRentWei, type RentEvent } from "./rent";
 import { studioGenome, validateTraits } from "../packages/shared/src/studio";
-import { SoulStore, inheritedSoul } from "./souls";
+import { SoulStore, inheritedSoul, profileFor, promptSoul, type ProfileNode } from "./souls";
+import { encodeProfile } from "./encode";
+import { MAX_INSTRUCTIONS, composeSoul, parseSoul, type FreeTrait } from "../packages/shared/src/profile";
 import { parseSuggestion, suggestFromText, suggestPrompt } from "./suggest";
 import { faucetDecision, faucetMessage, loadFaucetState, saveFaucetState, verifyPrivyToken } from "./faucet";
 import { toClaudeAgent, toRemoteAgent, licenseStatement, agentSlug } from "../runtime/export";
@@ -236,7 +238,7 @@ async function readAgent(d: Deployment, id: number) {
   // Seed kelahiran tidak tersimpan on-chain; untuk founder ia 0, dan untuk
   // anak kita pakai 0 di tampilan. Ekspresi lokus yang seri bisa berbeda dari
   // saat lahir — ditandai di UI agar tidak menyesatkan.
-  const seed = 0n;
+  const seed = hatchScan.registry === d.registry ? hatchScan.seed.get(id) ?? 0n : 0n;
   const e = express(a.genome, seed);
   const manifest = expand(a.genome, seed);
 
@@ -253,6 +255,7 @@ async function readAgent(d: Deployment, id: number) {
     manifestHashOnChain: "0x" + a.manifestHash.toString(16).padStart(16, "0"),
     manifestHashComputed: "0x" + manifestHash(manifest).toString(16).padStart(16, "0"),
     birthBlock: a.birthBlock,
+    birthSeed: "0x" + seed.toString(16),
     stud: { listed, feeWei: fee.toString(), feeEth: formatEther(fee) },
     readyAtBlock: Number(readyAt),
     sale: listing && listing[2] ? { seller: listing[0], priceWei: listing[1].toString(), priceEth: formatEther(listing[1]) } : null,
@@ -271,12 +274,20 @@ const listAgents = cached(async () => {
   if (!dep) return [];
   const d = dep;
   const total = Number(await read(d.registry, abis.registry, "totalMinted"));
+  await scanHatched(d);
   const rows = await Promise.all(Array.from({ length: total }, (_, i) => readAgent(d, i + 1)));
   // Dari agent mana instruksi khususnya berasal (dirinya, atau leluhur). Isinya tidak pernah dikirim.
   const byId = new Map(rows.map((a) => [a.id, a]));
+  // Profil publik: soul sendiri, atau warisan kedua induk menurut seed kelahiran. Instruksi tidak ikut.
+  const memo = new Map();
+  const node = (i: number): ProfileNode | undefined => {
+    const x = byId.get(i);
+    return x && { genome: BigInt(x.genomeRaw), seed: BigInt(x.birthSeed), parents: x.parents, soulText: x.soulHash ? soulStore.get(x.soulHash) : null };
+  };
   return rows.map((a) => ({
     ...a,
     soulFrom: inheritedSoul(a.id, (i) => { const x = byId.get(i); return x && { soulHash: x.soulHash, parents: x.parents }; }, (h) => soulStore.get(h)).sources,
+    profile: profileFor(a.id, node, memo),
   }));
 });
 
@@ -285,9 +296,9 @@ const listAgents = cached(async () => {
  * `hatch(pid)` pada tx yang memancarkannya. Hasilnya tidak pernah berubah,
  * jadi cukup dipindai sekali per rentang blok.
  */
-const hatchScan = { registry: "", to: 0n, child: new Map<number, number>() };
+const hatchScan = { registry: "", to: 0n, child: new Map<number, number>(), seed: new Map<number, bigint>() };
 async function scanHatched(d: Deployment) {
-  if (hatchScan.registry !== d.registry) Object.assign(hatchScan, { registry: d.registry, to: 0n, child: new Map() });
+  if (hatchScan.registry !== d.registry) Object.assign(hatchScan, { registry: d.registry, to: 0n, child: new Map(), seed: new Map() });
   const head = await pub.getBlockNumber();
   const from = hatchScan.to ? hatchScan.to + 1n : BigInt(d.block);
   // Per potongan, dan kemajuan disimpan tiap potongan: RPC yang gagal di tengah
@@ -296,8 +307,9 @@ async function scanHatched(d: Deployment) {
     for (const [a, b] of blockRanges(from, head, 9_000n)) {
       const logs = await pub.getContractEvents({
         address: d.hatchery, abi: abis.hatchery, eventName: "Hatched", fromBlock: a, toBlock: b,
-      }) as unknown as { transactionHash: `0x${string}`; args: { childId: bigint } }[];
+      }) as unknown as { transactionHash: `0x${string}`; args: { childId: bigint; seed: bigint } }[];
       for (const l of logs) {
+        hatchScan.seed.set(Number(l.args.childId), BigInt(l.args.seed));
         const tx = await pub.getTransaction({ hash: l.transactionHash });
         try {
           const call = decodeFunctionData({ abi: abis.hatchery, data: tx.input });
@@ -312,11 +324,24 @@ async function scanHatched(d: Deployment) {
   return hatchScan.child;
 }
 
-/** Instruksi khusus yang berlaku untuk agent ini: miliknya, atau warisan leluhurnya. */
+/**
+ * Soul yang dipakai saat agent bekerja: profil publiknya (milik sendiri atau
+ * warisan) dan instruksi rahasia garis keturunannya. `text` = bentuk utuh untuk
+ * ekspor; `instructions` = yang dijaga agar tidak bocor di keluaran.
+ */
 async function soulFor(id: number) {
   const all = await listAgents();
   const byId = new Map(all.map((a) => [a.id, a]));
-  return inheritedSoul(id, (i) => { const a = byId.get(i); return a && { soulHash: a.soulHash, parents: a.parents }; }, (h) => soulStore.get(h));
+  const profile = byId.get(id)?.profile ?? { role: "", traits: [] };
+  const soul = promptSoul(id, profile, (i) => { const a = byId.get(i); return a && { soulHash: a.soulHash, parents: a.parents }; }, (h) => soulStore.get(h));
+  return { soul, text: composeSoul(soul), instructions: soul.instructions };
+}
+
+/** Seed kelahiran asli (event Hatched); 0 untuk agent Studio dan generasi nol. */
+async function seedOf(id: number): Promise<bigint> {
+  if (!dep) return 0n;
+  await scanHatched(dep);
+  return hatchScan.seed.get(id) ?? 0n;
 }
 
 const listPregnancies = cached(async () => {
@@ -410,7 +435,7 @@ async function buildTx(action: string, a: Record<string, unknown>, from?: string
     }
     case "setManifestHash": {
       const genome = (await read(d.registry, abis.registry, "genomeOf", [id()])) as bigint;
-      return call(d.registry, abis.registry, "setManifestHash", [id(), manifestHash(expand(genome, 0n))], 0n,
+      return call(d.registry, abis.registry, "setManifestHash", [id(), manifestHash(expand(genome, await seedOf(id())))], 0n,
         `catat manifest #${a.id}`);
     }
     case "pay": {
@@ -552,7 +577,7 @@ if (operator) {
       const genome = (await read(dep.registry, abis.registry, "genomeOf", [id])) as bigint;
       const owner = ((await read(dep.registry, abis.registry, "ownerOf", [id])) as string).toLowerCase();
       const w = wallets.find((x) => x.account.address.toLowerCase() === owner);
-      if (w) await send(dep.registry, abis.registry, w, "setManifestHash", [id, manifestHash(expand(genome, 0n))]);
+      if (w) await send(dep.registry, abis.registry, w, "setManifestHash", [id, manifestHash(expand(genome, await seedOf(id)))]);
     },
   });
 }
@@ -630,17 +655,17 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         return handleMcp(req, {
           keys: keyStore,
           allowMock: IS_LOCAL,
-          agents: async () => (await listAgents()).map((a) => ({ id: a.id, name: a.name, modules: a.modules.filter((m): m is string => !!m), generation: a.generation })),
+          agents: async () => (await listAgents()).map((a) => ({ id: a.id, name: a.name, modules: a.modules.filter((m): m is string => !!m), generation: a.generation, role: a.profile.role, traits: a.profile.traits })),
           priceOf: async (id) => (await read(credits, abis.credits, "maxPrice", [id])) as bigint,
           balanceOf: async (addr) => (await read(credits, abis.credits, "balanceOf", [getAddress(addr)])) as bigint,
           run: async (id, task, context, mock) => {
             const env = { ...process.env, MOCK_LLM: mock ? "1" : "0" };
             const provider = mock ? undefined : getProvider(env);
             const genome = (await read(d.registry, abis.registry, "genomeOf", [id])) as bigint;
-            const soul = (await soulFor(id)).text;
-            const agent = materialize(genome, 0n, { id, provider, env, extraInstructions: soul });
+            const { soul, instructions } = await soulFor(id);
+            const agent = materialize(genome, await seedOf(id), { id, provider, env, soul });
             const r = await agent.run(context.trim() ? `${task}\n\n---\n\nKonteks dari proyek pemakai:\n${context}` : task);
-            const g = guardOutput(r.output, soul);
+            const g = guardOutput(r.output, instructions);
             return { output: g.output, model: r.model ?? "mock", leaked: g.leaked };
           },
           charge: async (user, id, amount, job) => {
@@ -679,9 +704,21 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
       }
 
       if (p === "/api/studio/soul" && req.method === "POST") {
-        const { text } = (await req.json().catch(() => ({}))) as { text?: string };
-        try { return json({ hash: soulStore.put(String(text ?? "")) }); }
-        catch (e) { return json({ error: (e as Error).message }, 400); }
+        // Profil bebas + instruksi → soul tersimpan, ditambah 16 lokus untuk Studio.create.
+        const b = (await req.json().catch(() => ({}))) as { text?: string; role?: string; traits?: FreeTrait[]; instructions?: string };
+        try {
+          const instructions = String(b.instructions ?? "");
+          if (instructions.length > MAX_INSTRUCTIONS) return json({ error: `instruksi paling panjang ${MAX_INSTRUCTIONS} karakter` }, 400);
+          const traits = Array.isArray(b.traits) ? b.traits.filter((t) => t && typeof t.label === "string" && typeof t.value === "string") : [];
+          const text = typeof b.text === "string" ? b.text : composeSoul({ role: String(b.role ?? ""), traits, instructions });
+          if (!text.trim()) return json({ error: "profil dan instruksi masih kosong" }, 400);
+          const hash = soulStore.put(text);
+          const parsed = parseSoul(text);
+          const ai = modelMissing() || process.env.MOCK_LLM === "1" ? undefined : async (pr: { system: string; user: string }) =>
+            (await getProvider({ ...process.env, MOCK_LLM: "0" }).chat("fast", { system: pr.system, messages: [{ role: "user", content: pr.user }], temperature: 0, maxTokens: 400 })).text;
+          const { loci, source } = await encodeProfile(parsed, ai);
+          return json({ hash, loci, source });
+        } catch (e) { return json({ error: (e as Error).message }, 400); }
       }
 
       if (p === "/api/studio/suggest" && req.method === "POST") {
@@ -815,7 +852,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         if (!a) return json({ error: "agent tidak ditemukan" }, 404);
         const genome = BigInt(a.genomeRaw);
         if (ex[2] === "manifest.json") {
-          return new Response(JSON.stringify(expand(genome, 0n), null, 2) + "\n", {
+          return new Response(JSON.stringify(expand(genome, BigInt(a.birthSeed)), null, 2) + "\n", {
             headers: {
               "content-type": "application/json",
               "content-disposition": `attachment; filename="meiosis-${a.id}.manifest.json"`,
@@ -824,7 +861,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         }
         const info = {
           id: a.id, name: a.name, generation: a.generation, parents: a.parents, owner: a.owner,
-          genome, manifestHashOnChain: a.manifestHashOnChain,
+          genome, birthSeed: BigInt(a.birthSeed), manifestHashOnChain: a.manifestHashOnChain,
           chainId: dep.chainId, chainName: CHAIN, registry: dep.registry, explorer: EXPLORER,
         };
         if (req.method !== "POST") {
@@ -894,7 +931,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           const genome = (await read(dep.registry, abis.registry, "genomeOf", [id])) as bigint;
           const owner = ((await read(dep.registry, abis.registry, "ownerOf", [id])) as string).toLowerCase();
           const w = wallets.find((x) => x.account.address.toLowerCase() === owner) ?? wallets[0];
-          await send(dep.registry, abis.registry, w, "setManifestHash", [id, manifestHash(expand(genome, 0n))]);
+          await send(dep.registry, abis.registry, w, "setManifestHash", [id, manifestHash(expand(genome, await seedOf(id)))]);
         } catch { /* pencatatan manifest bukan alasan menggagalkan kelahiran */ }
 
         return json({ ok: true, block: Number(r.blockNumber) });
@@ -908,7 +945,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         if (!IS_LOCAL) return json({ error: "di chain publik transaksi ditandatangani wallet-mu — pakai /api/tx" }, 400);
         const { id } = (await req.json()) as { id: number };
         const genome = (await read(dep.registry, abis.registry, "genomeOf", [id])) as bigint;
-        const hash = manifestHash(expand(genome, 0n));
+        const hash = manifestHash(expand(genome, await seedOf(id)));
         const owner = ((await read(dep.registry, abis.registry, "ownerOf", [id])) as string).toLowerCase();
         const w = wallets.find((x) => x.account.address.toLowerCase() === owner) ?? wallets[0];
         await send(dep.registry, abis.registry, w, "setManifestHash", [id, hash]);
@@ -985,8 +1022,8 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
               const slot = job.agents[id];
               try {
                 const genome = (await read(dep!.registry, abis.registry, "genomeOf", [id])) as bigint;
-                const soul = (await soulFor(id)).text;
-                const agent = materialize(genome, 0n, { id, provider, env, extraInstructions: soul });
+                const { soul: soulData, instructions: soul } = await soulFor(id);
+                const agent = materialize(genome, await seedOf(id), { id, provider, env, soul: soulData });
                 slot.modules = agent.manifest.traits.filter((x) => x.module).map((x) => x.module!);
                 slot.model = provider?.modelFor(agent.manifest.modelTier) ?? "mock";
 
@@ -1009,7 +1046,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
                      */
                     consult: async (otherId, question) => {
                       const g = (await read(dep!.registry, abis.registry, "genomeOf", [otherId])) as bigint;
-                      const other = materialize(g, 0n, { id: otherId, provider, env });
+                      const other = materialize(g, await seedOf(otherId), { id: otherId, provider, env, soul: (await soulFor(otherId)).soul });
                       const ans = await other.run(question);
                       slot.steps.push({
                         step: slot.steps.length + 1, kind: "tool", tool: "consult_agent",

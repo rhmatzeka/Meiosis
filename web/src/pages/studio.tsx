@@ -33,7 +33,7 @@ const GROUPS: { title: string; hint: string; loci: number[] }[] = [
   { title: "Akses", hint: "Perkakas yang boleh dipakainya saat bekerja.", loci: [8, 9, 10] },
 ];
 
-interface Suggestion { name: string; instructions: string; traits: number[]; source: "ai" | "heuristic" }
+interface Suggestion { name: string; instructions: string; source: "ai" | "heuristic" }
 
 export function StudioPage() {
   useTitle("Studio");
@@ -61,7 +61,6 @@ export function StudioPage() {
     setThinking(true);
     try {
       const s = await post<Suggestion>("/api/studio/suggest", { description });
-      setTraits(s.traits);
       setInstructions(s.instructions);
       if (!name.trim()) setName(s.name);
       toast(s.source === "ai" ? "Rancangan dari AI sudah diisi. Sunting sesukamu." : "Rancangan awal diisi dari kata kuncimu. Sunting sesukamu.", "ok");

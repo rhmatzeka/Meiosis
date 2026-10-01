@@ -19,6 +19,8 @@ export interface ExportInfo {
   parents: number[];
   owner: string;
   genome: bigint;
+  /** Seed kelahiran dari event Hatched; 0 untuk agent Studio. */
+  birthSeed?: bigint;
   manifestHashOnChain?: string;
   chainId: number;
   chainName: string;
@@ -66,7 +68,7 @@ export const licenseStatement = (agentId: number, licensee: string, licenseId: s
  * `license`, berkas diberi header lisensi dan watermark tak terlihat.
  */
 export function toClaudeAgent(a: ExportInfo, license?: License, soul = ""): string {
-  const m = expand(a.genome, 0n);
+  const m = expand(a.genome, a.birthSeed ?? 0n);
   const hash = "0x" + manifestHash(m).toString(16).padStart(16, "0");
   const modules = m.traits.filter((t) => t.module).map((t) => t.module!);
   const tools = [...new Set(m.mcpTools.flatMap((t) => TOOLS[t] ?? []))];
@@ -84,6 +86,7 @@ export function toClaudeAgent(a: ExportInfo, license?: License, soul = ""): stri
     `registry: ${a.registry}`,
     `agentId: ${a.id}`,
     `genome: 0x${a.genome.toString(16).padStart(64, "0")}`,
+    `birthSeed: 0x${(a.birthSeed ?? 0n).toString(16)}`,
     `manifestHash: ${hash}`,
     `manifestHashOnChain: ${a.manifestHashOnChain ?? "-"}`,
     `owner: ${a.owner}`,
@@ -122,6 +125,7 @@ export interface ParsedExport {
   registry: string;
   agentId: number;
   genome: bigint;
+  birthSeed: bigint;
   manifestHash: string;
   prompt: string;
   license: License | null;
@@ -142,6 +146,7 @@ export function parseExport(md: string): ParsedExport {
     registry: get("registry"),
     agentId: Number(get("agentId")),
     genome: BigInt(get("genome")),
+    birthSeed: /^birthSeed: /m.test(block) ? BigInt(get("birthSeed")) : 0n,
     manifestHash: get("manifestHash"),
     prompt: md.slice(p0 + PROMPT_START.length, p1).trim(),
     license: /^licenseId: /m.test(block)
@@ -156,7 +161,7 @@ export function parseExport(md: string): ParsedExport {
  * lewat MCP (dibayar dari saldo pakai pemilik API key), lalu menulis hasilnya.
  */
 export function toRemoteAgent(a: ExportInfo, o: { mcpUrl: string }): string {
-  const m = expand(a.genome, 0n);
+  const m = expand(a.genome, a.birthSeed ?? 0n);
   const modules = m.traits.filter((t) => t.module).map((t) => t.module!);
   const lineage = a.parents[0] ? `anak dari #${a.parents[0]} × #${a.parents[1]}` : "generasi nol";
   const description =

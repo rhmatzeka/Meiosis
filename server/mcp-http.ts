@@ -13,7 +13,7 @@ import type { KeyRecord, KeyStore } from "./keys";
 
 export interface McpDeps {
   keys: KeyStore;
-  agents: () => Promise<{ id: number; name: string; modules: string[]; generation: number }[]>;
+  agents: () => Promise<{ id: number; name: string; modules: string[]; generation: number; role?: string; traits?: { label: string; value: string }[] }[]>;
   priceOf: (agentId: number) => Promise<bigint>;
   balanceOf: (address: string) => Promise<bigint>;
   /**
@@ -112,7 +112,7 @@ export async function handleMcp(req: Request, deps: McpDeps): Promise<Response> 
 async function callTool(name: string, args: Record<string, unknown>, key: KeyRecord, deps: McpDeps) {
   if (name === "meiosis_list_agents") {
     const list = await deps.agents();
-    const rows = await Promise.all(list.map(async (a) => `#${a.id} ${a.name} — ${formatEther(await deps.priceOf(a.id))} ETH/tugas — ${a.modules.join(", ") || "tanpa modul"}`));
+    const rows = await Promise.all(list.map(async (a) => `#${a.id} ${a.name} — ${formatEther(await deps.priceOf(a.id))} ETH/tugas — ${[a.role, ...(a.traits ?? []).slice(0, 6).map((t) => `${t.label}: ${t.value}`)].filter(Boolean).join("; ") || a.modules.join(", ") || "tanpa profil"}`));
     return text(rows.join("\n") || "Belum ada agent.");
   }
   if (name === "meiosis_balance") {

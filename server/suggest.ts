@@ -1,78 +1,93 @@
 /**
- * "Rancang dengan AI" di Studio: dari deskripsi bebas menjadi nama, instruksi
- * khusus, dan nilai 16 lokus.
+ * "Rancang untukku" di Studio: dari deskripsi bebas menjadi nama, peran,
+ * sifat bebas (label = isi), dan instruksi. Angka genome tidak dibuat di sini;
+ * itu tugas encode.ts saat agent benar-benar dibuat.
  *
  * Dua lapis. Model diminta mengeluarkan JSON; hasilnya divalidasi ketat. Bila
  * model tidak tersedia, menolak, atau mengeluarkan sesuatu yang tidak sah,
  * aturan kata kunci di bawah yang dipakai — Studio tidak pernah macet karena AI.
  */
-import { LOCUS, TRAITS } from "../packages/shared/src/genome";
-import { defaultTraits, validateTraits } from "../packages/shared/src/studio";
-import { MAX_SOUL } from "./souls";
+import { KNOWN_STACKS, MAX_INSTRUCTIONS, MAX_ROLE, SLOTS, normalizeStack, normalizeTraits, type FreeTrait } from "../packages/shared/src/profile";
 
-export interface Suggestion { name: string; instructions: string; traits: number[]; source: "ai" | "heuristic" }
+export interface Suggestion { name: string; role: string; traits: FreeTrait[]; instructions: string; source: "ai" | "heuristic" }
 
 const has = (t: string, ...words: string[]) => words.some((w) => t.includes(w));
+const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
 const clipName = (s: string) => {
-  let out = s.trim().replace(/\s+/g, " ");
+  let out = oneLine(s);
   while (new TextEncoder().encode(out).length > 32) out = out.slice(0, -1);
   return out.trim();
 };
+/** Kalimat pertama, dipotong di batas kata. */
+const clipRole = (s: string) => {
+  const first = oneLine(s).split(/(?<=[.!?])\s/)[0] ?? "";
+  if (first.length <= MAX_ROLE) return first;
+  const cut = first.slice(0, MAX_ROLE);
+  return cut.slice(0, cut.lastIndexOf(" ") > 40 ? cut.lastIndexOf(" ") : MAX_ROLE).trim();
+};
+
+/** Teknologi dari KNOWN_STACKS yang disebut di teks, sesuai urutan; yang lebih panjang menang ("React Native" > "React"). */
+export function stacksIn(text: string): string[] {
+  const hits: { s: string; i: number; n: number }[] = [];
+  for (const s of KNOWN_STACKS) {
+    const re = new RegExp(`(^|[^a-z0-9])(${s.replace(/[.+]/g, "\\$&")})(?=$|[^a-z0-9])`, "gi");
+    for (const m of text.matchAll(re)) hits.push({ s, i: (m.index ?? 0) + m[1].length, n: s.length });
+  }
+  hits.sort((a, b) => a.i - b.i || b.n - a.n);
+  const kept: typeof hits = [];
+  for (const h of hits) if (!kept.some((k) => h.i < k.i + k.n && k.i < h.i + h.n)) kept.push(h);
+  return normalizeStack(kept.map((k) => k.s));
+}
 
 export function suggestFromText(description: string): Suggestion {
-  const t = description.toLowerCase();
-  const traits = defaultTraits();
+  const d = oneLine(description);
+  if (!d) return { name: "Agent baru", role: "", traits: [], instructions: "", source: "heuristic" };
+  const t = d.toLowerCase();
 
-  // stack
-  if (has(t, "react", "next.js", "nextjs", "frontend", "landing", "komponen", "tsx")) traits[LOCUS.STACK_AFFINITY] = 1;
-  if (has(t, "solidity", "smart contract", "kontrak pintar", "foundry", "erc-", "evm")) traits[LOCUS.STACK_AFFINITY] = 2;
-  if (has(t, "python", "pandas", "django", "fastapi", "notebook", "scraping")) traits[LOCUS.STACK_AFFINITY] = 3;
+  let skill = "";
+  if (has(t, "desain", "design", "tampilan", "ui", "ux", "landing")) skill = "desain antarmuka";
+  if (has(t, "kode", "code", "program", "bikin", "buat", "form", "api", "fitur", "bug")) skill = "pemrograman";
+  if (has(t, "data", "analisis", "statistik", "pandas", "laporan")) skill = "analisis data";
+  if (has(t, "riset", "research", "rangkum", "cari tahu", "literatur", "dokumentasi")) skill = "riset dan merangkum";
+  if (has(t, "audit", "celah", "pentest", "reentrancy", "kerentanan", "vulnerab")) skill = "keamanan dan audit";
 
-  // keahlian utama (yang paling spesifik menang terakhir)
-  if (has(t, "desain", "design", "tampilan", "ui", "ux", "landing")) traits[LOCUS.DISCIPLINE_PRIMARY] = 2;
-  if (has(t, "kode", "code", "program", "bikin", "buat", "form", "api", "fitur", "bug")) traits[LOCUS.DISCIPLINE_PRIMARY] = 1;
-  if (has(t, "data", "analisis", "statistik", "pandas", "laporan")) traits[LOCUS.DISCIPLINE_PRIMARY] = 5;
-  if (has(t, "riset", "research", "rangkum", "cari tahu", "literatur", "dokumentasi")) traits[LOCUS.DISCIPLINE_PRIMARY] = 3;
-  if (has(t, "audit", "celah", "pentest", "reentrancy", "kerentanan", "vulnerab")) traits[LOCUS.DISCIPLINE_PRIMARY] = 4;
+  const work: string[] = [];
+  if (has(t, "tes", "test", "teruji", "tdd", "teliti")) work.push("selalu menulis tes");
+  if (has(t, "aman", "keamanan", "secure", "security", "audit", "celah", "validasi")) work.push("memeriksa keamanan");
+  if (has(t, "rapi", "dokumentasi", "readme")) work.push("rapi dan terdokumentasi");
 
-  // bakat
-  if (has(t, "aman", "keamanan", "secure", "security", "audit", "celah", "validasi")) traits[LOCUS.SECURITY_INSTINCT] = 2;
-  if (has(t, "tes", "test", "teruji", "tdd", "teliti")) traits[LOCUS.TEST_RIGOR] = 2;
-  if (has(t, "rapi", "cantik", "indah", "estetik", "bagus", "modern", "elegan", "desain")) traits[LOCUS.AESTHETIC] = 2;
-  if (has(t, "tekun", "sampai selesai", "pantang", "gigih", "perbaiki sendiri", "debug")) traits[LOCUS.PERSISTENCE] = 2;
-  if (has(t, "dokumentasi", "docs", "readme", "komentar")) traits[LOCUS.DOC_HABIT] = 2;
-  if (has(t, "kreatif", "ide", "unik", "eksperimen")) traits[LOCUS.CREATIVITY] = 2;
+  let style = "";
+  if (has(t, "santai", "gaul", "casual")) style = "santai";
+  if (has(t, "ringkas", "singkat", "to the point", "langsung")) style = "singkat dan langsung";
+  if (has(t, "jelaskan", "detail", "rinci", "ajari", "pemula")) style = "detail dan sabar menjelaskan";
 
-  // gaya & otak
-  if (has(t, "ringkas", "singkat", "to the point", "langsung")) traits[LOCUS.VERBOSITY] = 0;
-  if (has(t, "jelaskan", "detail", "rinci", "ajari", "pemula")) traits[LOCUS.VERBOSITY] = 2;
-  if (has(t, "cepat", "gesit", "sederhana")) traits[LOCUS.MODEL_TIER] = 0;
-  if (has(t, "rumit", "kompleks", "arsitektur", "sulit", "pintar", "cerdas")) traits[LOCUS.MODEL_TIER] = 2;
-  if (has(t, "web", "internet", "browsing", "cari di")) traits[LOCUS.MCP_SET_B] = 1;
-
-  const d = description.trim();
-  const disc = ["Serba Bisa", "Pengode", "Perancang", "Periset", "Penjaga", "Pengolah Data"][traits[LOCUS.DISCIPLINE_PRIMARY]];
-  const stack = ["", " React", " Solidity", " Python"][traits[LOCUS.STACK_AFFINITY]];
+  const stack = stacksIn(d);
+  const traits = normalizeTraits([
+    { label: "Keahlian", value: skill },
+    { label: "Stack & alat", value: stack.join(", ") },
+    { label: "Cara kerja", value: work.join(", ") },
+    { label: "Gaya bicara", value: style },
+  ]);
+  const head = skill ? skill[0].toUpperCase() + skill.slice(1) : "Asisten";
   return {
-    name: clipName(`${disc}${stack}`),
-    instructions: d
-      ? `Tujuanmu: ${d.replace(/\s+/g, " ")}\n\nBekerjalah dengan fokus pada tujuan itu. Tanyakan hal yang benar-benar tidak jelas, lalu selesaikan sampai tuntas.`
-      : "",
+    name: clipName(stack[0] ? `${head} ${stack[0]}` : head),
+    role: clipRole(d),
     traits,
+    instructions: `Tujuanmu: ${d}\n\nBekerjalah dengan fokus pada tujuan itu. Tanyakan hal yang benar-benar tidak jelas, lalu selesaikan sampai tuntas.`,
     source: "heuristic",
   };
 }
 
-/** Prompt untuk model: deskripsi → JSON rancangan. */
+/** Prompt untuk model: deskripsi → JSON rancangan dengan sifat bebas. */
 export function suggestPrompt(description: string): { system: string; user: string } {
-  const loci = Object.entries(LOCUS).map(([k, i]) => `${i} ${k}: ${TRAITS[i].map((v, n) => `${n}=${v}`).join(", ")}`).join("\n");
   return {
     system:
       "Kamu merancang agent AI dari deskripsi pengguna. Balas HANYA satu objek JSON, tanpa teks lain, dengan kunci:\n" +
       '"name" (nama agent, paling panjang 28 karakter, bahasa pengguna),\n' +
-      '"instructions" (instruksi sistem untuk agent itu, 4–10 kalimat konkret dalam bahasa pengguna: peran, cara kerja, hal yang harus dihindari),\n' +
-      '"traits" (array 16 bilangan bulat, satu per lokus, sesuai daftar nilai di bawah).\n\n' +
-      "Lokus dan nilai yang sah:\n" + loci,
+      `"role" (satu kalimat tugas agent, paling panjang ${MAX_ROLE} karakter),\n` +
+      '"traits" (array objek {"label","value"}; pakai label bawaan bila cocok: ' + SLOTS.map((s) => `"${s.label}"`).join(", ") +
+      '; boleh menambah label lain yang penting bagi pengguna; "Stack & alat" berisi nama teknologi dipisah koma; maksimal 8 objek; value singkat, paling panjang 200 karakter),\n' +
+      '"instructions" (instruksi sistem untuk agent itu, 4–10 kalimat konkret dalam bahasa pengguna: peran, cara kerja, hal yang harus dihindari).',
     user: description,
   };
 }
@@ -83,12 +98,15 @@ export function parseSuggestion(output: string, fallback: Suggestion): Suggestio
   const start = output.indexOf("{"), end = output.lastIndexOf("}");
   if (start < 0 || end <= start) return heuristic;
   try {
-    const o = JSON.parse(output.slice(start, end + 1)) as { name?: unknown; instructions?: unknown; traits?: unknown };
-    const traits = Array.isArray(o.traits) ? o.traits.map(Number) : [];
-    if (validateTraits(traits)) return heuristic;
-    const name = clipName(String(o.name ?? "")) || fallback.name;
-    const instructions = String(o.instructions ?? "").trim().slice(0, MAX_SOUL) || fallback.instructions;
-    return { name, instructions, traits, source: "ai" };
+    const o = JSON.parse(output.slice(start, end + 1)) as { name?: unknown; role?: unknown; instructions?: unknown; traits?: unknown };
+    if (!Array.isArray(o.traits) || !o.traits.every((t) => t && typeof t === "object" && typeof t.label === "string" && typeof t.value === "string")) return heuristic;
+    return {
+      name: clipName(String(o.name ?? "")) || fallback.name,
+      role: clipRole(String(o.role ?? "")) || fallback.role,
+      traits: normalizeTraits(o.traits as FreeTrait[]),
+      instructions: String(o.instructions ?? "").trim().slice(0, MAX_INSTRUCTIONS) || fallback.instructions,
+      source: "ai",
+    };
   } catch {
     return heuristic;
   }

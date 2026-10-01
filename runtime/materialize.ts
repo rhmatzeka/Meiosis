@@ -8,7 +8,9 @@
  * Lihat PLAN.md §8.1.
  */
 import { expand, manifestHash, systemPrompt, type Manifest } from "./genome/expand";
+import type { Soul } from "../packages/shared/src/profile";
 import { GUARD_PREAMBLE } from "./guard";
+import { profilePrompt } from "./profile-prompt";
 import { getProvider, type Provider } from "./providers";
 
 export interface RunReceipt {
@@ -48,10 +50,10 @@ export interface MaterializeOptions {
   /** Tool yang sungguh disediakan runner. Kosong sampai loop tool ada. */
   tools?: string[];
   /**
-   * Instruksi khusus dari pembuat agent (Studio), termasuk yang diwarisi dari
-   * leluhurnya. Di luar manifest: tidak mengubah manifestHash.
+   * Profil bebas dan instruksi pembuat agent (Studio), termasuk yang diwarisi
+   * dari leluhurnya. Di luar manifest: tidak mengubah manifestHash.
    */
-  extraInstructions?: string;
+  soul?: Soul;
 }
 
 export function materialize(genome: bigint, birthSeed: bigint, opts: MaterializeOptions = {}): Agent {
@@ -76,9 +78,9 @@ export function materialize(genome: bigint, birthSeed: bigint, opts: Materialize
 
   // Prompt modul rahasia; pembuka penjaga melarang model membukanya. Lapis
   // kedua (pemeriksaan keluaran) ada di runtime/guard.ts dan dipakai server.
-  const extra = opts.extraInstructions?.trim();
+  const extra = opts.soul ? profilePrompt(opts.soul, opts.soul.instructions) : "";
   const base = systemPrompt(manifest)
-    + (extra ? `\n\n---\n\nInstruksi khusus dari pembuat agent ini:\n${extra}` : "")
+    + (extra ? `\n\n---\n\n${extra}` : "")
     + `\n\n---\n\n${GUARD_PREAMBLE}`;
   const sys = missing.length
     ? base +
