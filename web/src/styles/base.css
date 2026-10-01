@@ -5,11 +5,7 @@ html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
   min-height: 100dvh;
-  background:
-    radial-gradient(900px 620px at 8% -8%, rgba(37, 78, 220, 0.30), transparent 62%),
-    radial-gradient(700px 500px at 100% 0%, rgba(91, 92, 246, 0.10), transparent 60%),
-    var(--abyss);
-  background-attachment: fixed;
+  background: var(--abyss);
   color: var(--ink);
   font: 400 var(--t-md) / 1.6 var(--font-body);
   font-feature-settings: "cv11", "ss01";

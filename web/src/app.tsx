@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { post, short } from "./api";
 import { useToast } from "./components/toast";
+import { Backdrop } from "./components/backdrop";
 import { BrandMark, Copy, Spinner } from "./components/ui";
 import { MOTION_OK, gsap, useGSAP, usePageMotion } from "./motion";
 import { useActor } from "./hooks/use-actor";
@@ -34,10 +35,19 @@ export function App() {
   const main = useRef<HTMLElement>(null);
   usePageMotion(main, path);
   useEffect(() => setMenu(false), [path]);
+  // Header tembus pandang di puncak halaman supaya cahaya latar tidak terpotong.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const on = () => setScrolled(window.scrollY > 12);
+    on();
+    addEventListener("scroll", on, { passive: true });
+    return () => removeEventListener("scroll", on);
+  }, []);
 
   return (
     <div className="shell">
-      <header className="header">
+      <Backdrop tall={path === "/"} />
+      <header className={`header ${scrolled ? "is-scrolled" : ""}`}>
         <div className="header-inner">
           <Link to="/" className="brand"><BrandMark />Meiosis</Link>
           <nav className="nav" aria-label="Utama">

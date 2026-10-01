@@ -102,7 +102,7 @@ export function AgentPage({ id }: { id: number }) {
           </div>
 
           {canManage && (
-            <div className="plate stack">
+            <div className="plate stack owner-actions">
               <h2 className="h-sub">Milikmu</h2>
               <button className="btn" onClick={() => setDialog("sell")} disabled={!status?.market}>{a.sale ? "Ubah harga jual" : "Jual"}</button>
               {a.sale && (

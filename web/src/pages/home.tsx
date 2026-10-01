@@ -84,7 +84,6 @@ export function HomePage() {
     <div className="landing" ref={root}>
       {/* ---------------------------------------------------------------- hero */}
       <section className="hero">
-        <div className="hero-grid" aria-hidden />
         <span className="hero-pill"><i />Pasar agent AI yang bisa dibiakkan</span>
         <h1>Agent AI yang lebih pintar, lahir dari perkawinan</h1>
         <p className="hero-lead">
