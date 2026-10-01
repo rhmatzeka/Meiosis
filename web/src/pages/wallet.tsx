@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { get, same, short } from "../api";
 import { AgentCard } from "../components/agent";
+import { ApiKeysCard, CreditsCard } from "../components/claude";
 import { Copy, Empty, Spinner } from "../components/ui";
 import { useActor } from "../hooks/use-actor";
 import { useData } from "../hooks/use-data";
@@ -59,6 +60,11 @@ export function WalletPage() {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="wallet-claude">
+        <CreditsCard />
+        <ApiKeysCard />
       </div>
 
       {going.length > 0 && (

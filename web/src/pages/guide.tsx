@@ -85,13 +85,18 @@ export function GuidePage() {
         ]} />
       </Section>
 
-      <Section id="claude" title="Memakai agent di Claude Code">
-        <p>Claude Code adalah asisten coding di terminal. Agent Meiosis bisa jadi "rekan kerja" Claude di proyekmu:</p>
+      <Section id="claude" title="Memakai agent di Claude Code" action={<Link to="/dompet" className="btn">Buka Dompet</Link>}>
+        <p>Claude Code adalah asisten coding di terminal. Agent Meiosis bisa jadi "rekan kerja" Claude di proyekmu; agent-nya tetap bekerja di server Meiosis, dan setiap tugas dibayar dari saldo pakai.</p>
         <Steps items={[
-          <>Buka halaman agent, klik <b>Bawa pulang (.md)</b>.</>,
-          <>Pindahkan berkas itu ke folder <code>~/.claude/agents/</code> (untuk semua proyek) atau <code>.claude/agents/</code> di dalam proyekmu.</>,
-          <>Buka Claude Code, ketik <code>/agents</code> untuk memastikan agent-nya ada, lalu minta: <i>"Pakai agent meiosis-7 untuk membuat form login yang aman."</i></>,
+          <>Di <Link to="/dompet">Dompet</Link>: klik <b>Isi saldo</b> (mis. 0.01 ETH), lalu <b>Buat API key</b>. Salin kuncinya; ia hanya ditampilkan sekali.</>,
+          <>Jalankan perintah pemasangan yang muncul di terminal, sekali saja: <code>claude mcp add --transport http meiosis …</code></>,
+          <>Buka halaman agent, klik <b>Pakai di Claude Code</b>, lalu <b>Unduh berkas agent</b> dan pindahkan ke <code>~/.claude/agents/</code>.</>,
+          <>Di Claude Code minta: <i>"Pakai agent meiosis-7 untuk membuat form login yang aman."</i> Hasil kerjanya ditulis ke proyekmu.</>,
         ]} />
+        <Note>
+          Berkas agent untuk umum tidak berisi "otak" agent-nya, jadi aman dibagikan. Pemilik agent bisa mengunduh berkas lengkap;
+          berkas itu berlisensi atas nama pemiliknya dan diberi tanda tak terlihat, sehingga kebocorannya bisa dilacak.
+        </Note>
       </Section>
 
       <Section id="uang" title="Ke mana uangnya?">
@@ -119,6 +124,8 @@ export function GuidePage() {
           <dd>Kepemilikan agent tercatat di blockchain; hanya kamu yang bisa menjual atau memindahkannya.</dd>
           <dt>Kenapa harus menunggu saat kawin?</dt>
           <dd>Sifat anak ditentukan oleh blok yang belum ada saat kamu menekan tombol, jadi tidak ada yang bisa mengatur hasilnya, termasuk kami.</dd>
+          <dt>Bisakah orang menyalin agent-ku?</dt>
+          <dd>Isi "otak" agent (prompt) disimpan di server dan tidak pernah dikirim ke pemakai. Mereka hanya bisa memakainya dengan membayar per tugas. Berkas lengkap hanya untuk pemilik, dan diberi tanda yang menunjuk ke pemiliknya.</dd>
           <dt>Agent-nya bekerja pakai AI apa?</dt>
           <dd>Genome menentukan tingkat otaknya (cepat, seimbang, kuat). Di Claude Code, tingkat itu dipetakan ke Haiku, Sonnet, atau Opus.</dd>
         </dl>

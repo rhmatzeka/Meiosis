@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatEther } from "viem";
 import { get, same, type Agent, type Pregnancy } from "../api";
 import { AgentCard, TraitList, highlights, useCooldown } from "../components/agent";
+import { useDownloadFull } from "../components/claude";
 import { NameDialog } from "../components/dialogs";
 import { Cell, Empty, GenomeStrip, Legend, Spinner, Stepper } from "../components/ui";
 import { useActor } from "../hooks/use-actor";
@@ -241,6 +242,7 @@ function Born({ child, a, b }: { child: Agent; a: Agent; b: Agent }) {
   useTitle(`${child.name} lahir`);
   const actor = useActor();
   const [naming, setNaming] = useState(false);
+  const full = useDownloadFull();
   const origin = useMemo(() => geneOrigin(BigInt(child.genome), BigInt(a.genome), BigInt(b.genome)), [child.genome, a.genome, b.genome]);
   const mine = same(child.owner, actor.address);
   const verified = child.manifestHashOnChain === child.manifestHashComputed;
@@ -275,14 +277,16 @@ function Born({ child, a, b }: { child: Agent; a: Agent; b: Agent }) {
         <TraitList agent={child} origin={origin} names={{ a: a.name, b: b.name }} />
 
         <div className="born-actions">
-          <a className="btn btn-primary btn-lg" href={`/api/agents/${child.id}/agent.md`} download>Bawa pulang (.md)</a>
+          {mine
+            ? <button className="btn btn-primary btn-lg" disabled={full.busy} onClick={() => full.download(child)}>{full.busy ? <Spinner /> : null}Bawa pulang (.md lengkap)</button>
+            : <a className="btn btn-primary btn-lg" href={`/api/agents/${child.id}/agent.md`} download>Bawa pulang (.md)</a>}
           <Link to={`/tugas?id=${child.id}`} className="btn btn-lg">Beri tugas</Link>
           {mine && <button className="btn btn-lg" onClick={() => setNaming(true)}>Beri nama</button>}
           <Link to={`/kawin?a=${a.id}&b=${b.id}`} className="btn btn-quiet">Kawinkan lagi</Link>
           <Link to={`/agent/${child.id}`} className="btn btn-quiet">Detail lengkap</Link>
         </div>
         <p className="xs muted">
-          Berkas <code>.md</code> adalah subagent Claude Code. Taruh di folder <code>.claude/agents/</code> proyekmu dan agent ini langsung bisa dipakai.
+          Berkas <code>.md</code> adalah subagent Claude Code. Taruh di folder <code>.claude/agents/</code> proyekmu. Berkas lengkap berlisensi atas namamu; jangan dibagikan.
         </p>
       </section>
       {naming && <NameDialog agent={child} onClose={() => setNaming(false)} />}

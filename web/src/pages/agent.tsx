@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { same } from "../api";
 import { AgentCard, TraitList, highlights, useCooldown, useOwnerLabel } from "../components/agent";
+import { ClaudeDialog, useDownloadFull } from "../components/claude";
 import { NameDialog, RentPriceDialog, SellDialog, StudDialog } from "../components/dialogs";
 import { Cell, Copy, Empty, GenomeStrip, Spinner } from "../components/ui";
 import { useActor } from "../hooks/use-actor";
 import { useData } from "../hooks/use-data";
 import { Link, useLocation, useTitle } from "../router";
 
-type Dialog = "name" | "stud" | "sell" | "rent" | null;
+type Dialog = "name" | "stud" | "sell" | "rent" | "claude" | null;
 
 export function AgentPage({ id }: { id: number }) {
   const { byId, agents, loading, status } = useData();
@@ -16,6 +17,7 @@ export function AgentPage({ id }: { id: number }) {
   const a = byId(id);
   const cooldown = useCooldown(a);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const full = useDownloadFull();
   const { query } = useLocation();
   useTitle(a?.name ?? `Agent #${id}`);
 
@@ -92,8 +94,11 @@ export function AgentPage({ id }: { id: number }) {
               Beri tugas{BigInt(a.rent.priceWei) > 0n && !mine ? ` · ${a.rent.priceEth} ETH` : ""}
             </Link>
             <Link to={`/kawin?a=${a.id}`} className="btn">Kawinkan dengan…</Link>
-            <a className="btn" href={`/api/agents/${a.id}/agent.md`} download>Bawa pulang (.md)</a>
-            <p className="xs muted">Taruh berkas <code>.md</code> di <code>.claude/agents/</code> proyekmu, dan Claude Code bisa menyerahkan tugas ke agent ini.</p>
+            <button className="btn" onClick={() => setDialog("claude")}>Pakai di Claude Code</button>
+            {mine && actor.mode !== "none" && (
+              <button className="btn btn-outline" disabled={full.busy} onClick={() => full.download(a)}>{full.busy ? <Spinner /> : null}Unduh .md lengkap</button>
+            )}
+            <p className="xs muted">{mine ? "Berkas lengkap berlisensi atas namamu dan diberi watermark; jangan dibagikan." : "Agent bekerja di server Meiosis; pemakaian dibayar per tugas."}</p>
           </div>
 
           {canManage && (
@@ -130,7 +135,7 @@ export function AgentPage({ id }: { id: number }) {
               <dt>pemilik</dt><dd><Copy text={a.owner} /></dd>
               <dt>lahir di blok</dt><dd>{a.birthBlock}</dd>
               {status?.explorer && status.deployed && <><dt>explorer</dt><dd><a href={`${status.explorer}/address/${a.owner}`} target="_blank" rel="noreferrer noopener">lihat pemilik</a></dd></>}
-              <dt>verifikasi</dt><dd>bun run verify-agent {`meiosis-${a.id}.md`}</dd>
+              <dt>verifikasi</dt><dd>bun run verify-agent {`meiosis-${a.id}.lengkap.md`}</dd>
             </dl>
             <p className="xs"><a href={`/api/agents/${a.id}/manifest.json`} download>Unduh manifest.json</a></p>
           </details>
@@ -140,6 +145,7 @@ export function AgentPage({ id }: { id: number }) {
       {dialog === "name" && <NameDialog agent={a} onClose={() => setDialog(null)} />}
       {dialog === "stud" && <StudDialog agent={a} onClose={() => setDialog(null)} />}
       {dialog === "sell" && <SellDialog agent={a} onClose={() => setDialog(null)} />}
+      {dialog === "claude" && <ClaudeDialog agent={a} onClose={() => setDialog(null)} />}
       {dialog === "rent" && <RentPriceDialog agent={a} onClose={() => setDialog(null)} />}
     </div>
   );

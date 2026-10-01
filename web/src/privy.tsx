@@ -89,6 +89,12 @@ export function PrivyActorProvider({ children }: { children: ReactNode }) {
     })();
   }, [address, status?.faucet.enabled, getAccessToken, toast, refresh]);
 
+  const signMessage = useCallback(async (message: string) => {
+    if (!wallet) throw new Error("Wallet belum siap.");
+    const provider = (await wallet.getEthereumProvider()) as Eip1193;
+    return (await provider.request({ method: "personal_sign", params: [message, wallet.address] })) as string;
+  }, [wallet]);
+
   const email = user?.email?.address ?? user?.google?.email;
   const value: Actor = {
     mode: authenticated && address ? "privy" : status?.local ? "demo" : "none",
@@ -99,6 +105,7 @@ export function PrivyActorProvider({ children }: { children: ReactNode }) {
     login,
     logout: async () => { await logout(); setFunding(null); },
     act, busy, funding,
+    sign: authenticated && wallet ? signMessage : null,
     loginProblem: stalled ? "Login belum bisa dipakai: Privy tidak merespons. Periksa PRIVY_APP_ID dan daftar origin di dashboard Privy." : null,
   };
   return <ActorCtx.Provider value={value}>{children}</ActorCtx.Provider>;

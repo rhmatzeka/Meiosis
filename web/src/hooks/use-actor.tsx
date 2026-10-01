@@ -36,6 +36,20 @@ export interface Actor {
   funding: { ok: boolean; message: string } | null;
   /** Alasan login tidak bisa dipakai (mis. App ID Privy salah), atau null. */
   loginProblem: string | null;
+  /**
+   * Menandatangani pesan dengan wallet pengguna (personal_sign). null bila
+   * tidak ada wallet — di chain lokal akun demo dibuktikan lewat `as`.
+   */
+  sign: ((message: string) => Promise<string>) | null;
+}
+
+/** Bukti siapa peminta untuk endpoint server: tanda tangan wallet, atau akun demo di chain lokal. */
+export async function proofFor(actor: Actor, action: string): Promise<Record<string, string>> {
+  if (!actor.address) throw new Error("Masuk dulu.");
+  if (actor.mode === "demo" || !actor.sign) return { as: actor.address };
+  const { getAddress } = await import("viem");
+  const message = `Meiosis: ${action} untuk ${getAddress(actor.address)} pada ${new Date().toISOString()}`;
+  return { address: actor.address, message, signature: await actor.sign(message) };
 }
 
 export const ActorCtx = createContext<Actor | null>(null);
@@ -173,6 +187,7 @@ export function PlainActorProvider({ children, pending = false }: { children: Re
     login,
     logout: async () => { setAddress(undefined); try { localStorage.removeItem(REMEMBER); } catch { /* penyimpanan diblokir */ } },
     act, busy, funding: null,
+    sign: address ? (async (message: string) => (await eth()!.request({ method: "personal_sign", params: [message, address] })) as string) : null,
     loginProblem: pending || !status || eth() || status.local ? null : "Login belum diaktifkan di server ini (PRIVY_APP_ID kosong) dan browser ini tidak punya wallet.",
   };
   return <ActorCtx.Provider value={value}>{children}</ActorCtx.Provider>;

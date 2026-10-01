@@ -171,3 +171,12 @@
 .faq dt { font-weight: 600; margin-top: var(--s-3); }
 .faq dd { margin: 0; color: var(--muted); font-size: var(--t-sm); }
 
+
+/* ---------- dompet: claude code ---------- */
+
+.wallet-claude { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); }
+.key-fresh { padding: var(--s-3); border-radius: 12px; background: color-mix(in srgb, var(--accent) 10%, var(--abyss)); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+.key-fresh .copy { word-break: break-all; text-align: left; color: var(--ink); }
+.key-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.key-list li { display: flex; align-items: center; gap: var(--s-3); justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--line); }
+@media (max-width: 760px) { .wallet-claude { grid-template-columns: 1fr; } }
