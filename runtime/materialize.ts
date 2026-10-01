@@ -8,6 +8,7 @@
  * Lihat PLAN.md §8.1.
  */
 import { expand, manifestHash, systemPrompt, type Manifest } from "./genome/expand";
+import { GUARD_PREAMBLE } from "./guard";
 import { getProvider, type Provider } from "./providers";
 
 export interface RunReceipt {
@@ -68,13 +69,16 @@ export function materialize(genome: bigint, birthSeed: bigint, opts: Materialize
   const toolsAvailable: string[] = opts.tools ?? [];
   const missing = toolsDeclared.filter((t) => !toolsAvailable.includes(t));
 
+  // Prompt modul rahasia; pembuka penjaga melarang model membukanya. Lapis
+  // kedua (pemeriksaan keluaran) ada di runtime/guard.ts dan dipakai server.
+  const base = systemPrompt(manifest) + `\n\n---\n\n${GUARD_PREAMBLE}`;
   const sys = missing.length
-    ? systemPrompt(manifest) +
+    ? base +
       `\n\n---\n\nPADA RUN INI KAMU TIDAK PUNYA AKSES TOOL APA PUN.` +
       ` Tidak ada filesystem, tidak ada terminal, tidak ada pencarian.` +
       ` Jangan memanggil tool dan jangan berpura-pura menjalankannya.` +
       ` Hasilkan seluruh jawabanmu langsung sebagai teks balasan.`
-    : systemPrompt(manifest);
+    : base;
 
   return {
     id, genome, manifest, manifestHash: hash, systemPrompt: sys,

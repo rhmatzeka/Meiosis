@@ -21,7 +21,8 @@ import { checkRent, effectiveRentWei, type RentEvent } from "./rent";
 import { studioGenome, validateDesign, type Design } from "../packages/shared/src/studio";
 import { faucetDecision, faucetMessage, loadFaucetState, saveFaucetState, verifyPrivyToken } from "./faucet";
 import { toClaudeAgent, toRemoteAgent, licenseStatement, agentSlug } from "../runtime/export";
-import { promptsAvailable } from "../runtime/genome/catalog";
+import { catalog, promptsAvailable } from "../runtime/genome/catalog";
+import { redactPromptLeak } from "../runtime/guard";
 import { KeyStore, checkSigned } from "./keys";
 import { handleMcp } from "./mcp-http";
 import { randomBytes } from "node:crypto";
@@ -120,6 +121,9 @@ const abis = {
   market: artifact("Market").abi,
   credits: artifact("Credits").abi,
 };
+
+/** Jawaban agent tidak boleh memuat prompt modul; bila memuat, diganti penolakan. */
+const guardOutput = (output: string) => redactPromptLeak(output, [...catalog().values()].map((m) => m.prompt));
 
 /** API key Claude Code dan lisensi `.md` lengkap, disimpan per chain. */
 const keyStore = new KeyStore(`.runs/api-keys-${CHAIN}.json`);
@@ -613,7 +617,8 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
             const genome = (await read(d.registry, abis.registry, "genomeOf", [id])) as bigint;
             const agent = materialize(genome, 0n, { id, provider, env });
             const r = await agent.run(context.trim() ? `${task}\n\n---\n\nKonteks dari proyek pemakai:\n${context}` : task);
-            return { output: r.output, model: r.model ?? "mock" };
+            const g = guardOutput(r.output);
+            return { output: g.output, model: r.model ?? "mock", leaked: g.leaked };
           },
           charge: async (user, id, amount, job) => {
             const r = await send(credits, abis.credits, op, "spend", [getAddress(user), id, amount, job]);
@@ -1012,7 +1017,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
                       promptTokens: loop.totalPromptTokens, completionTokens: loop.totalCompletionTokens,
                     },
                     built,
-                    output: loop.summary,
+                    output: guardOutput(loop.summary).output,
                   };
                 } else {
                   const r = await agent.run(`${task}\n\n---\n\n${BUILD_CONTRACT}`);
@@ -1031,7 +1036,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
                     toolsDeclared: r.toolsDeclared, toolsAvailable: r.toolsAvailable,
                     promptTokens: r.promptTokens, completionTokens: r.completionTokens,
                     durationMs: r.durationMs, mocked: r.mocked,
-                    built, output: r.output,
+                    built, output: guardOutput(r.output).output,
                   };
                 }
               } catch (e) {

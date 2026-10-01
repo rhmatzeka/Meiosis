@@ -16,8 +16,11 @@ export interface McpDeps {
   agents: () => Promise<{ id: number; name: string; modules: string[]; generation: number }[]>;
   priceOf: (agentId: number) => Promise<bigint>;
   balanceOf: (address: string) => Promise<bigint>;
-  /** Menjalankan agent; mengembalikan jawaban lengkap (termasuk blok kode berkas). */
-  run: (agentId: number, task: string, context: string, mock: boolean) => Promise<{ output: string; model: string }>;
+  /**
+   * Menjalankan agent; mengembalikan jawaban lengkap (termasuk blok kode berkas).
+   * `leaked` = jawaban memuat prompt dan sudah diganti penolakan; tidak ditagih.
+   */
+  run: (agentId: number, task: string, context: string, mock: boolean) => Promise<{ output: string; model: string; leaked?: boolean }>;
   /** Memotong saldo lewat Credits.spend; mengembalikan hash tx. */
   charge: (address: string, agentId: number, amount: bigint, job: `0x${string}`) => Promise<string>;
   /** Mode tiruan hanya diizinkan di chain lokal. */
@@ -28,6 +31,18 @@ const PROTOCOL = "2025-03-26";
 const MAX_CONTEXT = 60_000;
 const PER_HOUR = 20;
 const usage = new Map<string, number[]>();
+
+/**
+ * Tugas satu alamat dijalankan bergiliran. Tanpa ini, permintaan serentak
+ * semuanya lolos pemeriksaan saldo sebelum satu pun ditagih.
+ */
+const queue = new Map<string, Promise<unknown>>();
+function serial<T>(address: string, fn: () => Promise<T>): Promise<T> {
+  const prev = queue.get(address) ?? Promise.resolve();
+  const next = prev.then(fn, fn);
+  queue.set(address, next.catch(() => {}));
+  return next;
+}
 
 const TOOLS = [
   {
@@ -115,18 +130,21 @@ async function callTool(name: string, args: Record<string, unknown>, key: KeyRec
   if (mock && !deps.allowMock) return text("mode tiruan hanya tersedia di chain lokal", true);
   if (!allowed(key.prefix)) return text(`batas ${PER_HOUR} tugas per jam untuk API key ini tercapai`, true);
 
-  const price = await deps.priceOf(agentId);
-  const balance = await deps.balanceOf(key.address);
-  if (balance < price) {
-    return text(`Saldo pakai tidak cukup: perlu ${formatEther(price)} ETH, ada ${formatEther(balance)} ETH. Isi saldo di halaman Dompet Meiosis.`, true);
-  }
+  return serial(key.address, async () => {
+    const price = await deps.priceOf(agentId);
+    const balance = await deps.balanceOf(key.address);
+    if (balance < price) {
+      return text(`Saldo pakai tidak cukup: perlu ${formatEther(price)} ETH, ada ${formatEther(balance)} ETH. Isi saldo di halaman Dompet Meiosis.`, true);
+    }
 
-  const result = await deps.run(agentId, task, context, mock);
-  const job = ("0x" + randomBytes(32).toString("hex")) as `0x${string}`;
-  const tx = price > 0n ? await deps.charge(key.address, agentId, price, job) : null;
-  return text([
-    result.output,
-    "",
-    `— agent #${agentId} · ${result.model} · ${price > 0n ? `dibayar ${formatEther(price)} ETH (tx ${tx})` : "gratis"}`,
-  ].join("\n"));
+    const result = await deps.run(agentId, task, context, mock);
+    if (result.leaked) return text(result.output, true);
+    const job = ("0x" + randomBytes(32).toString("hex")) as `0x${string}`;
+    const tx = price > 0n ? await deps.charge(key.address, agentId, price, job) : null;
+    return text([
+      result.output,
+      "",
+      `— agent #${agentId} · ${result.model} · ${price > 0n ? `dibayar ${formatEther(price)} ETH (tx ${tx})` : "gratis"}`,
+    ].join("\n"));
+  });
 }
