@@ -21,6 +21,7 @@ import { checkRent, effectiveRentWei, type RentEvent } from "./rent";
 import { studioGenome, validateTraits } from "../packages/shared/src/studio";
 import { SoulStore, inheritedSoul, profileFor, promptSoul, type ProfileNode } from "./souls";
 import { encodeProfile } from "./encode";
+import { testMode } from "./mode";
 import { MAX_INSTRUCTIONS, composeSoul, parseSoul, type FreeTrait } from "../packages/shared/src/profile";
 import { parseSuggestion, suggestFromText, suggestPrompt } from "./suggest";
 import { faucetDecision, faucetMessage, loadFaucetState, saveFaucetState, verifyPrivyToken } from "./faucet";
@@ -144,7 +145,7 @@ const originOf = (req: Request) => PUBLIC_URL || new URL(req.url).origin;
  * karena kuncinya dipegang server; selain itu wajib pesan bertanda tangan wallet.
  */
 async function provenAddress(b: { as?: string; address?: string; message?: string; signature?: string }, action: string) {
-  if (IS_LOCAL && b.as && wallets.some((w) => w.account.address.toLowerCase() === b.as!.toLowerCase())) return { ok: true as const, address: getAddress(b.as) };
+  if (TEST && b.as && wallets.some((w) => w.account.address.toLowerCase() === b.as!.toLowerCase())) return { ok: true as const, address: getAddress(b.as) };
   const r = await checkSigned({ address: b.address ?? "", message: b.message ?? "", signature: b.signature ?? "", action });
   return r.ok ? { ok: true as const, address: getAddress(b.address!) } : { ok: false as const, error: r.error };
 }
@@ -155,6 +156,8 @@ async function provenAddress(b: { as?: string; address?: string; message?: strin
  * atau menyentuh filesystem host dibatasi — lihat /api/run.
  */
 const PUBLIC = !IS_LOCAL || process.env.PUBLIC === "1";
+/** Mode uji (bun run start --test): akun Anvil boleh dipakai server dan LLM tiruan diizinkan. */
+const TEST = testMode(process.env, IS_LOCAL);
 const RUN_PRICE = parseEther(process.env.RUN_PRICE_ETH ?? "0");
 const RUN_LIMIT_PER_HOUR = Number(process.env.RUN_LIMIT_PER_HOUR ?? 6);
 
@@ -571,7 +574,7 @@ if (operator) {
     // manifest-nya langsung dicatat — sama seperti /api/hatch. Di Sepolia itu
     // hak pemilik sendiri lewat tombol "Catat ke chain".
     onHatched: async (pid) => {
-      if (!IS_LOCAL || !dep) return;
+      if (!TEST || !dep) return;
       const id = (await scanHatched(dep)).get(pid);
       if (!id) return;
       const genome = (await read(dep.registry, abis.registry, "genomeOf", [id])) as bigint;
@@ -633,7 +636,8 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           block: live ? Number(await pub.getBlockNumber()) : null,
           runPriceEth: formatEther(RUN_PRICE),
           runReady: !modelMissing(),
-          accounts: wallets.map((w, i) => ({ name: ["deployer", "Alice", "Bob", "Carol"][i], address: w.account.address })),
+          accounts: TEST ? wallets.map((w, i) => ({ name: ["deployer", "Alice", "Bob", "Carol"][i], address: w.account.address })) : [],
+          testMode: TEST,
           privyAppId: PRIVY_APP_ID || null,
           faucet: { enabled: FAUCET_ON, amountEth: formatEther(faucetCfg.amountWei) },
           keeper: !!operator,
@@ -654,7 +658,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         const d = dep, op = operator, credits = dep.credits;
         return handleMcp(req, {
           keys: keyStore,
-          allowMock: IS_LOCAL,
+          allowMock: TEST,
           agents: async () => (await listAgents()).map((a) => ({ id: a.id, name: a.name, modules: a.modules.filter((m): m is string => !!m), generation: a.generation, role: a.profile.role, traits: a.profile.traits })),
           priceOf: async (id) => (await read(credits, abis.credits, "maxPrice", [id])) as bigint,
           balanceOf: async (addr) => (await read(credits, abis.credits, "balanceOf", [getAddress(addr)])) as bigint,
@@ -749,7 +753,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         if (!address || !isAddress(address)) return json({ ok: false, message: "alamat tidak sah" }, 400);
 
         let userId = `lokal:${address.toLowerCase()}`;
-        if (!IS_LOCAL) {
+        if (!TEST && !(IS_LOCAL && !PRIVY_APP_ID)) {
           const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
           try { userId = await verifyPrivyToken(token, PRIVY_APP_ID); }
           catch { return json({ ok: false, message: "Sesi masuk tidak sah. Coba keluar lalu masuk lagi." }, 401); }
@@ -810,7 +814,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
        * memasang tarif, membayar, menarik royalti — bisa dicoba tanpa wallet browser.
        */
       if (p === "/api/local-act" && req.method === "POST") {
-        if (!IS_LOCAL) return json({ error: "hanya di chain lokal — di Sepolia pakai wallet" }, 400);
+        if (!TEST) return json({ error: "Endpoint uji. Jalankan server dengan TEST_ACCOUNTS=1." }, 400);
         if (!dep) return json({ error: "belum di-deploy" }, 400);
         const { action, args = {}, as } = (await req.json()) as { action: string; args?: Record<string, unknown>; as?: string };
         const byAddr = (a: string) => wallets.find((w) => w.account.address.toLowerCase() === a.toLowerCase());
@@ -902,7 +906,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
 
       if (p === "/api/breed" && req.method === "POST") {
         if (!dep) return json({ error: "belum di-deploy" }, 400);
-        if (!IS_LOCAL) return json({ error: "di chain publik transaksi ditandatangani wallet-mu — pakai /api/tx" }, 400);
+        if (!TEST) return json({ error: "Endpoint uji. Jalankan server dengan TEST_ACCOUNTS=1." }, 400);
         const { a, b, from } = (await req.json()) as { a: number; b: number; from: number };
 
         // Induk hasil kelahiran belum pernah dipasang sebagai pejantan. Pasang
@@ -921,7 +925,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
 
       if (p === "/api/hatch" && req.method === "POST") {
         if (!dep) return json({ error: "belum di-deploy" }, 400);
-        if (!IS_LOCAL) return json({ error: "di chain publik transaksi ditandatangani wallet-mu — pakai /api/tx" }, 400);
+        if (!TEST) return json({ error: "Endpoint uji. Jalankan server dengan TEST_ACCOUNTS=1." }, 400);
         const { pid } = (await req.json()) as { pid: number };
         const r = await send(dep.hatchery, abis.hatchery, wallets[1], "hatch", [pid]);
 
@@ -942,7 +946,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         // kembali ke chain. Inilah yang membuat agent yang DIJALANKAN dapat
         // dibuktikan sebagai agent yang TERCATAT — lihat PLAN.md §8.
         if (!dep) return json({ error: "belum di-deploy" }, 400);
-        if (!IS_LOCAL) return json({ error: "di chain publik transaksi ditandatangani wallet-mu — pakai /api/tx" }, 400);
+        if (!TEST) return json({ error: "Endpoint uji. Jalankan server dengan TEST_ACCOUNTS=1." }, 400);
         const { id } = (await req.json()) as { id: number };
         const genome = (await read(dep.registry, abis.registry, "genomeOf", [id])) as bigint;
         const hash = manifestHash(expand(genome, await seedOf(id)));
@@ -964,7 +968,8 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           /** Mode publik berbayar: agentId → hash tx pembayaran lewat LineageRoyalty. */
           payments?: Record<string, string>;
         };
-        const { ids, task, mock, mode, workdir, checkCommand, payments } = body;
+        const { ids, task, mode, workdir, checkCommand, payments } = body;
+        const mock = TEST && !!body.mock;
         if (mode === "agent" && !mock && !DOCKER && !workdir) {
           return json({ error: "Mode kerja penuh butuh Docker di server untuk membangun hasil agent. Pakai mode jawaban cepat, atau pasang Docker lalu nyalakan ulang server." }, 400);
         }
@@ -1144,7 +1149,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
 
       if (p === "/api/mine" && req.method === "POST") {
         // Hanya untuk Anvil: mempercepat masa kehamilan saat menjajal UI.
-        if (!IS_LOCAL) return json({ error: "blok Sepolia tidak bisa dimajukan" }, 400);
+        if (!TEST) return json({ error: "Endpoint uji. Jalankan server dengan TEST_ACCOUNTS=1." }, 400);
         await fetch(RPC, { method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "anvil_mine", params: ["0x6"] }) });
         return json({ ok: true, block: Number(await pub.getBlockNumber()) });

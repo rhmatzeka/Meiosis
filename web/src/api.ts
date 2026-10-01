@@ -13,7 +13,9 @@ export interface Status {
   block: number | null;
   runPriceEth: string;
   runReady: boolean;
+  /** Akun Anvil untuk uji otomatis; kosong di luar mode uji. */
   accounts: { name: string; address: string }[];
+  testMode: boolean;
   privyAppId: string | null;
   faucet: { enabled: boolean; amountEth: string };
   keeper: boolean;
