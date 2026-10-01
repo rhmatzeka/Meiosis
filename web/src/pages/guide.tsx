@@ -144,5 +144,5 @@ function Section({ id, title, action, children }: { id: string; title: string; a
   );
 }
 
-const Steps = ({ items }: { items: ReactNode[] }) => <ol className="guide-steps">{items.map((x, i) => <li key={i}>{x}</li>)}</ol>;
+const Steps = ({ items }: { items: ReactNode[] }) => <ol className="guide-steps">{items.map((x, i) => <li key={i}><span>{x}</span></li>)}</ol>;
 const Note = ({ children }: { children: ReactNode }) => <p className="guide-note">{children}</p>;

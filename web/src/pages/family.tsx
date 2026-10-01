@@ -86,8 +86,8 @@ export function FamilyPage() {
                   <path key={`${a.id}-${k}`}
                     d={`M${from.x} ${y1} C ${from.x} ${mid}, ${to.x} ${mid}, ${to.x} ${y2}`}
                     fill="none" stroke={k === 0 ? "var(--teal)" : "var(--pink)"}
-                    strokeWidth={on && sel ? 2 : 1.2} strokeLinecap="round"
-                    opacity={sel ? (on ? 0.95 : 0.06) : 0.3} />
+                    strokeWidth={on && sel ? 2.2 : 1.5} strokeLinecap="round"
+                    opacity={sel ? (on ? 0.95 : 0.08) : 0.6} />
                 );
               }))}
             </svg>

@@ -385,3 +385,9 @@ details.tech dd { margin: 0; font-family: var(--font-mono); word-break: break-al
   -webkit-background-clip: text; background-clip: text; color: transparent;
   user-select: none; transform: translateY(0.12em);
 }
+
+/* Daftar sifat tanpa kolom asal: dua kolom di layar lebar supaya tidak memanjang. */
+@media (min-width: 760px) {
+  .traits-cols { grid-template-columns: 1fr 1fr; column-gap: var(--s-6); }
+  .traits-cols > div:nth-last-child(2) { border-bottom: 0; }
+}

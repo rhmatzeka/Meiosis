@@ -74,8 +74,8 @@ export function TraitList({ agent, origin, names, all }: {
   agent: Agent; origin?: GeneOrigin[]; names?: { a: string; b: string }; all?: boolean;
 }) {
   return (
-    <div className="traits">
-      {LOCI.filter((l) => all || l.matters).map((l) => {
+    <div className={origin ? "traits" : "traits traits-cols"}>
+      {LOCI.filter((l) => l.values.length > 1 && (all || l.matters)).map((l) => {
         const g = origin?.[l.index];
         const tid = g?.trait ?? traitIdOf(agent, l.index);
         return (
