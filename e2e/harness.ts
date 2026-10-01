@@ -84,12 +84,14 @@ export async function installFakeWallet(page: Page, key: `0x${string}`) {
   await page.exposeFunction("__walletSend", async (tx: { to: string; data: string; value: string }) =>
     signer.sendTransaction({ to: tx.to as `0x${string}`, data: tx.data as `0x${string}`, value: BigInt(tx.value) }));
   await page.exposeFunction("__rpc", rpc);
+  await page.exposeFunction("__walletSign", (message: string) => account.signMessage({ message }));
   await page.addInitScript((addr: string) => {
     (window as unknown as { ethereum: unknown }).ethereum = {
       isMetaMask: true,
       on() {},
       async request({ method, params }: { method: string; params?: unknown[] }) {
-        const w = window as unknown as { __walletSend: (t: unknown) => Promise<string>; __rpc: (m: string, p?: unknown[]) => Promise<unknown> };
+        const w = window as unknown as { __walletSend: (t: unknown) => Promise<string>; __walletSign: (m: string) => Promise<string>; __rpc: (m: string, p?: unknown[]) => Promise<unknown> };
+        if (method === "personal_sign") return w.__walletSign((params as string[])[0]);
         if (method === "eth_requestAccounts" || method === "eth_accounts") return [addr];
         if (method === "eth_chainId") return "0x7a69";
         if (method === "wallet_switchEthereumChain") return null;

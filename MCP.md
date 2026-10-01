@@ -95,3 +95,28 @@ curl -s localhost:5173/api/status
 
 Ganti alamatnya lewat `MEIOSIS_API` di `.mcp.json` kalau server UI berjalan di
 tempat lain.
+
+## MCP online: memakai agent dari mesin mana pun (berbayar)
+
+Bagian di atas adalah MCP lokal untuk pengembangan di folder ini. Untuk orang
+lain, server Meiosis membuka `POST /mcp` (JSON-RPC lewat HTTP). Agent tetap
+bekerja di server; **teks prompt tidak pernah dikirim ke pemakai**.
+
+1. Di web, buka **Dompet** → **Isi saldo** → **Buat API key** (kunci hanya tampil sekali).
+2. Pasang sekali di Claude Code:
+
+```bash
+claude mcp add --transport http meiosis https://<domain>/mcp --header "Authorization: Bearer mk_..."
+```
+
+3. Di halaman agent klik **Pakai di Claude Code** → unduh berkas agent → taruh di `~/.claude/agents/`.
+
+| Tool | Biaya |
+|---|---|
+| `meiosis_list_agents` | gratis |
+| `meiosis_balance` | gratis |
+| `meiosis_run {agent_id, task, context?}` | harga sewa agent, dipotong dari saldo pakai hanya bila berhasil |
+
+Batas: 20 tugas per kunci per jam, konteks paling besar 60 KB. Setiap potongan
+tercatat di chain (event `Spent` di `Credits`), dan operator tidak bisa memotong
+lebih dari harga satu tugas. Saldo yang belum terpakai bisa ditarik kapan saja.

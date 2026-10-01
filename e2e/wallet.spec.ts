@@ -86,10 +86,12 @@ try {
 
   section("EKSPOR");
   await page.goto(`${BASE}/agent/${childId}`, { waitUntil: "networkidle" });
-  const [dl] = await Promise.all([page.waitForEvent("download"), page.click(".agent-side >> text=Bawa pulang (.md)")]);
-  const text = await (await fetch(`${BASE}/api/agents/${childId}/agent.md`)).text();
-  ok("berkas .md terunduh dengan nama baru", dl.suggestedFilename().startsWith(`meiosis-${childId}-penjaga-form`), dl.suggestedFilename());
-  ok("isinya subagent Claude Code", /^---\nname: meiosis-/.test(text) && text.includes("meiosis:prompt"));
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click(".agent-side >> text=Unduh .md lengkap")]);
+  const full = await (await dl.createReadStream()).toArray().then((c) => Buffer.concat(c).toString("utf8"));
+  ok("pemilik mengunduh .md lengkap (tanda tangan wallet)", dl.suggestedFilename().startsWith(`meiosis-${childId}-penjaga-form`) && full.includes("meiosis:prompt"), dl.suggestedFilename());
+  ok("berkas lengkap berlisensi atas nama pemiliknya", full.includes(`licensee: ${account.address}`));
+  const remote = await (await fetch(`${BASE}/api/agents/${childId}/agent.md`)).text();
+  ok(".md umum adalah remote, tanpa prompt", remote.includes("meiosis:remote") && !remote.includes("meiosis:prompt"));
 
   await page.screenshot({ path: process.env.SHOT ?? "/tmp/e2e-wallet.png", fullPage: true });
   ok("tanpa galat JavaScript", errors.length === 0, errors.join(" | "));

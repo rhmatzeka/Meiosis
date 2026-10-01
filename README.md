@@ -21,10 +21,12 @@ Agent bisa dipakai dengan tiga cara:
 1. **Di halaman Meiosis**: menu Beri tugas. Agent menulis kode, membangunnya di
    sandbox, memperbaiki sendiri, lalu diberi skor.
 2. **Dari Claude Code lewat MCP** — lihat [MCP.md](./MCP.md).
-3. **Dibawa pulang sebagai berkas `.md`**: tombol Bawa pulang mengunduh subagent
-   Claude Code siap pakai. Taruh di `.claude/agents/` proyek mana pun. Berkasnya
-   membawa genome dan manifestHash, jadi `bun run verify-agent <berkas>`
-   membuktikan isinya tidak diubah dari yang tercatat di chain.
+3. **Di Claude Code lewat berkas `.md`**. Untuk umum berkasnya "remote": tanpa
+   prompt, ia meneruskan tugas ke server Meiosis dan dibayar per tugas dari
+   saldo pakai. Pemilik agent bisa mengunduh `.md` lengkap yang berlisensi dan
+   ber-watermark; `bun run verify-agent <berkas>` memeriksa genome, manifestHash,
+   dan tanda tangan lisensinya, dan `bun run trace-leak <berkas>` melacak
+   pemegang lisensi dari berkas yang bocor.
 
 ## Status
 
@@ -36,6 +38,7 @@ Agent bisa dipakai dengan tiga cara:
 | P2 — runtime `expand()` + 12 modul skill | ✅ selesai |
 | P3 — sandbox, scorer, judge, arena | sebagian: pipa jalan, hybrid vigor belum terbukti |
 | P4 — web UI | ✅ React + **login Privy** (email/Google/wallet), alur kawin terpandu, faucet & penetasan otomatis, silsilah, arena, dompet, ekspor |
+| Perlindungan | ✅ prompt modul privat (hanya hash yang publik), **MCP online berbayar** + saldo pakai, `.md` remote untuk umum, `.md` lengkap berlisensi & ber-watermark untuk pemilik |
 | Marketplace | ✅ **Studio** (rancang agent, aturan di kontrak), **Pasar** jual-beli, **sewa per tugas** berbayar, Panduan untuk orang awam |
 | Royalti leluhur | ✅ `LineageRoyalty.sol` — sewa dan tarif kawin mengalir sampai 4 generasi |
 | P4 — orchestrator & indexer | belum |
@@ -87,6 +90,7 @@ mempercayai siapa pun.
 | `SkillRegistry.sol` | trait → modul skill, append-only; diisi otomatis saat deploy |
 | `Studio.sol` | rancang agent generasi nol: dominansi 1, otak ≤ seimbang, ≤ 2 bakat; biaya ke platform |
 | `Market.sol` | jual-beli & sewa per tugas; 2,5% platform, sisanya lewat royalti leluhur |
+| `Credits.sol` | saldo pakai untuk Claude Code; operator hanya bisa memotong sebesar harga satu tugas |
 
 ## Runtime
 

@@ -64,7 +64,7 @@ try {
   const preg = (await api<{ id: number; childId: number | null }[]>("/api/pregnancies?fresh=1")).find((p) => p.id === pid);
   const childId = preg?.childId ?? 0;
   ok("server memetakan kehamilan ke anaknya", childId > 0, `anak #${childId}`);
-  const [dl] = await Promise.all([page.waitForEvent("download"), page.click("text=Bawa pulang (.md)")]);
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click("text=Bawa pulang (.md lengkap)")]);
   const dir = mkdtempSync(join(tmpdir(), "meiosis-e2e-"));
   const file = join(dir, dl.suggestedFilename());
   await dl.saveAs(file);
@@ -79,6 +79,7 @@ try {
   const out = v.stdout.toString();
   ok("verify-agent menyatakan SAH", v.exitCode === 0 && out.includes("SAH"), out.split("\n").filter((l) => /✓|✗|⊘/.test(l)).length + " baris cek");
   ok("manifest tercatat di chain", !out.includes("belum dicatat"));
+  ok("berkas lengkap berlisensi dan ber-watermark", out.includes("ditandatangani operator Meiosis") && out.includes("watermark cocok"));
 
   section("BERI TUGAS (mode tiruan)");
   await page.goto(`${BASE}/tugas?id=${childId}`, { waitUntil: "networkidle" });

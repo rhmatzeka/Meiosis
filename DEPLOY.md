@@ -135,6 +135,30 @@ browser privat (tanpa MetaMask):
 6. Keluar lalu masuk lagi dengan akun yang sama: faucet tidak mengirim lagi,
    dan agent tadi tetap tercantum di Dompet.
 
+### Prompt privat (wajib di server)
+
+Teks prompt modul skill **tidak ada di repo**; yang publik hanya hash-nya di
+`runtime/skills/*/module.json`. Server membutuhkan berkas aslinya di
+`private/skills/<nama>/prompt.md`. Salin dari laptopmu:
+
+```bash
+scp -r private/ meiosis@<vps>:/opt/meiosis/private/
+```
+
+Tanpa folder itu server tetap menyala, tapi menolak menjalankan agent dan
+merakit `.md` lengkap, dengan pesan yang jelas. **Cadangkan `private/`** di
+tempat privat (mis. repo GitHub privat terpisah): kalau hilang, prompt harus
+ditulis ulang dan semua hash berubah.
+
+Mengubah sebuah prompt: sunting berkasnya, jalankan `bun run skills:hash --bump`
+lalu `bun run gen-golden`, commit `module.json` yang berubah, dan daftarkan
+versi barunya saat deploy.
+
+| Variabel `.env` | Guna |
+|---|---|
+| `PUBLIC_URL` | alamat publik server (mis. `https://meiosis.example.com`), dipakai di perintah `claude mcp add` |
+| `CREDITS_DEFAULT_PRICE_ETH` | harga satu tugas lewat Claude Code bila pemilik agent tidak memasang harga, bawaan `0.0005` |
+
 ### Di VPS, supaya orang lain bisa membuka
 
 Yang dibutuhkan: VPS Linux 2 vCPU / 4 GB, domain, dan Docker (untuk sandbox
