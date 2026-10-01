@@ -36,3 +36,38 @@ test("slug aman untuk nama berkas", () => {
   expect(agentSlug(7, "Pixel Sense!")).toBe("meiosis-7-pixel-sense");
   expect(agentSlug(9, "???")).toBe("meiosis-9-agent");
 });
+
+// ---------------------------------------------------------------- bagian B
+
+import { toRemoteAgent } from "./export";
+import { catalog } from "./genome/catalog";
+import { readWatermark, stripWatermark } from "./watermark";
+
+test("`.md` remote tidak memuat satu kalimat pun dari prompt modul", () => {
+  const md = toRemoteAgent(info(0), { mcpUrl: "https://meiosis.example/mcp" });
+  expect(md).not.toContain("meiosis:prompt");
+  for (const mod of catalog().values()) {
+    for (const line of mod.prompt.split("\n").map((l) => l.trim()).filter((l) => l.length > 25)) {
+      expect(md).not.toContain(line);
+    }
+  }
+});
+
+test("`.md` remote memanggil MCP Meiosis untuk agent yang benar", () => {
+  const md = toRemoteAgent(info(1), { mcpUrl: "https://meiosis.example/mcp" });
+  expect(md).toMatch(/^---\nname: meiosis-2-pixel-sense\n/);
+  expect(md).toContain("tools: mcp__meiosis__meiosis_run, Read, Write, Edit, Glob, Grep");
+  expect(md).toContain("model: haiku");
+  expect(md).toContain("agent_id: 2");
+  expect(md).toContain("claude mcp add --transport http meiosis https://meiosis.example/mcp");
+});
+
+needsPrompts("`.md` lengkap membawa lisensi dan watermark yang terbaca", () => {
+  const license = { licenseId: "LIC-00ab12cd", licensee: "0x00000000000000000000000000000000000000aa", issuedAt: "2026-10-01T10:00:00.000Z", signature: "0xsig" };
+  const md = toClaudeAgent(info(0), license);
+  const p = parseExport(md);
+  expect(p.license?.licenseId).toBe("LIC-00ab12cd");
+  expect(p.license?.licensee).toBe(license.licensee);
+  expect(readWatermark(md)).toBe("LIC-00ab12cd");
+  expect(stripWatermark(p.prompt)).toBe(systemPrompt(expand(FOUNDERS[0].genome, 0n)).trim());
+});

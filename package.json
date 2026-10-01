@@ -23,6 +23,7 @@
     "test": "bun test runtime/ web/ server/ packages/",
     "test:contracts": "forge test --root contracts",
     "test:sandbox": "bun run scripts/test-sandbox.ts",
+    "trace-leak": "bun run scripts/trace-leak.ts",
     "ui": "bun run server/api.ts",
     "ui:sepolia": "CHAIN=sepolia bun run server/api.ts",
     "verify": "bun run scripts/verify.ts",

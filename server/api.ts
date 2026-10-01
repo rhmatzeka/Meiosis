@@ -20,7 +20,11 @@ import { blockRanges } from "./ranges";
 import { checkRent, effectiveRentWei, type RentEvent } from "./rent";
 import { studioGenome, validateDesign, type Design } from "../packages/shared/src/studio";
 import { faucetDecision, faucetMessage, loadFaucetState, saveFaucetState, verifyPrivyToken } from "./faucet";
-import { toClaudeAgent, agentSlug } from "../runtime/export";
+import { toClaudeAgent, toRemoteAgent, licenseStatement, agentSlug } from "../runtime/export";
+import { promptsAvailable } from "../runtime/genome/catalog";
+import { KeyStore, checkSigned } from "./keys";
+import { handleMcp } from "./mcp-http";
+import { randomBytes } from "node:crypto";
 import { express, relatedness, LOCUS_NAMES, traitName, LOCUS_COUNT } from "../packages/shared/src/genome";
 import { FOUNDERS } from "../packages/shared/src/founders";
 import { expand, manifestHash } from "../runtime/genome/expand";
@@ -114,7 +118,24 @@ const abis = {
   royalty: artifact("LineageRoyalty").abi,
   studio: artifact("Studio").abi,
   market: artifact("Market").abi,
+  credits: artifact("Credits").abi,
 };
+
+/** API key Claude Code dan lisensi `.md` lengkap, disimpan per chain. */
+const keyStore = new KeyStore(`.runs/api-keys-${CHAIN}.json`);
+const LICENSES = `.runs/licenses-${CHAIN}.json`;
+const PUBLIC_URL = process.env.PUBLIC_URL?.replace(/\/+$/, "") || "";
+const originOf = (req: Request) => PUBLIC_URL || new URL(req.url).origin;
+
+/**
+ * Siapa yang meminta: di chain lokal akun demo boleh disebut langsung (`as`)
+ * karena kuncinya dipegang server; selain itu wajib pesan bertanda tangan wallet.
+ */
+async function provenAddress(b: { as?: string; address?: string; message?: string; signature?: string }, action: string) {
+  if (IS_LOCAL && b.as && wallets.some((w) => w.account.address.toLowerCase() === b.as!.toLowerCase())) return { ok: true as const, address: getAddress(b.as) };
+  const r = await checkSigned({ address: b.address ?? "", message: b.message ?? "", signature: b.signature ?? "", action });
+  return r.ok ? { ok: true as const, address: getAddress(b.address!) } : { ok: false as const, error: r.error };
+}
 
 /**
  * Mode publik: chain Sepolia, atau PUBLIC=1 untuk menguji perilakunya di Anvil.
@@ -376,6 +397,16 @@ async function buildTx(action: string, a: Record<string, unknown>, from?: string
     }
     case "withdraw": return call(d.royalty, abis.royalty, "withdraw", [], 0n, "tarik saldo royalti");
 
+    // ---- Saldo pakai (Claude Code)
+    case "deposit": {
+      if (!d.credits) throw new Error("Saldo pakai belum di-deploy di chain ini");
+      const v = eth("amountEth");
+      if (v === 0n) throw new Error("jumlah setoran nol");
+      return call(d.credits, abis.credits, "deposit", [], v, "isi saldo pakai");
+    }
+    case "withdrawCredits":
+      return call(d.credits!, abis.credits, "withdraw", [eth("amountEth")], 0n, "tarik saldo pakai");
+
     // ---- Studio & Pasar
     case "studioCreate": {
       if (!d.studio) throw new Error("Studio belum di-deploy di chain ini");
@@ -528,6 +559,7 @@ Bun.serve({
   routes: {
     "/api/*": (req, server) => handle(req, server),
     "/artifact/*": (req, server) => handle(req, server),
+    "/mcp": (req, server) => handle(req, server),
     // Semua rute lain milik aplikasi (SPA): /kawin/3, /agent/7, dst.
     "/*": USE_DIST ? serveDist : app,
   },
@@ -556,11 +588,66 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           keeper: !!operator,
           docker: DOCKER,
           secPerBlock: SEC_PER_BLOCK,
+          credits: dep?.credits ? { defaultPriceEth: formatEther((await read(dep.credits, abis.credits, "defaultPrice")) as bigint) } : null,
+          operatorAddress: operator?.account.address ?? null,
+          promptsAvailable: promptsAvailable(),
           market: dep?.market ? {
             feeBps: Number(await read(dep.market, abis.market, "feeBps")),
             studioFeeEth: dep.studio ? formatEther((await read(dep.studio, abis.studio, "fee")) as bigint) : null,
           } : null,
         });
+      }
+
+      if (p === "/mcp") {
+        if (!dep?.credits || !operator) return json({ error: "MCP online belum aktif: saldo pakai atau operator belum disiapkan" }, 503);
+        const d = dep, op = operator, credits = dep.credits;
+        return handleMcp(req, {
+          keys: keyStore,
+          allowMock: IS_LOCAL,
+          agents: async () => (await listAgents()).map((a) => ({ id: a.id, name: a.name, modules: a.modules.filter((m): m is string => !!m), generation: a.generation })),
+          priceOf: async (id) => (await read(credits, abis.credits, "maxPrice", [id])) as bigint,
+          balanceOf: async (addr) => (await read(credits, abis.credits, "balanceOf", [getAddress(addr)])) as bigint,
+          run: async (id, task, context, mock) => {
+            const env = { ...process.env, MOCK_LLM: mock ? "1" : "0" };
+            const provider = mock ? undefined : getProvider(env);
+            const genome = (await read(d.registry, abis.registry, "genomeOf", [id])) as bigint;
+            const agent = materialize(genome, 0n, { id, provider, env });
+            const r = await agent.run(context.trim() ? `${task}\n\n---\n\nKonteks dari proyek pemakai:\n${context}` : task);
+            return { output: r.output, model: r.model ?? "mock" };
+          },
+          charge: async (user, id, amount, job) => {
+            const r = await send(credits, abis.credits, op, "spend", [getAddress(user), id, amount, job]);
+            return r.transactionHash;
+          },
+        });
+      }
+
+      if (p === "/api/credits") {
+        const who = url.searchParams.get("address") ?? "";
+        if (!dep?.credits) return json({ enabled: false });
+        const [bal, price] = await Promise.all([
+          isAddress(who) ? read(dep.credits, abis.credits, "balanceOf", [getAddress(who)]) as Promise<bigint> : 0n,
+          read(dep.credits, abis.credits, "defaultPrice") as Promise<bigint>,
+        ]);
+        return json({ enabled: true, balanceEth: formatEther(bal), balanceWei: bal.toString(), defaultPriceEth: formatEther(price) });
+      }
+
+      if (p === "/api/keys" && req.method === "GET") {
+        const who = url.searchParams.get("address") ?? "";
+        return json(isAddress(who) ? keyStore.list(who) : []);
+      }
+      if (p === "/api/keys" && req.method === "POST") {
+        const b = (await req.json().catch(() => ({}))) as { as?: string; address?: string; message?: string; signature?: string; label?: string };
+        const who = await provenAddress(b, "buat API key");
+        if (!who.ok) return json({ error: who.error }, 401);
+        const { key, record } = keyStore.create(who.address, String(b.label ?? "Claude Code"));
+        return json({ key, prefix: record.prefix, mcpUrl: `${originOf(req)}/mcp` });
+      }
+      if (p === "/api/keys/revoke" && req.method === "POST") {
+        const b = (await req.json().catch(() => ({}))) as { as?: string; address?: string; message?: string; signature?: string; prefix?: string };
+        const who = await provenAddress(b, "cabut API key");
+        if (!who.ok) return json({ error: who.error }, 401);
+        return keyStore.revoke(who.address, String(b.prefix ?? "")) ? json({ ok: true }) : json({ error: "kunci tidak ditemukan" }, 404);
       }
 
       if (p === "/api/studio/preview") {
@@ -660,7 +747,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           signer = byAddr((await read(dep.registry, abis.registry, "ownerOf", [Number(args.id)])) as string);
         }
         // Tanpa pilihan lain: perkawinan dan penetasan oleh Alice, pembayaran oleh deployer sebagai pelanggan.
-        signer ??= ["breed", "hatch", "reroll", "studioCreate", "buy", "rent"].includes(action) ? wallets[1] : wallets[0];
+        signer ??= ["breed", "hatch", "reroll", "studioCreate", "buy", "rent", "deposit", "withdrawCredits"].includes(action) ? wallets[1] : wallets[0];
         try {
           const tx = await buildTx(action, args, signer.account.address);
           const hash = await signer.sendTransaction({ to: tx.to, data: tx.data as `0x${string}`, value: BigInt(tx.value) });
@@ -684,11 +771,12 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         return json({ pendingEth: formatEther(v), pendingWei: v.toString(), balanceEth: formatEther(bal), marketApproved: approved });
       }
 
-      // Ekspor: agent hasil perkawinan dibawa keluar sebagai subagent Claude Code.
+      // Ekspor. GET = `.md` remote untuk siapa saja (tanpa prompt).
+      // POST = `.md` lengkap untuk pemilik, bertanda tangan dan ber-watermark.
       const ex = p.match(/^\/api\/agents\/(\d+)\/(agent\.md|manifest\.json)$/);
       if (ex) {
         if (!dep) return json({ error: "belum di-deploy" }, 400);
-        const a = (await listAgents()).find((x) => x.id === Number(ex[1]));
+        const a = (await listAgents(req.method === "POST")).find((x) => x.id === Number(ex[1]));
         if (!a) return json({ error: "agent tidak ditemukan" }, 404);
         const genome = BigInt(a.genomeRaw);
         if (ex[2] === "manifest.json") {
@@ -699,15 +787,37 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
             },
           });
         }
-        const md = toClaudeAgent({
+        const info = {
           id: a.id, name: a.name, generation: a.generation, parents: a.parents, owner: a.owner,
           genome, manifestHashOnChain: a.manifestHashOnChain,
           chainId: dep.chainId, chainName: CHAIN, registry: dep.registry, explorer: EXPLORER,
-        });
+        };
+        if (req.method !== "POST") {
+          return new Response(toRemoteAgent(info, { mcpUrl: `${originOf(req)}/mcp` }), {
+            headers: {
+              "content-type": "text/markdown; charset=utf-8",
+              "content-disposition": `attachment; filename="${agentSlug(a.id, a.name)}.md"`,
+            },
+          });
+        }
+        const b = (await req.json().catch(() => ({}))) as { as?: string; address?: string; message?: string; signature?: string };
+        const who = await provenAddress(b, `unduh agent #${a.id}`);
+        if (!who.ok) return json({ error: who.error }, 401);
+        if (who.address.toLowerCase() !== a.owner.toLowerCase()) return json({ error: "Hanya pemilik agent ini yang bisa mengunduh .md lengkapnya." }, 403);
+        if (!promptsAvailable()) return json({ error: "Server ini tidak memegang prompt privat, jadi .md lengkap tidak bisa dirakit." }, 503);
+        if (!operator) return json({ error: "Lisensi butuh wallet operator untuk tanda tangan." }, 503);
+        const licenseId = "LIC-" + randomBytes(5).toString("hex");
+        const issuedAt = new Date().toISOString();
+        const signature = await operator.signMessage({ message: licenseStatement(a.id, who.address, licenseId, a.manifestHashComputed) });
+        const all = existsSync(LICENSES) ? (JSON.parse(readFileSync(LICENSES, "utf8")) as unknown[]) : [];
+        all.push({ licenseId, licensee: who.address, agentId: a.id, issuedAt, manifestHash: a.manifestHashComputed });
+        mkdirSync(".runs", { recursive: true });
+        writeFileSync(LICENSES, JSON.stringify(all, null, 2));
+        const md = toClaudeAgent(info, { licenseId, licensee: who.address, issuedAt, signature });
         return new Response(md, {
           headers: {
             "content-type": "text/markdown; charset=utf-8",
-            "content-disposition": `attachment; filename="${agentSlug(a.id, a.name)}.md"`,
+            "content-disposition": `attachment; filename="${agentSlug(a.id, a.name)}.lengkap.md"`,
           },
         });
       }

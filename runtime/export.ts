@@ -10,6 +10,7 @@
  * dibaca ulang dari chain, dirakit ulang, lalu dibandingkan byte per byte.
  */
 import { expand, manifestHash, systemPrompt, type ModelTier } from "./genome/expand";
+import { embedWatermark } from "./watermark";
 
 export interface ExportInfo {
   id: number;
@@ -50,7 +51,18 @@ const PROVENANCE_START = "<!-- meiosis:provenance";
 const PROMPT_START = "<!-- meiosis:prompt -->";
 const PROMPT_END = "<!-- /meiosis:prompt -->";
 
-export function toClaudeAgent(a: ExportInfo): string {
+/** Lisensi pemilik: siapa pemegangnya, kapan diterbitkan, dan tanda tangan operator. */
+export interface License { licenseId: string; licensee: string; issuedAt: string; signature: string }
+
+/** Kalimat yang ditandatangani operator untuk sebuah lisensi. */
+export const licenseStatement = (agentId: number, licensee: string, licenseId: string, manifestHashHex: string) =>
+  `Meiosis lisensi ${licenseId}: agent #${agentId} manifest ${manifestHashHex} untuk ${licensee}`;
+
+/**
+ * `.md` LENGKAP: berisi system prompt. Hanya untuk pemilik agent; dengan
+ * `license`, berkas diberi header lisensi dan watermark tak terlihat.
+ */
+export function toClaudeAgent(a: ExportInfo, license?: License): string {
   const m = expand(a.genome, 0n);
   const hash = "0x" + manifestHash(m).toString(16).padStart(16, "0");
   const modules = m.traits.filter((t) => t.module).map((t) => t.module!);
@@ -73,6 +85,10 @@ export function toClaudeAgent(a: ExportInfo): string {
     `manifestHashOnChain: ${a.manifestHashOnChain ?? "-"}`,
     `owner: ${a.owner}`,
     a.explorer ? `explorer: ${a.explorer}/nft/${a.registry}/${a.id}` : "",
+    license ? `licenseId: ${license.licenseId}` : "",
+    license ? `licensee: ${license.licensee}` : "",
+    license ? `issuedAt: ${license.issuedAt}` : "",
+    license ? `licenseSig: ${license.signature}` : "",
     "-->",
   ].filter(Boolean).join("\n");
 
@@ -87,7 +103,7 @@ export function toClaudeAgent(a: ExportInfo): string {
     provenance,
     "",
     PROMPT_START,
-    systemPrompt(m),
+    license ? embedWatermark(systemPrompt(m), license.licenseId) : systemPrompt(m),
     PROMPT_END,
     "",
     `Batasi dirimu sekitar ${m.params.maxSteps} langkah kerja. ` +
@@ -104,6 +120,7 @@ export interface ParsedExport {
   genome: bigint;
   manifestHash: string;
   prompt: string;
+  license: License | null;
 }
 
 /** Membaca kembali data asal-usul dari berkas hasil ekspor, untuk diverifikasi. */
@@ -123,5 +140,57 @@ export function parseExport(md: string): ParsedExport {
     genome: BigInt(get("genome")),
     manifestHash: get("manifestHash"),
     prompt: md.slice(p0 + PROMPT_START.length, p1).trim(),
+    license: /^licenseId: /m.test(block)
+      ? { licenseId: get("licenseId"), licensee: get("licensee"), issuedAt: get("issuedAt"), signature: get("licenseSig") }
+      : null,
   };
+}
+
+/**
+ * `.md` REMOTE: untuk siapa saja. Tidak memuat prompt apa pun. Agent ini hanya
+ * perantara: ia mengumpulkan konteks dari proyek, mengirim tugas ke Meiosis
+ * lewat MCP (dibayar dari saldo pakai pemilik API key), lalu menulis hasilnya.
+ */
+export function toRemoteAgent(a: ExportInfo, o: { mcpUrl: string }): string {
+  const m = expand(a.genome, 0n);
+  const modules = m.traits.filter((t) => t.module).map((t) => t.module!);
+  const lineage = a.parents[0] ? `anak dari #${a.parents[0]} × #${a.parents[1]}` : "generasi nol";
+  const description =
+    `Agent Meiosis #${a.id} "${a.name}" (${lineage}) yang bekerja di server Meiosis. ` +
+    `Sifat: ${modules.join(", ") || "tanpa modul"}. Serahkan tugas yang cocok dengan sifat itu ke agent ini.`;
+  return [
+    "---",
+    `name: ${agentSlug(a.id, a.name)}`,
+    `description: ${JSON.stringify(description)}`,
+    "tools: mcp__meiosis__meiosis_run, Read, Write, Edit, Glob, Grep",
+    "model: haiku",
+    "---",
+    "",
+    "<!-- meiosis:remote",
+    `agentId: ${a.id}`,
+    `chainId: ${a.chainId}`,
+    `registry: ${a.registry}`,
+    `genome: 0x${a.genome.toString(16).padStart(64, "0")}`,
+    "",
+    "Pemasangan sekali (butuh API key dari halaman Dompet di Meiosis):",
+    `  claude mcp add --transport http meiosis ${o.mcpUrl} --header "Authorization: Bearer mk_..."`,
+    "-->",
+    "",
+    `Kamu adalah perantara untuk agent Meiosis #${a.id} "${a.name}". Kamu TIDAK mengerjakan tugasnya sendiri;`,
+    "agent itu yang mengerjakan, di server Meiosis. Setiap tugas dibayar dari saldo pakai pemilik API key.",
+    "",
+    "Untuk setiap tugas:",
+    "1. Pahami permintaannya. Baca berkas proyek yang relevan (secukupnya, paling banyak sekitar 50 KB).",
+    "2. Panggil tool `mcp__meiosis__meiosis_run` dengan:",
+    `   - agent_id: ${a.id}`,
+    "   - task: permintaan lengkap dalam kalimat jelas, termasuk tujuan dan batasannya",
+    "   - context: isi berkas relevan, masing-masing diawali baris `// path/berkas`",
+    "3. Hasilnya berisi jawaban dan berkas (blok kode berlabel path). Tulis berkas itu ke proyek dengan Write/Edit,",
+    "   tanpa mengubah isinya, kecuali menyesuaikan path agar cocok dengan struktur proyek.",
+    "4. Laporkan singkat: berkas apa yang ditulis dan catatan penting dari agent.",
+    "",
+    "Bila tool `mcp__meiosis__meiosis_run` tidak tersedia, katakan bahwa MCP Meiosis belum dipasang dan tunjukkan",
+    "perintah pemasangan di atas. Bila saldo tidak cukup, sampaikan pesan dari Meiosis apa adanya.",
+    "",
+  ].join("\n");
 }
