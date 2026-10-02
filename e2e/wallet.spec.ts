@@ -12,8 +12,8 @@
  * Butuh Anvil dan server lokal yang sudah ter-deploy (`bun run start`).
  */
 import { formatEther } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { BASE, agents, api, finish, freePair, installFakeWallet, launch, ok, rpc, section, watchErrors } from "./harness";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { BASE, SEED_OWNER, agents, api, finish, freePair, installFakeWallet, launch, ok, rpc, section, seedAgents, signIn, watchErrors } from "./harness";
 
 const KEY = "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e"; // Anvil #6
 const account = privateKeyToAccount(KEY);
@@ -91,6 +91,39 @@ try {
   ok("berkas lengkap berlisensi atas nama pemiliknya", full.includes(`licensee: ${account.address}`));
   const remote = await (await fetch(`${BASE}/api/agents/${childId}/agent.md`)).text();
   ok(".md umum adalah remote, tanpa prompt", remote.includes("meiosis:remote") && !remote.includes("meiosis:prompt"));
+
+  section("KONFIRMASI BAYAR & CEK SALDO");
+  // Agent bibit diberi harga sewa, lalu wallet baru tanpa saldo mencoba menyewanya.
+  const [priced] = await seedAgents(1);
+  const set = await api<{ ok?: boolean; error?: string }>("/api/local-act", { action: "setRentPrice", args: { id: priced, priceEth: "0.0005" }, as: SEED_OWNER });
+  ok("agent diberi harga sewa", !!set.ok, set.error ?? "");
+  const poorKey = generatePrivateKey();
+  const poor = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
+  const poorErrors = watchErrors(poor);
+  const poorAcc = await installFakeWallet(poor, poorKey);
+  await poor.goto(BASE, { waitUntil: "networkidle" });
+  await signIn(poor);
+  await poor.goto(`${BASE}/tugas?id=${priced}`, { waitUntil: "networkidle" });
+  await poor.fill(".stage textarea", "Buat fungsi tambah");
+  await poor.click(".stage button.btn-primary");
+  await poor.waitForSelector(".modal", { timeout: 15_000 });
+  const sheet = await poor.innerText(".modal");
+  ok("lembar konfirmasi menyebut harga, biaya jaringan, dan saldo", /Harga/.test(sheet) && /Biaya jaringan/.test(sheet) && /Saldo/.test(sheet));
+  ok("saldo kurang: tombol Bayar diganti Isi saldo", sheet.includes("Kurang") && !(await poor.isVisible(".modal >> text=Bayar")) && await poor.isVisible(".modal >> text=Isi saldo"));
+  ok("tidak ada transaksi yang dikirim", Number(await rpc("eth_getTransactionCount", [poorAcc.address, "latest"])) === 0);
+  await poor.click(".modal >> text=Batal");
+
+  await rpc("anvil_setBalance", [poorAcc.address, "0xde0b6b3a7640000"]); // 1 ETH
+  await poor.click(".stage button.btn-primary");
+  await poor.waitForSelector(".modal >> text=Bayar", { timeout: 15_000 });
+  ok("dengan saldo cukup, ringkasan pembagian uang ditampilkan", (await poor.innerText(".modal")).includes("Pemilik agent menerima"));
+  await poor.click(".modal >> text=Bayar");
+  await poor.waitForSelector(".tx-progress", { timeout: 15_000 });
+  ok("progres transaksi tampil setelah tanda tangan", true);
+  await poor.waitForSelector("article.plate", { timeout: 60_000 });
+  ok("sewa dibayar dan tugas berjalan", Number(await rpc("eth_getTransactionCount", [poorAcc.address, "latest"])) === 1);
+  ok("tanpa galat JavaScript (wallet baru)", poorErrors.length === 0, poorErrors.join(" | "));
+  await poor.close();
 
   await page.screenshot({ path: process.env.SHOT ?? "/tmp/e2e-wallet.png", fullPage: true });
   ok("tanpa galat JavaScript", errors.length === 0, errors.join(" | "));

@@ -1018,7 +1018,16 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         if (from && action === "breed") track("kawin", `addr:${from.toLowerCase()}`);
         if (from && action === "setRentPrice" && Number(args?.priceEth ?? 0) > 0) track("pasang-harga", `addr:${from.toLowerCase()}`);
         try {
-          return json({ ...(await buildTx(action, args ?? {}, from)), chainId: dep.chainId });
+          const built = await buildTx(action, args ?? {}, from);
+          // Perkiraan biaya jaringan untuk lembar konfirmasi (+20% ruang). null bila estimasi gagal.
+          let feeWei: string | null = null;
+          if (from && isAddress(from)) {
+            try {
+              const gas = await pub.estimateGas({ account: getAddress(from), to: built.to as Address, data: built.data as `0x${string}`, value: BigInt(built.value) });
+              feeWei = ((gas * (await pub.getGasPrice()) * 12n) / 10n).toString();
+            } catch { /* misalnya saldo kurang: UI memakai perkiraan cadangan */ }
+          }
+          return json({ ...built, feeWei, chainId: dep.chainId });
         } catch (e) {
           return json({ error: (e as Error).message.slice(0, 300) }, 400);
         }
@@ -1060,7 +1069,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           pub.getBalance({ address: getAddress(who) }),
           dep.market ? read(dep.registry, abis.registry, "isApprovedForAll", [getAddress(who), dep.market]) as Promise<boolean> : false,
         ]);
-        return json({ pendingEth: formatEther(v), pendingWei: v.toString(), balanceEth: formatEther(bal), marketApproved: approved });
+        return json({ pendingEth: formatEther(v), pendingWei: v.toString(), balanceEth: formatEther(bal), balanceWei: bal.toString(), marketApproved: approved });
       }
 
       // Ekspor. GET = `.md` remote untuk siapa saja (tanpa prompt).

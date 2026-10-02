@@ -103,7 +103,7 @@ export function AgentPage({ id }: { id: number }) {
           <div className="plate stack">
             <h2 className="h-sub">Pakai agent ini</h2>
             {a.sale && !mine && (
-              <button className="btn btn-primary" disabled={!!actor.busy} onClick={() => actor.mode === "none" ? actor.login() : actor.act("buy", { id: a.id })}>
+              <button className="btn btn-primary" disabled={!!actor.busy} onClick={() => actor.mode === "none" ? actor.login() : actor.act("buy", { id: a.id }, { split: `Penjual menerima ${100 - (status?.market?.feeBps ?? 0) / 100}%, platform ${(status?.market?.feeBps ?? 0) / 100}%.` })}>
                 {actor.busy === "buy" ? <Spinner /> : null}Beli · {a.sale.priceEth} ETH
               </button>
             )}

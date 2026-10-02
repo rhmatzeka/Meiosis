@@ -31,6 +31,10 @@ try {
   await page.click(".wallet-credits >> text=Isi saldo");
   await page.fill(".modal input", "0.01");
   await page.click(".modal .btn-primary");
+  // Setoran memindahkan ETH, jadi lembar konfirmasi bayar muncul lebih dulu.
+  await page.waitForSelector(".modal >> text=Biaya jaringan", { timeout: 15_000 });
+  ok("setoran meminta konfirmasi bayar", true);
+  await page.click(".modal:has-text('Biaya jaringan') >> text=Bayar");
   await page.waitForSelector(".modal", { state: "detached", timeout: 30_000 });
   const c1 = await credits(account.address);
   ok("saldo pakai bertambah 0,01 ETH", c1 - c0 === 10n ** 16n);

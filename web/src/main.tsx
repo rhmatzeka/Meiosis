@@ -15,6 +15,7 @@ import { App } from "./app";
 import { ToastProvider } from "./components/toast";
 import { PlainActorProvider } from "./hooks/use-actor";
 import { DataProvider } from "./hooks/use-data";
+import { PayProvider } from "./components/pay-sheet";
 
 /**
  * App ID Privy dan chain datang dari server, bukan dari build: satu bundel
@@ -40,9 +41,11 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ToastProvider>
       <DataProvider initial={status}>
+        <PayProvider>
         <Auth>
           <App />
         </Auth>
+        </PayProvider>
       </DataProvider>
     </ToastProvider>
   </StrictMode>,

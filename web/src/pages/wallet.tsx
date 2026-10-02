@@ -10,6 +10,7 @@ import { ApiKeysCard, CreditsCard } from "../components/claude";
 import { Copy, Empty, Spinner } from "../components/ui";
 import { useActor } from "../hooks/use-actor";
 import { useData } from "../hooks/use-data";
+import { listPending, removePending, type PendingTx } from "../lib/pending";
 import { Link, useTitle } from "../router";
 
 interface Money { pendingEth: string; pendingWei: string; balanceEth: string }
@@ -60,6 +61,20 @@ export function WalletPage() {
           </div>
         )}
       </div>
+
+      <section className="plate stack wallet-fund" id="isi">
+        <h2 className="h-sub">Isi saldo</h2>
+        <p className="small muted">
+          Kirim ETH {status?.chain === "sepolia" ? "Sepolia (uji coba, tidak bernilai uang)" : "uji"} ke alamatmu di bawah.
+          Saldo dipakai untuk biaya jaringan dan untuk membayar agent yang memasang harga.
+        </p>
+        <Copy text={actor.address!} />
+        {status?.chain === "sepolia" && (
+          <p className="small">Faucet gratis: <a href="https://cloud.google.com/application/web3/faucet/ethereum/sepolia" target="_blank" rel="noreferrer noopener">Google Cloud</a> · <a href="https://sepolia-faucet.pk910.de" target="_blank" rel="noreferrer noopener">pk910</a></p>
+        )}
+      </section>
+
+      <PendingTxs />
 
       <div className="wallet-claude">
         <CreditsCard />
@@ -120,5 +135,36 @@ function Account({ address, label, compact }: { address: string; label: string; 
         {actor.busy === "withdraw" ? <Spinner /> : null}Tarik royalti
       </button>
     </div>
+  );
+}
+
+/** Transaksi yang ditandatangani di browser ini tapi belum terlihat selesai. Statusnya dicek ulang saat Dompet dibuka. */
+function PendingTxs() {
+  const { status } = useData();
+  const [items, setItems] = useState<(PendingTx & { state: "pending" | "success" | "reverted" })[]>([]);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const list = listPending();
+      const checked = await Promise.all(list.map(async (t) => {
+        const r = await get<{ status: string }>(`/api/receipt/${t.hash}`).catch(() => ({ status: "pending" }));
+        if (r.status !== "pending") removePending(t.hash);
+        return { ...t, state: r.status as "pending" | "success" | "reverted" };
+      }));
+      if (live) setItems(checked.filter((t) => t.state !== "success"));
+    })();
+    return () => { live = false; };
+  }, []);
+  if (!items.length) return null;
+  return (
+    <section className="plate stack">
+      <h2 className="h-sub">Transaksi berjalan</h2>
+      {items.map((t) => (
+        <div key={t.hash} className="spread small">
+          <span>{t.label} · {t.state === "reverted" ? <span className="text-bad">ditolak kontrak</span> : "masih menunggu jaringan"}</span>
+          {status?.explorer && <a href={`${status.explorer}/tx/${t.hash}`} target="_blank" rel="noreferrer noopener">Lihat di explorer</a>}
+        </div>
+      ))}
+    </section>
   );
 }

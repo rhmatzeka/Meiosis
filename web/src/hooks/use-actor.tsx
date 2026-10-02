@@ -13,6 +13,9 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { get, post, same } from "../api";
 import { useToast } from "../components/toast";
 import { humanError } from "../lib/errors";
+import { affordability } from "../lib/afford";
+import { addPending, removePending } from "../lib/pending";
+import { ethText, usePay } from "../components/pay-sheet";
 import { useData } from "./use-data";
 
 type Mode = "privy" | "injected" | "none";
@@ -28,7 +31,7 @@ export interface Actor {
   login: () => void;
   logout: () => Promise<void>;
   /** Mengirim satu aksi on-chain. null bila dibatalkan atau gagal (pesan sudah ditampilkan). */
-  act: (action: string, args?: Record<string, unknown>, opts?: { quietSuccess?: boolean; as?: string }) => Promise<{ hash: string } | null>;
+  act: (action: string, args?: Record<string, unknown>, opts?: { quietSuccess?: boolean; as?: string; split?: string }) => Promise<{ hash: string } | null>;
   /** Label aksi yang sedang berjalan, untuk menonaktifkan tombol. */
   busy: string | null;
   /** Hasil faucet terakhir untuk ditampilkan di Dompet. */
@@ -75,7 +78,7 @@ export const useActor = () => {
 };
 
 export interface Eip1193 { request(a: { method: string; params?: unknown[] }): Promise<unknown>; on?(e: string, f: (x: unknown) => void): void }
-export interface BuiltTx { to: string; data: string; value: string; label: string; chainId: number }
+export interface BuiltTx { to: string; data: string; value: string; label: string; chainId: number; feeWei?: string | null }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -95,6 +98,7 @@ async function waitReceipt(hash: string, secPerBlock: number) {
 export function useActCore(sign: ((tx: BuiltTx) => Promise<string>) | null, from: string | undefined, onNeedLogin: () => void) {
   const { status, agents, refresh } = useData();
   const toast = useToast();
+  const pay = usePay();
   const [busy, setBusy] = useState<string | null>(null);
 
   const act = useCallback<Actor["act"]>(async (action, args = {}, opts = {}) => {
@@ -104,27 +108,38 @@ export function useActCore(sign: ((tx: BuiltTx) => Promise<string>) | null, from
       block: status.block ?? 0, secPerBlock: status.secPerBlock,
     };
     setBusy(action);
+    let hash = "", label = action;
     try {
-      let hash: string;
-      if (sign && from) {
-        const tx = await post<BuiltTx>("/api/tx", { action, args, from });
-        hash = await sign(tx);
+      if (!sign || !from) { onNeedLogin(); return null; }
+      const tx = await post<BuiltTx>("/api/tx", { action, args, from });
+      label = tx.label;
+      // Konfirmasi dan cek saldo sebelum wallet diminta tanda tangan.
+      const valueWei = BigInt(tx.value), feeWei = tx.feeWei ? BigInt(tx.feeWei) : null;
+      const balanceWei = BigInt((await get<{ balanceWei?: string }>(`/api/royalty?address=${from}`).catch(() => ({ balanceWei: "0" }))).balanceWei ?? "0");
+      if (valueWei > 0n) {
+        if (!(await pay.confirm({ label: tx.label, valueWei, feeWei, balanceWei, split: opts.split }))) return null;
       } else {
-        onNeedLogin();
-        return null;
+        const can = affordability(balanceWei, 0n, feeWei);
+        if (!can.ok) { toast(`Saldo kurang ${ethText(can.shortWei)} untuk biaya jaringan. Isi saldo di Dompet, lalu coba lagi.`, "bad"); return null; }
       }
+      hash = await sign(tx);
+      addPending({ hash, label: tx.label, at: Date.now() });
+      pay.progress({ hash, label: tx.label, state: "wait" });
       await waitReceipt(hash, status.secPerBlock);
+      removePending(hash);
+      pay.progress({ hash, label: tx.label, state: "done" });
       await refresh(true);
       if (!opts.quietSuccess) toast("Beres.", "ok");
       return { hash };
     } catch (e) {
+      if (hash) { pay.progress({ hash, label, state: "bad" }); if (/ditolak kontrak/.test((e as Error).message)) removePending(hash); }
       const h = humanError(e, ctx);
       toast(h.message, h.quiet ? "info" : "bad");
       return null;
     } finally {
       setBusy(null);
     }
-  }, [status, agents, sign, from, refresh, toast, onNeedLogin]);
+  }, [status, agents, sign, from, refresh, toast, onNeedLogin, pay]);
 
   return { act, busy };
 }

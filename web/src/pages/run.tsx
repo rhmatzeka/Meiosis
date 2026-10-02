@@ -63,7 +63,8 @@ export function RunPage() {
       if (actor.mode === "none") { actor.login(); return; }
       for (const id of sel) {
         if (priceOf(id) === 0n) continue;
-        const r = await actor.act("rent", { id }, { quietSuccess: true });
+        const feePct = (status?.market?.feeBps ?? 0) / 100;
+        const r = await actor.act("rent", { id }, { quietSuccess: true, split: `Pemilik agent menerima ±${100 - feePct}% (sebagian diteruskan ke leluhurnya bila ada), platform ${feePct}%.` });
         if (!r) return;
         payments[id] = r.hash;
       }
