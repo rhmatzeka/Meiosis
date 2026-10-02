@@ -111,7 +111,7 @@ function Footer() {
         </div>
         <nav className="footer-links" aria-label="Tambahan">
           <div><Link to="/pasar">Pasar</Link><Link to="/studio">Studio</Link><Link to="/kawin">Kawinkan</Link></div>
-          <div><Link to="/panduan">Panduan</Link><Link to="/arena">Arena</Link><Link to="/dompet">Dompet</Link></div>
+          <div><Link to="/panduan">Panduan</Link><Link to="/dompet">Dompet</Link></div>
         </nav>
       </div>
       <div className="footer-giant" aria-hidden>Meiosis</div>
@@ -162,7 +162,7 @@ function AccountMenu() {
   }, [open]);
 
   const signedIn = actor.mode === "privy" || actor.mode === "injected";
-  if (!signedIn && actor.mode === "none") {
+  if (!signedIn) {
     if (actor.loginProblem) return <button className="btn btn-sm" disabled title={actor.loginProblem}>Login tidak tersedia</button>;
     return <button className="btn btn-primary btn-sm" onClick={actor.login} disabled={!actor.ready}>{actor.ready ? "Masuk" : <Spinner />}</button>;
   }
@@ -170,23 +170,17 @@ function AccountMenu() {
   return (
     <div className="account" ref={ref}>
       <button className="btn btn-sm btn-outline" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        {signedIn ? (actor.label ?? (actor.address ? short(actor.address) : "Akun")) : "Akun demo"}
+        {actor.label ?? (actor.address ? short(actor.address) : "Akun")}
       </button>
       {open && (
         <div className="account-pop" onClick={() => setOpen(false)}>
-          <div className="xs dim" style={{ padding: "4px 10px" }}>
-            {signedIn ? "Masuk sebagai" : "Belum masuk. Di chain lokal kamu bertindak sebagai"}
-          </div>
+          <div className="xs dim" style={{ padding: "4px 10px" }}>Masuk sebagai</div>
           <div style={{ padding: "0 10px 6px" }}>
             <div className="small">{actor.label ?? "Wallet"}</div>
             {actor.address && <Copy text={actor.address} label={short(actor.address)} />}
           </div>
           <Link to="/dompet">Dompet & agent milikku</Link>
-          {signedIn
-            ? <button className="item" onClick={() => actor.logout()}>Keluar</button>
-            : actor.loginProblem
-              ? <p className="xs muted" style={{ padding: "4px 10px" }}>{actor.loginProblem}</p>
-              : actor.canLogin && <button className="item" onClick={actor.login} disabled={!actor.ready}>Masuk dengan akunmu sendiri</button>}
+          <button className="item" onClick={() => actor.logout()}>Keluar</button>
         </div>
       )}
     </div>

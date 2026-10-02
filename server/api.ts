@@ -969,7 +969,8 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           payments?: Record<string, string>;
         };
         const { ids, task, mode, workdir, checkCommand, payments } = body;
-        const mock = TEST && !!body.mock;
+        // Mode uji selalu memakai LLM tiruan bila MOCK_LLM=1; di luar mode uji tidak pernah.
+        const mock = TEST && (!!body.mock || process.env.MOCK_LLM === "1");
         if (mode === "agent" && !mock && !DOCKER && !workdir) {
           return json({ error: "Mode kerja penuh butuh Docker di server untuk membangun hasil agent. Pakai mode jawaban cepat, atau pasang Docker lalu nyalakan ulang server." }, 400);
         }

@@ -5,21 +5,25 @@
  * proyek; isinya selalu data sungguhan dari chain — tanpa testimoni karangan.
  */
 import { useMemo, useRef, useState, type ReactNode } from "react";
-import { G0_SOLIDITY_SMITH, G1_PIXEL_SENSE } from "../../../packages/shared/src/founders";
-import { LOCUS, meiosis } from "../../../packages/shared/src/genome";
+import { meiosis } from "../../../packages/shared/src/genome";
+import { traitOdds } from "../../../packages/shared/src/inherit";
+import type { Profile } from "../../../packages/shared/src/profile";
+import { studioGenome } from "../../../packages/shared/src/studio";
 import type { Agent } from "../api";
 import { AgentCard, highlights } from "../components/agent";
 import { Cell, GenomeStrip, Legend } from "../components/ui";
 import { useData } from "../hooks/use-data";
-import { geneOrigin, inheritanceOdds } from "../lib/genetics";
-import { LOCI, traitLabel } from "../lib/traits";
+import { geneOrigin } from "../lib/genetics";
 import { MOTION_OK, ScrollTrigger, gsap, splitWords, useGSAP } from "../motion";
 import { Link, useTitle } from "../router";
 
-const EXAMPLE_CHILD = meiosis(G0_SOLIDITY_SMITH, G1_PIXEL_SENSE, 0x5eedn);
-const EXAMPLE_ORIGIN = geneOrigin(EXAMPLE_CHILD, G0_SOLIDITY_SMITH, G1_PIXEL_SENSE);
-const EXAMPLE_ODDS = inheritanceOdds(G0_SOLIDITY_SMITH, G1_PIXEL_SENSE);
-const ODDS_LOCI: number[] = [LOCUS.SECURITY_INSTINCT, LOCUS.STACK_AFFINITY, LOCUS.AESTHETIC, LOCUS.TEST_RIGOR];
+/** Contoh netral untuk pasar yang masih kosong; ditandai "contoh" di layar. */
+const EX_A = studioGenome([1, 1, 0, 0, 1, 2, 2, 1, 1, 3, 0, 0, 1, 1, 2, 0]);
+const EX_B = studioGenome([1, 2, 0, 0, 2, 1, 1, 1, 1, 3, 1, 2, 2, 2, 1, 0]);
+const EX_CHILD = meiosis(EX_A, EX_B, 0x5eedn);
+const tr = (pairs: [string, string][]) => pairs.map(([label, value]) => ({ label, value }));
+const EX_PA: Profile = { role: "Pembuat REST API", traits: tr([["Keahlian", "backend & API"], ["Stack & alat", "Laravel, MySQL"], ["Cara kerja", "selalu tulis tes"], ["Gaya bicara", "singkat"]]) };
+const EX_PB: Profile = { role: "Perancang aplikasi", traits: tr([["Keahlian", "desain antarmuka"], ["Stack & alat", "Flutter, Figma"], ["Gaya bicara", "santai"], ["Kepribadian", "berani eksperimen"]]) };
 
 const BUILT_ON = ["Ethereum", "Privy", "Claude", "Foundry", "OpenZeppelin", "Bun", "viem", "React"];
 
@@ -29,6 +33,15 @@ export function HomePage() {
   const root = useRef<HTMLDivElement>(null);
   const living = agents.length;
   const newest = useMemo(() => [...agents].sort((x, y) => y.id - x.id), [agents]);
+  // Dua agent terbaru sebagai contoh kawin; contoh netral bila pasar belum berisi dua agent.
+  const pair = useMemo(() => {
+    const [a, b] = newest;
+    if (a && b) {
+      const ga = BigInt(a.genome), gb = BigInt(b.genome), child = meiosis(ga, gb, 0x5eedn);
+      return { names: [a.name, b.name], odds: traitOdds(a.profile, b.profile, ga, gb), child, origin: geneOrigin(child, ga, gb), example: false };
+    }
+    return { names: ["Contoh A", "Contoh B"], odds: traitOdds(EX_PA, EX_PB, EX_A, EX_B), child: EX_CHILD, origin: geneOrigin(EX_CHILD, EX_A, EX_B), example: true };
+  }, [newest]);
 
   useGSAP(() => {
     const mm = gsap.matchMedia();
@@ -92,15 +105,17 @@ export function HomePage() {
         </p>
         <div className="hero-cta">
           <Link to="/studio" className="btn btn-primary btn-lg">Buat agent-mu <span className="arrow"><Arrow /></span></Link>
-          <div className="hero-proof">
-            <div className="cell-stack">
-              {newest.slice(0, 4).map((a) => <Cell key={a.id} genome={a.genome} size={34} alive={false} />)}
+          {living > 0 && (
+            <div className="hero-proof">
+              <div className="cell-stack">
+                {newest.slice(0, 4).map((a) => <Cell key={a.id} genome={a.genome} size={34} alive={false} />)}
+              </div>
+              <div>
+                <b>{living} agent</b>
+                <small>hidup di {status?.local ? "chain lokal" : "Sepolia"}</small>
+              </div>
             </div>
-            <div>
-              <b>{living} agent</b>
-              <small>hidup di {status?.local ? "chain lokal" : "Sepolia"}</small>
-            </div>
-          </div>
+          )}
         </div>
       </section>
 
@@ -119,15 +134,15 @@ export function HomePage() {
         <div className="bento">
           <article className="bento-card bento-odds" data-reveal>
             <h3>Peluang sebelum kawin</h3>
-            <p>Solidity Smith × Pixel Sense: mana sifat yang pasti turun.</p>
+            <p>{pair.names[0]} × {pair.names[1]}: sifat mana yang turun{pair.example ? " (contoh)" : ""}.</p>
             <div className="bento-panel odds">
-              {LOCI.filter((l) => ODDS_LOCI.includes(l.index)).map((l) => {
-                const top = EXAMPLE_ODDS[l.index].odds[0];
+              {pair.odds.slice(0, 4).map((o) => {
+                const fromA = o.pA >= 0.5, p = fromA ? o.pA : 1 - o.pA;
                 return (
-                  <div className="odds-row" key={l.index}>
-                    <span>{l.icon} {l.label} <b>{traitLabel(l.index, top.trait)}</b></span>
-                    <div className="track"><b style={{ width: `${top.p * 100}%` }} /></div>
-                    <span className="v">{top.p === 1 ? "pasti" : `${Math.round(top.p * 100)}%`}</span>
+                  <div className="odds-row" key={o.label}>
+                    <span>{o.label} <b>{fromA ? o.a : o.b}</b></span>
+                    <div className="track"><b style={{ width: `${p * 100}%` }} /></div>
+                    <span className="v">{p === 1 ? "pasti" : `${Math.round(p * 100)}%`}</span>
                   </div>
                 );
               })}
@@ -137,9 +152,9 @@ export function HomePage() {
             <h3>Anak lahir, asal-usulnya terlihat</h3>
             <p>Setiap garis menunjukkan dari induk mana sifat itu datang.</p>
             <div className="bento-panel birth">
-              <Cell genome={EXAMPLE_CHILD} size={96} />
-              <GenomeStrip origin={EXAMPLE_ORIGIN} large />
-              <Legend a="Solidity Smith" b="Pixel Sense" />
+              <Cell genome={pair.child} size={96} />
+              <GenomeStrip origin={pair.origin} large />
+              <Legend a={pair.names[0]} b={pair.names[1]} />
             </div>
           </article>
           <article className="bento-card bento-number" data-reveal>
@@ -226,9 +241,9 @@ export function HomePage() {
         </div>
         <div className="guides">
           {[
-            { to: "/panduan#studio", t: "Membuat agent pertamamu di Studio", d: "Ceritakan dengan kata-katamu, biarkan AI merancang, lalu sunting sesukamu.", g: G0_SOLIDITY_SMITH },
-            { to: "/panduan#jual", t: "Menjual dan menyewakan agent", d: "Pasang harga, beri izin sekali, dan tarik penghasilanmu di Dompet.", g: G1_PIXEL_SENSE },
-            { to: "/panduan#claude", t: "Memakai agent di Claude Code", d: "Jadikan agent Meiosis rekan kerja Claude di proyekmu sendiri.", g: EXAMPLE_CHILD },
+            { to: "/panduan#studio", t: "Membuat agent pertamamu di Studio", d: "Ceritakan dengan kata-katamu, biarkan AI merancang, lalu sunting sesukamu.", g: EX_A },
+            { to: "/panduan#jual", t: "Menjual dan menyewakan agent", d: "Pasang harga, beri izin sekali, dan tarik penghasilanmu di Dompet.", g: EX_B },
+            { to: "/panduan#claude", t: "Memakai agent di Claude Code", d: "Jadikan agent Meiosis rekan kerja Claude di proyekmu sendiri.", g: EX_CHILD },
           ].map((c) => (
             <Link to={c.to} className="guide-card" key={c.to} data-reveal>
               <div className="guide-art"><Cell genome={c.g} size={110} /></div>
@@ -326,7 +341,7 @@ function AgentCarousel({ agents }: { agents: Agent[] }) {
       <div className="quote" aria-live="polite">
         <p>“{intro(a)}”</p>
         <b>{a.name}</b>
-        <small>#{a.id} · {a.designed ? "rancangan Studio" : a.generation === 0 ? "founder" : `generasi ${a.generation}`} · {highlights(a, 3).map((h) => h.text).join(", ")}</small>
+        <small>#{a.id} · {a.designed ? "Dibuat di Studio" : `keturunan generasi ${a.generation}`} · {highlights(a, 3).map((h) => h.text).join(", ")}</small>
       </div>
       <div className="carousel-row">
         <button className="carousel-arrow" aria-label="Sebelumnya" onClick={() => go(i - 1)}>‹</button>

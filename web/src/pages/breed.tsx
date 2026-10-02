@@ -72,8 +72,7 @@ function Pick() {
 
   const cantLogin = actor.mode === "none" && !!actor.loginProblem;
   const blocked = !a || !b || !!cdA || !!cdB || sending || !!actor.busy || cantLogin;
-  const gasNote = actor.mode === "demo" ? "Akun demo, tanpa biaya."
-    : status?.faucet.enabled ? "Biaya jaringan ditanggung untuk transaksi pertamamu."
+  const gasNote = status?.faucet.enabled ? "Biaya jaringan ditanggung untuk transaksi pertamamu."
     : "Kamu membayar biaya jaringan yang kecil.";
 
   return (

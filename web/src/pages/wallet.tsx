@@ -41,17 +41,16 @@ export function WalletPage() {
 
   const mine = agents.filter((a) => same(a.owner, actor.address));
   const going = pregnancies.filter((p) => same(p.to, actor.address) && !p.hatched).sort((x, y) => y.id - x.id);
-  const demo = actor.mode === "demo";
 
   return (
     <div className="stack-lg">
       <div className="page-head">
         <h1 className="h-page">Dompet</h1>
-        <p>{demo ? "Kamu belum masuk. Di chain lokal kamu bertindak sebagai Alice, salah satu akun demo." : "Agent, saldo, dan penghasilanmu. Penghasilan datang dari penjualan, sewa, tarif kawin, dan bagian leluhur."}</p>
+        <p>Agent, saldo, dan penghasilanmu. Penghasilan datang dari penjualan, sewa, tarif kawin, dan bagian leluhur.</p>
       </div>
 
       <div className="wallet-top">
-        <Account address={actor.address!} label={actor.label ?? "Wallet-mu"} as={demo ? actor.address : undefined} />
+        <Account address={actor.address!} label={actor.label ?? "Wallet-mu"} />
         {actor.funding && (
           <div className={`banner ${actor.funding.ok ? "banner-info" : ""}`} style={{ width: "100%", margin: 0 }}>
             <div>
@@ -97,25 +96,14 @@ export function WalletPage() {
             </div>}>Buat agent di Studio, beli di Pasar, atau kawinkan dua agent.</Empty>}
       </section>
 
-      {demo && status && (
-        <section className="stack">
-          <h2 className="h-section">Akun demo lain</h2>
-          <p className="small muted">Setiap bayaran ke sebuah agent, sewa atau tarif kawin, mengalir 5% ke pemilik induknya, 2,5% ke kakek-neneknya, dan seterusnya sampai empat generasi.</p>
-          <div className="wallet-accounts">
-            {status.accounts.filter((x) => !same(x.address, actor.address)).map((x) => (
-              <Account key={x.address} address={x.address} label={x.name} as={x.address} compact />
-            ))}
           </div>
-        </section>
-      )}
-    </div>
   );
 }
 
-function Account({ address, label, as, compact }: { address: string; label: string; as?: string; compact?: boolean }) {
+function Account({ address, label, compact }: { address: string; label: string; compact?: boolean }) {
   const actor = useActor();
   const m = useMoney(address);
-  const can = Number(m?.pendingWei ?? 0) > 0 && (!!as || actor.mode === "privy" || actor.mode === "injected");
+  const can = Number(m?.pendingWei ?? 0) > 0 && (actor.mode === "privy" || actor.mode === "injected");
   return (
     <div className={`plate stack ${compact ? "" : "wallet-main"}`}>
       <div className="spread">
@@ -128,7 +116,7 @@ function Account({ address, label, as, compact }: { address: string; label: stri
         <div><dt>Saldo</dt><dd>{m ? `${Number(m.balanceEth).toLocaleString("id-ID", { maximumFractionDigits: 4 })} ETH` : "…"}</dd></div>
         <div><dt>Penghasilan siap ditarik</dt><dd>{m ? `${m.pendingEth} ETH` : "…"}</dd></div>
       </dl>
-      <button className="btn btn-sm" disabled={!can || !!actor.busy} onClick={() => actor.act("withdraw", {}, { as })}>
+      <button className="btn btn-sm" disabled={!can || !!actor.busy} onClick={() => actor.act("withdraw", {})}>
         {actor.busy === "withdraw" ? <Spinner /> : null}Tarik royalti
       </button>
     </div>

@@ -97,10 +97,8 @@ export function operatorWallet() {
 /** Perkiraan detik per blok, untuk hitung mundur di UI. */
 export const SEC_PER_BLOCK = IS_LOCAL ? 2 : 12;
 
-export const ownerName = (addr: string) => {
-  const i = wallets.findIndex((w) => w.account.address.toLowerCase() === addr.toLowerCase());
-  return i >= 0 ? ACCOUNTS[i].name : `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-};
+/** Alamat pendek untuk ditampilkan. Akun Anvil tidak lagi diberi nama demo. */
+export const ownerName = (addr: string) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 
 export const artifact = (n: string) =>
   JSON.parse(readFileSync(`contracts/out/${n}.sol/${n}.json`, "utf8")) as { abi: Abi; bytecode: { object: `0x${string}` } };

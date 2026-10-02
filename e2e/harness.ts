@@ -137,8 +137,7 @@ export async function installFakeWallet(page: Page, key: `0x${string}`) {
 
 /** Masuk dengan wallet tiruan lewat menu akun. */
 export async function signIn(page: Page) {
-  await page.goto(BASE, { waitUntil: "networkidle" });
-  await page.click(".account > button");
-  await page.click("text=Masuk dengan akunmu sendiri");
+  if (!page.url().startsWith(BASE)) await page.goto(BASE, { waitUntil: "networkidle" });
+  await page.click(".header button:has-text('Masuk')");
   await page.waitForFunction(() => /0x[0-9a-f]{4}/i.test(document.querySelector(".account > button")?.textContent ?? ""));
 }

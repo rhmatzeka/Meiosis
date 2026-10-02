@@ -41,7 +41,6 @@ export function RunPage() {
   const [sel, setSel] = useState<number[]>(() => (query.get("id") ? [Number(query.get("id"))] : []));
   const [task, setTask] = useState("");
   const [full, setFull] = useState(!!status?.docker);
-  const [mock, setMock] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -51,8 +50,7 @@ export function RunPage() {
   useEffect(() => () => clearTimeout(poll.current), []);
 
   const toggle = (a: Agent) => setSel((s) => (s.includes(a.id) ? s.filter((x) => x !== a.id) : [...s, a.id]));
-  // Harga sewa per agent; di mode tiruan tidak ada yang dibayar.
-  const priceOf = (id: number) => (mock ? 0n : BigInt(byId(id)?.rent.priceWei ?? "0"));
+  const priceOf = (id: number) => BigInt(byId(id)?.rent.priceWei ?? "0");
   const total = sel.reduce((s, id) => s + priceOf(id), 0n);
   const limit = status?.public ? 3 : 8;
 
@@ -71,7 +69,7 @@ export function RunPage() {
     }
     setRunning(true);
     try {
-      const { jobId } = await post<{ jobId: string }>("/api/run", { ids: sel, task: task.trim(), mode: full ? "agent" : "single", mock, payments });
+      const { jobId } = await post<{ jobId: string }>("/api/run", { ids: sel, task: task.trim(), mode: full ? "agent" : "single", payments });
       const tick = async () => {
         try {
           const j = await get<Job>(`/api/job/${jobId}`);
@@ -126,10 +124,6 @@ export function RunPage() {
           <label className="check">
             <input type="checkbox" checked={full} disabled={!status?.docker} onChange={(e) => setFull(e.target.checked)} />
             <span><b>Kerja penuh</b>: agent memakai tool, membangun hasilnya di sandbox, dan memperbaiki sendiri (maks. 10 langkah)</span>
-          </label>
-          <label className="check">
-            <input type="checkbox" checked={mock} onChange={(e) => setMock(e.target.checked)} />
-            <span>Mode tiruan (tanpa memakai kuota model, untuk mencoba alurnya)</span>
           </label>
         </div>
         <div className="row">
@@ -189,7 +183,7 @@ function ResultView({ r }: { r: Result }) {
     <article className="plate stack">
       <div className="spread">
         <h3><Link to={`/agent/${r.id}`}>{name}</Link></h3>
-        <span className="small muted">{r.model ?? "—"} · {tokens}{r.mocked ? " · tiruan" : ""}</span>
+        <span className="small muted">{r.model ?? "—"} · {tokens}{r.mocked ? " · uji" : ""}</span>
       </div>
       {r.loop && (
         <>

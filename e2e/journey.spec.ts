@@ -10,12 +10,15 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BASE, agents, api, block, finish, freePair, launch, ok, section, watchErrors } from "./harness";
+import { BASE, agents, api, block, finish, freePair, installFakeWallet, launch, ok, section, signIn, watchErrors } from "./harness";
+
+const KEY = "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"; // Anvil #5
 
 const browser = await launch();
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
   const errors = watchErrors(page);
+  await installFakeWallet(page, KEY);
 
   section("BERANDA");
   const res = await page.goto(BASE, { waitUntil: "networkidle" });
@@ -23,7 +26,10 @@ try {
   ok("judul menjelaskan dalam satu kalimat", (await page.textContent("h1"))?.includes("lahir dari perkawinan") ?? false);
   ok("tombol utama ada", await page.isVisible("text=Buat agent-mu"));
   ok("tiga cara pakai dijelaskan", (await page.innerText("main")).includes("tiga langkah"));
-  ok("mode demo terlihat di header", (await page.textContent(".header"))?.includes("Akun demo") ?? false);
+  ok("tombol Masuk di header saat belum masuk", await page.isVisible(".header button:has-text('Masuk')"));
+  ok("tidak ada akun demo di header", !/demo/i.test((await page.textContent(".header")) ?? ""));
+  await signIn(page);
+  ok("masuk dengan wallet, alamat tampil di header", true);
 
   section("TANPA AGENT BAWAAN");
   ok("tidak ada founder/agent bawaan di chain", (await agents()).every((a) => a.generation > 0 || (a as unknown as { designed: boolean }).designed));
@@ -67,27 +73,25 @@ try {
   const preg = (await api<{ id: number; childId: number | null }[]>("/api/pregnancies?fresh=1")).find((p) => p.id === pid);
   const childId = preg?.childId ?? 0;
   ok("server memetakan kehamilan ke anaknya", childId > 0, `anak #${childId}`);
-  const [dl] = await Promise.all([page.waitForEvent("download"), page.click("text=Bawa pulang (.md lengkap)")]);
+  // Pemilik mencatat manifest anaknya sendiri, lalu mengunduh .md lengkap dari halaman agent.
+  await page.goto(`${BASE}/agent/${childId}`, { waitUntil: "networkidle" });
+  await page.click("text=Catat manifest ke chain");
+  await page.waitForSelector("text=Catat manifest ke chain", { state: "detached", timeout: 30_000 });
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click("text=Unduh .md lengkap")]);
   const dir = mkdtempSync(join(tmpdir(), "meiosis-e2e-"));
   const file = join(dir, dl.suggestedFilename());
   await dl.saveAs(file);
   ok("berkas .md terunduh", /^meiosis-\d+-.+\.md$/.test(dl.suggestedFilename()), dl.suggestedFilename());
-  // Keeper mencatat manifest anak akun demo; beri waktu satu-dua blok.
-  for (let i = 0; i < 20; i++) {
-    const c = (await agents()).find((a) => a.id === childId);
-    if (c && c.manifestHashOnChain === c.manifestHashComputed) break;
-    await Bun.sleep(1000);
-  }
   const v = Bun.spawnSync(["bun", "run", "scripts/verify-agent.ts", file], { stdout: "pipe", stderr: "pipe" });
   const out = v.stdout.toString();
   ok("verify-agent menyatakan SAH", v.exitCode === 0 && out.includes("SAH"), out.split("\n").filter((l) => /✓|✗|⊘/.test(l)).length + " baris cek");
   ok("manifest tercatat di chain", !out.includes("belum dicatat"));
   ok("berkas lengkap berlisensi dan ber-watermark", out.includes("ditandatangani operator Meiosis") && out.includes("watermark cocok"));
 
-  section("BERI TUGAS (mode tiruan)");
+  section("BERI TUGAS (LLM tiruan di mode uji)");
   await page.goto(`${BASE}/tugas?id=${childId}`, { waitUntil: "networkidle" });
+  ok("tidak ada pilihan mode tiruan untuk pengguna", !(await page.isVisible("text=Mode tiruan")));
   await page.click("text=Komponen form");
-  await page.click("text=Mode tiruan");
   await page.click(".stage button.btn-primary");
   await page.waitForSelector("article.plate", { timeout: 30_000 });
   ok("hasil tugas tampil", (await page.innerText("article.plate")).includes("[MOCK]"));
@@ -125,6 +129,15 @@ try {
   ok("isi yang digulir ikut muncul", hidden <= 2, `${hidden} masih tersembunyi`);
   ok("GSAP tanpa galat", movingErrors.length === 0, movingErrors.join(" | "));
   await moving.close();
+
+  section("TANPA JEJAK DEMO (belum masuk)");
+  const anon = await browser.newPage();
+  for (const path of ["/", "/pasar", "/studio", "/kawin", "/tugas", "/silsilah", "/dompet", "/panduan"]) {
+    await anon.goto(BASE + path, { waitUntil: "networkidle" });
+    const body = await anon.innerText("body");
+    ok(`tanpa kata demo/founder: ${path}`, !/\bdemo\b|Alice|\bBob\b|Carol|tiruan|founder/i.test(body), body.match(/.{0,30}(\bdemo\b|Alice|\bBob\b|Carol|tiruan|founder).{0,30}/i)?.[0] ?? "");
+  }
+  await anon.close();
 
   section("PONSEL 375 px");
   const phone = await browser.newPage({ viewport: { width: 375, height: 812 } });

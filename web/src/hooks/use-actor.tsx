@@ -3,8 +3,7 @@
  *
  *   privy     masuk lewat Privy (email/Google → embedded wallet, atau wallet eksternal)
  *   injected  tanpa Privy App ID, memakai window.ethereum (MetaMask dsb.)
- *   demo      chain lokal, belum masuk: server menandatangani dengan akun demo Anvil
- *   none      chain publik, belum masuk
+ *   none      belum masuk: setiap aksi meminta masuk dulu
  *
  * Halaman tidak peduli mode mana yang aktif: semuanya memanggil `act()`.
  * Server menyusun calldata (/api/tx), wallet menandatangani, dan receipt
@@ -16,12 +15,12 @@ import { useToast } from "../components/toast";
 import { humanError } from "../lib/errors";
 import { useData } from "./use-data";
 
-type Mode = "privy" | "injected" | "demo" | "none";
+type Mode = "privy" | "injected" | "none";
 
 export interface Actor {
   mode: Mode;
   address?: string;
-  /** Nama untuk ditampilkan: "Alice (akun demo)", alamat pendek, atau email. */
+  /** Nama untuk ditampilkan: email, atau kosong (UI memakai alamat pendek). */
   label?: string;
   ready: boolean;
   /** Privy atau wallet injected tersedia untuk masuk. */
@@ -36,17 +35,13 @@ export interface Actor {
   funding: { ok: boolean; message: string } | null;
   /** Alasan login tidak bisa dipakai (mis. App ID Privy salah), atau null. */
   loginProblem: string | null;
-  /**
-   * Menandatangani pesan dengan wallet pengguna (personal_sign). null bila
-   * tidak ada wallet — di chain lokal akun demo dibuktikan lewat `as`.
-   */
+  /** Menandatangani pesan dengan wallet pengguna (personal_sign). null bila belum masuk. */
   sign: ((message: string) => Promise<string>) | null;
 }
 
-/** Bukti siapa peminta untuk endpoint server: tanda tangan wallet, atau akun demo di chain lokal. */
+/** Bukti siapa peminta untuk endpoint server: tanda tangan wallet pengguna. */
 export async function proofFor(actor: Actor, action: string): Promise<Record<string, string>> {
-  if (!actor.address) throw new Error("Masuk dulu.");
-  if (actor.mode === "demo" || !actor.sign) return { as: actor.address };
+  if (!actor.address || !actor.sign) throw new Error("Masuk dulu.");
   const { getAddress } = await import("viem");
   const message = `Meiosis: ${action} untuk ${getAddress(actor.address)} pada ${new Date().toISOString()}`;
   return { address: actor.address, message, signature: await actor.sign(message) };
@@ -94,9 +89,6 @@ export function useActCore(sign: ((tx: BuiltTx) => Promise<string>) | null, from
       if (sign && from) {
         const tx = await post<BuiltTx>("/api/tx", { action, args, from });
         hash = await sign(tx);
-      } else if (status.local) {
-        const r = await post<{ hash: string }>("/api/local-act", { action, args, as: opts.as });
-        hash = r.hash;
       } else {
         onNeedLogin();
         return null;
@@ -117,7 +109,7 @@ export function useActCore(sign: ((tx: BuiltTx) => Promise<string>) | null, from
   return { act, busy };
 }
 
-// --- tanpa Privy: wallet injected atau akun demo ------------------------------
+// --- tanpa Privy: wallet injected --------------------------------------------
 
 const eth = () => (window as unknown as { ethereum?: Eip1193 }).ethereum;
 const REMEMBER = "meiosis:wallet";
@@ -133,7 +125,7 @@ export function PlainActorProvider({ children, pending = false }: { children: Re
 
   // Wallet yang pernah dihubungkan disambung lagi tanpa jendela izin (eth_accounts
   // tidak memunculkan dialog). Tanpa ini, memuat ulang halaman diam-diam
-  // mengembalikan pengguna ke akun demo.
+  // mengeluarkan pengguna.
   useEffect(() => {
     const p = eth();
     if (!p) return;
@@ -179,19 +171,17 @@ export function PlainActorProvider({ children, pending = false }: { children: Re
   const { act, busy } = useActCore(address ? sign : null, address, login);
 
   const value: Actor = {
-    mode: address ? "injected" : status?.local ? "demo" : "none",
-    address: address ?? demoAddress(status),
-    label: address ? undefined : status?.local ? "Alice (akun demo)" : undefined,
+    mode: address ? "injected" : "none",
+    address,
+    label: undefined,
     ready: !!status && !pending,
     canLogin: !pending && !!eth(),
     login,
     logout: async () => { setAddress(undefined); try { localStorage.removeItem(REMEMBER); } catch { /* penyimpanan diblokir */ } },
     act, busy, funding: null,
     sign: address ? (async (message: string) => (await eth()!.request({ method: "personal_sign", params: [message, address] })) as string) : null,
-    loginProblem: pending || !status || eth() || status.local ? null : "Login belum diaktifkan di server ini (PRIVY_APP_ID kosong) dan browser ini tidak punya wallet.",
+    loginProblem: pending || !status || eth() ? null : "Login belum diaktifkan di server ini (PRIVY_APP_ID kosong) dan browser ini tidak punya wallet.",
   };
   return <ActorCtx.Provider value={value}>{children}</ActorCtx.Provider>;
 }
 
-/** Di chain lokal tanpa login, "aku" adalah Alice — akun yang dipakai /api/local-act untuk kawin. */
-export const demoAddress = (s: ReturnType<typeof useData>["status"]) => (s?.local ? s.accounts[1]?.address : undefined);

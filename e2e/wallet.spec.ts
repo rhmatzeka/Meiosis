@@ -27,8 +27,7 @@ try {
 
   section("MASUK DENGAN WALLET");
   await page.goto(BASE, { waitUntil: "networkidle" });
-  await page.click(".account > button");
-  await page.click("text=Masuk dengan akunmu sendiri");
+  await page.click(".header button:has-text('Masuk')");
   const short = account.address.slice(0, 6);
   await page.waitForFunction((s) => document.querySelector(".account > button")?.textContent?.includes(s), short);
   ok("alamat wallet tampil di header", true, short);

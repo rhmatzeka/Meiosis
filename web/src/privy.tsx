@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import type { Chain } from "viem";
 import { same } from "./api";
 import { useToast } from "./components/toast";
-import { ActorCtx, demoAddress, useActCore, type Actor, type BuiltTx, type Eip1193 } from "./hooks/use-actor";
+import { ActorCtx, useActCore, type Actor, type BuiltTx, type Eip1193 } from "./hooks/use-actor";
 import { useData } from "./hooks/use-data";
 
 export function PrivyAuth({ appId, chain, children }: { appId: string; chain: Chain; children: ReactNode }) {
@@ -97,9 +97,9 @@ export function PrivyActorProvider({ children }: { children: ReactNode }) {
 
   const email = user?.email?.address ?? user?.google?.email;
   const value: Actor = {
-    mode: authenticated && address ? "privy" : status?.local ? "demo" : "none",
-    address: authenticated ? address : demoAddress(status),
-    label: authenticated ? (email ?? undefined) : status?.local ? "Alice (akun demo)" : undefined,
+    mode: authenticated && address ? "privy" : "none",
+    address: authenticated ? address : undefined,
+    label: authenticated ? (email ?? undefined) : undefined,
     ready: ready && !!status,
     canLogin: true,
     login,
