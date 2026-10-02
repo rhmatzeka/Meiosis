@@ -415,3 +415,20 @@ details.tech dd { margin: 0; font-family: var(--font-mono); word-break: break-al
 .tx-progress.tx-done { border-color: color-mix(in srgb, var(--teal) 50%, transparent); }
 .tx-progress.tx-bad { border-color: color-mix(in srgb, var(--danger) 50%, transparent); }
 @media (max-width: 900px) { .tx-progress { bottom: 84px; } }
+
+/* ---------- langkah pertama ---------- */
+.first-steps { display: grid; gap: var(--s-3); padding: var(--s-5); }
+.first-steps ol { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-3); grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.first-steps li { display: flex; gap: 10px; align-items: flex-start; color: var(--dim); }
+.first-steps li.done { color: var(--muted); }
+.first-steps li.now { color: var(--ink); }
+.first-n {
+  flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  border: 1px solid var(--line-strong); font: 600 var(--t-xs) var(--font-body);
+}
+.first-steps li.done .first-n { border-color: color-mix(in srgb, var(--teal) 60%, transparent); color: var(--teal); }
+.first-steps li.now .first-n { background: var(--accent); border-color: var(--accent); color: #fff; }
+.first-steps b { font-size: var(--t-sm); }
+.first-steps p { margin: 4px 0 0; }
+.first-action { margin-top: 8px; }
+@media (max-width: 900px) { .first-steps ol { grid-template-columns: 1fr; } }

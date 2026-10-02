@@ -70,7 +70,16 @@ function Pick() {
   };
 
   if (loading) return <div className="skeleton" style={{ height: 420 }} />;
-  if (!agents.length) return <Empty title="Belum ada agent">Pasang kontrak dulu lewat banner di atas.</Empty>;
+  const pickable = agents.filter((x) => x.stud.listed || same(x.owner, actor.address));
+  if (pickable.length < 2) {
+    return (
+      <Empty title="Butuh dua agent untuk dikawinkan" action={<div className="row" style={{ justifyContent: "center" }}>
+        <Link to="/studio" className="btn btn-primary">Buat agent</Link><Link to="/pasar" className="btn">Lihat pasar</Link>
+      </div>}>
+        Induk bisa agent milikmu sendiri, atau agent orang lain yang dibuka pemiliknya untuk kawin. Saat ini baru ada {pickable.length} yang bisa dipilih.
+      </Empty>
+    );
+  }
 
   const cantLogin = actor.mode === "none" && !!actor.loginProblem;
   const blocked = !a || !b || !!cdA || !!cdB || sending || !!actor.busy || cantLogin;

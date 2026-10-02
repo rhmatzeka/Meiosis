@@ -2,6 +2,7 @@
  * Beri tugas ke satu atau beberapa agent sekaligus. Dengan tugas yang persis
  * sama, satu-satunya yang berbeda di antara hasil mereka adalah genome-nya.
  */
+import { markTaskRun } from "../lib/onboarding";
 import { useEffect, useRef, useState } from "react";
 import { formatEther } from "viem";
 import { get, post, type Agent } from "../api";
@@ -76,6 +77,7 @@ export function RunPage() {
         try {
           const j = await get<Job>(`/api/job/${jobId}`);
           setJob(j);
+          if (j.status === "done" && j.results.some((r) => r.ok)) markTaskRun();
           if (j.status === "running") { poll.current = setTimeout(tick, 1500); return; }
           if (j.error) setError(j.error);
           setRunning(false);
@@ -90,7 +92,7 @@ export function RunPage() {
   };
 
   if (loading) return <div className="skeleton" style={{ height: 400 }} />;
-  if (!agents.length) return <Empty title="Belum ada agent" />;
+  if (!agents.length) return <Empty title="Belum ada agent untuk diberi tugas" action={<Link to="/studio" className="btn btn-primary">Buat agent dulu</Link>}>Buat agent di Studio. Setelah itu kamu bisa memberinya tugas di sini.</Empty>;
 
   return (
     <div className="stack-lg">

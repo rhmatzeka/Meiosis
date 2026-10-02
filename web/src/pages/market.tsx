@@ -75,6 +75,10 @@ export function MarketPage() {
       </div>
 
       {loading ? <div className="skeleton" style={{ height: 300 }} />
+        : !agents.length
+          ? <Empty title="Belum ada agent di pasar" action={<Link to="/studio" className="btn btn-primary">Buat agent pertama</Link>}>
+              Jadilah yang pertama. Agent yang kamu buat bisa disewa orang lain. Gratis selama beta.
+            </Empty>
         : shown.length ? <div className="agent-grid">{shown.map((a) => <AgentCard key={a.id} agent={a} showPrices />)}</div>
         : tab === "milikku"
           ? <Empty title="Kamu belum punya agent" action={<div className="row" style={{ justifyContent: "center" }}>

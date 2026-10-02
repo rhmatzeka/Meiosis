@@ -4,6 +4,8 @@
  * Kawinkan, dan Pasar. Susunannya mengikuti referensi yang diberikan pemilik
  * proyek; isinya selalu data sungguhan dari chain — tanpa testimoni karangan.
  */
+import { FirstSteps } from "../components/first-steps";
+import { useActor } from "../hooks/use-actor";
 import { traitChips } from "../lib/describe";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { meiosis } from "../../../packages/shared/src/genome";
@@ -31,6 +33,7 @@ const BUILT_ON = ["Ethereum", "Privy", "Claude", "Foundry", "OpenZeppelin", "Bun
 export function HomePage() {
   useTitle("");
   const { agents: all, status } = useData();
+  const signedIn = useActor().mode !== "none";
   const agents = useMemo(() => all.filter((a) => !a.hidden), [all]);
   const root = useRef<HTMLDivElement>(null);
   const living = agents.length;
@@ -120,6 +123,8 @@ export function HomePage() {
           )}
         </div>
       </section>
+
+      {signedIn && <div className="home-first"><FirstSteps /></div>}
 
       <div className="marquee" aria-label="Dibangun di atas">
         <div className="marquee-track">

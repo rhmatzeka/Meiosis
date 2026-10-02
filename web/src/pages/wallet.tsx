@@ -3,6 +3,7 @@
  * sedang berjalan. Di chain lokal tanpa login, keempat akun demo ditampilkan
  * supaya royalti leluhur bisa dicoba tanpa wallet sama sekali.
  */
+import { FirstSteps } from "../components/first-steps";
 import { useEffect, useState } from "react";
 import { get, same, short } from "../api";
 import { AgentCard } from "../components/agent";
@@ -49,6 +50,8 @@ export function WalletPage() {
         <h1 className="h-page">Dompet</h1>
         <p>Agent, saldo, dan penghasilanmu. Penghasilan datang dari penjualan, sewa, tarif kawin, dan bagian leluhur.</p>
       </div>
+
+      <FirstSteps />
 
       <div className="wallet-top">
         <Account address={actor.address!} label={actor.label ?? "Wallet-mu"} />

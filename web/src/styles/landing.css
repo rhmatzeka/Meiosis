@@ -188,3 +188,5 @@
   .carousel-cell .cell { --size: 40px !important; }
   .features { grid-template-columns: 1fr 1fr; gap: var(--s-5) var(--s-4); }
 }
+
+.home-first { width: min(1160px, calc(100% - 32px)); margin: var(--s-5) auto 0; }

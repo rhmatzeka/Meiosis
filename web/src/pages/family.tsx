@@ -39,7 +39,7 @@ export function FamilyPage() {
   }, [agents]);
 
   if (loading) return <div className="skeleton" style={{ height: 400 }} />;
-  if (!agents.length) return <Empty title="Belum ada agent" />;
+  if (!agents.length) return <Empty title="Silsilah tumbuh saat agent dikawinkan" action={<Link to="/studio" className="btn btn-primary">Buat agent pertama</Link>}>Belum ada agent. Buat agent di Studio, lalu kawinkan dua agent untuk melihat keturunannya di sini.</Empty>;
 
   const sel = agents.find((a) => a.id === active);
   const family = new Set<number>();

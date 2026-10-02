@@ -6,6 +6,7 @@
  * "nama sifat : isi", dan instruksi rahasia. Server menerjemahkan profil itu
  * ke genome saat agent dibuat; model AI-nya dipilih penyelenggara.
  */
+import { markTaskRun } from "../lib/onboarding";
 import { useEffect, useMemo, useState } from "react";
 import { normalizeTraits, type FreeTrait } from "../../../packages/shared/src/profile";
 import { studioGenome } from "../../../packages/shared/src/studio";
@@ -118,6 +119,7 @@ export function StudioPage() {
     setTrying(true);
     try {
       setTried(await post<{ output: string; model: string }>("/api/studio/try", { role, traits: filled, instructions, task: tryTask }, await actor.authHeaders()));
+      markTaskRun();
     } catch (e) {
       toast((e as Error).message, "bad");
     } finally {

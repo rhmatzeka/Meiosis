@@ -103,6 +103,9 @@ try {
   const poorAcc = await installFakeWallet(poor, poorKey);
   await poor.goto(BASE, { waitUntil: "networkidle" });
   await signIn(poor);
+  await poor.goto(`${BASE}/dompet`, { waitUntil: "networkidle" });
+  await poor.waitForSelector(".first-steps", { timeout: 15_000 });
+  ok("pengguna baru melihat langkah pertama: isi saldo", (await poor.innerText(".first-steps li.now")).includes("saldo") && await poor.isVisible(".first-steps >> text=Isi saldo"));
   await poor.goto(`${BASE}/tugas?id=${priced}`, { waitUntil: "networkidle" });
   await poor.fill(".stage textarea", "Buat fungsi tambah");
   await poor.click(".stage button.btn-primary");
