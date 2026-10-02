@@ -1,0 +1,8 @@
+[Unit]
+Description=Cek kesehatan Meiosis beta
+
+[Service]
+Type=oneshot
+WorkingDirectory=@DIR@
+Environment=CHAIN=sepolia
+ExecStart=@BUN@ run scripts/health.ts

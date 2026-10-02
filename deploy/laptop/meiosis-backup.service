@@ -1,0 +1,7 @@
+[Unit]
+Description=Cadangan terenkripsi otak agent Meiosis
+
+[Service]
+Type=oneshot
+WorkingDirectory=@DIR@
+ExecStart=@BUN@ run scripts/backup.ts

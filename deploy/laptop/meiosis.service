@@ -1,0 +1,16 @@
+[Unit]
+Description=Meiosis beta (Sepolia) di laptop
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=@DIR@
+# Bun membaca .env sendiri dan tidak menimpa variabel yang diset di sini.
+Environment=CHAIN=sepolia
+Environment=TEST_ACCOUNTS=0
+ExecStart=@BUN@ run server/api.ts
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

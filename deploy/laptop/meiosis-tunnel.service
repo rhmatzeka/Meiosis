@@ -1,0 +1,12 @@
+[Unit]
+Description=Cloudflare Tunnel meiosis.rahmateka.my.id → localhost:5173
+After=network-online.target meiosis.service
+Wants=network-online.target
+
+[Service]
+ExecStart=@CLOUDFLARED@ tunnel --no-autoupdate --config @HOME@/.cloudflared/meiosis.yml run meiosis
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

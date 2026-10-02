@@ -155,7 +155,7 @@ if (await reachable(`${UI}/api/status`)) {
 } else {
   c.work("menyalakan server…");
   // --test: akun Anvil dan LLM tiruan untuk `bun run e2e`. Tanpa flag, server berperilaku seperti produksi.
-  detach(TEST ? "env TEST_ACCOUNTS=1 MOCK_LLM=1 bun run server/api.ts" : "env TEST_ACCOUNTS=0 bun run server/api.ts", ".runs/server.log");
+  detach(TEST ? "env TEST_ACCOUNTS=1 MOCK_LLM=1 FREE_TASKS_PER_DAY=1000 STUDIO_PER_DAY=1000 DAILY_TOKEN_BUDGET=1000000000000 TRUST_PROXY=0 bun run server/api.ts" : "env TEST_ACCOUNTS=0 bun run server/api.ts", ".runs/server.log");
   if (!(await waitFor(() => reachable(`${UI}/api/status`), 25, "server"))) process.exit(1);
   c.ok("server jalan di :5173");
 }

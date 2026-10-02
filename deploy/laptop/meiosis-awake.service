@@ -1,0 +1,12 @@
+[Unit]
+Description=Tahan laptop agar tidak tidur selama Meiosis beta melayani pengguna
+After=meiosis.service
+
+[Service]
+# Bila sistem menolak penahanan (izin polkit), layanan utama tetap jalan.
+ExecStart=/usr/bin/systemd-inhibit --what=sleep:idle --who=Meiosis --why="Meiosis beta melayani pengguna" --mode=block sleep infinity
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=default.target
