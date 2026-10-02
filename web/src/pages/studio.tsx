@@ -1,39 +1,43 @@
 /**
- * Studio: membuat agent dengan bebas.
+ * Studio: membuat agent dengan kata-kata sendiri.
  *
- * Tiga cara, boleh dicampur:
- *   1. ceritakan dengan kata-kata sendiri, lalu "Rancang dengan AI" mengisi sisanya;
- *   2. tulis sendiri instruksi agent-nya (peran, cara kerja, larangan);
- *   3. atur setiap sifat secara manual — tanpa batasan.
- * Instruksi disimpan rahasia di server; yang tercatat di chain hanya hash-nya.
+ * Tidak ada daftar pilihan. Pembuat menceritakan agent yang ia butuhkan, AI
+ * (atau dirinya sendiri) mengisi "otak" agent: tugas, sifat bebas berbentuk
+ * "nama sifat : isi", dan instruksi rahasia. Server menerjemahkan profil itu
+ * ke genome saat agent dibuat; model AI-nya dipilih penyelenggara.
  */
-import { useMemo, useState, type ReactNode } from "react";
-import { TRAITS, express } from "../../../packages/shared/src/genome";
-import { defaultTraits, studioGenome } from "../../../packages/shared/src/studio";
+import { useMemo, useState } from "react";
+import { normalizeTraits, type FreeTrait } from "../../../packages/shared/src/profile";
+import { studioGenome } from "../../../packages/shared/src/studio";
 import { get, post, same, type Agent } from "../api";
-import { highlights } from "../components/agent";
 import { useToast } from "../components/toast";
-import { Cell, GenomeStrip, Spinner } from "../components/ui";
-import { useActor } from "../hooks/use-actor";
+import { TraitEditor } from "../components/trait-editor";
+import { Cell, Spinner } from "../components/ui";
+import { useActor, useQuota } from "../hooks/use-actor";
 import { useData } from "../hooks/use-data";
-import { LOCI } from "../lib/traits";
+import { emptyTraits, studioFormProblems } from "../lib/studio-form";
 import { Link, navigate, useTitle } from "../router";
 
-const MAX_SOUL = 4000;
+const MAX_INSTRUCTIONS = 4000;
 const EXAMPLES = [
-  "Agent untuk membuat form React yang aman dan rapi, lengkap dengan tesnya",
+  "Bikin REST API pakai Laravel dan MySQL, jawab santai",
+  "Penulis caption Instagram untuk toko kue, bahasanya hangat",
   "Auditor smart contract Solidity yang teliti mencari celah",
-  "Asisten riset yang merangkum dokumen panjang dengan bahasa sederhana untuk pemula",
-  "Perancang landing page yang modern dan berani bereksperimen",
-];
-const GROUPS: { title: string; hint: string; loci: number[] }[] = [
-  { title: "Otak & keahlian", hint: "Seberapa kuat modelnya dan bidang apa yang dikuasai.", loci: [0, 1, 2, 3] },
-  { title: "Kualitas kerja", hint: "Kebiasaan yang menentukan mutu hasilnya.", loci: [6, 5, 4, 14, 7] },
-  { title: "Gaya", hint: "Cara ia berbicara dan mengambil keputusan.", loci: [11, 13, 12] },
-  { title: "Akses", hint: "Perkakas yang boleh dipakainya saat bekerja.", loci: [8, 9, 10] },
+  "Asisten riset yang merangkum jurnal untuk mahasiswa",
 ];
 
-interface Suggestion { name: string; instructions: string; source: "ai" | "heuristic" }
+interface Suggestion { name: string; role: string; traits: FreeTrait[]; instructions: string; source: "ai" | "heuristic" }
+
+/** Hasil AI masuk ke baris yang masih kosong; yang sudah diisi pengguna tidak ditimpa. */
+function mergeTraits(current: FreeTrait[], incoming: FreeTrait[]): FreeTrait[] {
+  const out = current.map((t) => ({ ...t }));
+  for (const s of incoming) {
+    const row = out.find((t) => t.label.trim().toLowerCase() === s.label.trim().toLowerCase());
+    if (!row) out.push({ ...s });
+    else if (!row.value.trim()) row.value = s.value;
+  }
+  return out.slice(0, 12);
+}
 
 export function StudioPage() {
   useTitle("Studio");
@@ -41,29 +45,42 @@ export function StudioPage() {
   const actor = useActor();
   const toast = useToast();
   const [description, setDescription] = useState("");
-  const [instructions, setInstructions] = useState("");
-  const [traits, setTraits] = useState<number[]>(defaultTraits);
+  const [started, setStarted] = useState(false);
   const [name, setName] = useState("");
+  const [role, setRole] = useState("");
+  const [traits, setTraits] = useState<FreeTrait[]>(emptyTraits);
+  const [instructions, setInstructions] = useState("");
+  const [editingSoul, setEditingSoul] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [sending, setSending] = useState(false);
+  const quota = useQuota(actor, sending);
 
-  // Agent bayangan untuk pratinjau: bentuknya sama dengan yang dikirim server.
-  const preview = useMemo(() => {
-    const g = studioGenome(traits);
-    return {
-      genome: "0x" + g.toString(16).padStart(64, "0"),
-      traits: express(g, 0n).map((t, i) => ({ locus: i, name: String(i), value: TRAITS[i][t] })),
-    } as unknown as Agent;
-  }, [traits]);
+  const problems = studioFormProblems({ name, role, traits, instructions }, agents.map((a) => a.name));
+  const blocking = problems.filter((p) => p.blocking);
+  const filled = normalizeTraits(traits);
+  const fee = status?.market?.studioFeeEth ?? null;
+  const unavailable = fee === null;
+  const free = fee !== null && Number(fee) === 0;
+  const studioFull = quota !== null && quota.studio <= 0;
+
+  // Avatar pratinjau: warna sel ikut berubah saat profil disunting.
+  const avatar = useMemo(() => {
+    let h = 0n;
+    for (const ch of name + role + filled.map((t) => t.value).join("")) h = (h * 131n + BigInt(ch.codePointAt(0)!)) & ((1n << 256n) - 1n);
+    return "0x" + h.toString(16).padStart(64, "0");
+  }, [name, role, filled]);
 
   const design = async () => {
-    if (!description.trim()) { toast("Ceritakan dulu agent seperti apa yang kamu mau.", "info"); return; }
+    if (!description.trim()) { toast("Ceritakan dulu agent seperti apa yang kamu butuhkan.", "info"); return; }
     setThinking(true);
     try {
       const s = await post<Suggestion>("/api/studio/suggest", { description });
-      setInstructions(s.instructions);
+      setTraits((cur) => mergeTraits(cur, s.traits));
       if (!name.trim()) setName(s.name);
-      toast(s.source === "ai" ? "Rancangan dari AI sudah diisi. Sunting sesukamu." : "Rancangan awal diisi dari kata kuncimu. Sunting sesukamu.", "ok");
+      if (!role.trim()) setRole(s.role);
+      if (!instructions.trim()) setInstructions(s.instructions);
+      setStarted(true);
+      toast(s.source === "ai" ? "Rancangan dari AI sudah diisi. Ubah apa saja sesukamu." : "Rancangan awal diisi dari kata-katamu. Ubah apa saja sesukamu.", "ok");
     } catch (e) {
       toast((e as Error).message, "bad");
     } finally {
@@ -71,21 +88,17 @@ export function StudioPage() {
     }
   };
 
-  const nameBytes = new TextEncoder().encode(name.trim()).length;
-  const fee = status?.market?.studioFeeEth;
-  const unavailable = !fee;
-  const tooLong = instructions.length > MAX_SOUL;
-
   const create = async () => {
     if (actor.mode === "none") { actor.login(); return; }
     setSending(true);
     try {
-      const soulHash = instructions.trim() ? (await post<{ hash: string }>("/api/studio/soul", { text: instructions }, await actor.authHeaders())).hash : "";
-      const r = await actor.act("studioCreate", { traits, name: name.trim(), soulHash }, { quietSuccess: true });
+      const soul = await post<{ hash: string; loci: number[] }>("/api/studio/soul", { role, traits: filled, instructions }, await actor.authHeaders());
+      const r = await actor.act("studioCreate", { traits: soul.loci, name: name.trim(), soulHash: soul.hash }, { quietSuccess: true });
       if (r) {
+        const genome = "0x" + studioGenome(soul.loci).toString(16).padStart(64, "0");
         const fresh = await get<Agent[]>("/api/agents?fresh=1").catch(() => agents);
         await refresh(true);
-        const mine = fresh.filter((a) => a.designed && same(a.owner, actor.address) && a.genome === preview.genome).sort((x, y) => y.id - x.id)[0];
+        const mine = fresh.filter((a) => a.designed && same(a.owner, actor.address) && a.genome === genome).sort((x, y) => y.id - x.id)[0];
         if (mine) { navigate(`/agent/${mine.id}?baru=1`); return; }
       }
     } catch (e) {
@@ -94,99 +107,111 @@ export function StudioPage() {
     setSending(false);
   };
 
+  const disabled = unavailable || sending || !!actor.busy || blocking.length > 0 || studioFull || (actor.mode === "none" && !!actor.loginProblem);
+  const cta = sending ? <><Spinner />Membuat…</> : actor.mode === "none" ? "Masuk untuk membuat" : free ? "Buat agent" : `Buat agent · ${fee} ETH`;
+  const costNote = free ? "Gratis selama beta. Kamu hanya membayar biaya jaringan yang sangat kecil." : fee ? `Biaya ${fee} ETH sekali bayar, ditambah biaya jaringan.` : "";
+
   return (
-    <div className="stack-lg">
+    <div className="stack-lg studio-page">
       <div className="page-head">
         <h1 className="h-page">Studio</h1>
-        <p>
-          Buat agent-mu sendiri, sebebas yang kamu mau. Ceritakan dengan kata-katamu, biarkan AI merancangnya,
-          atau tulis dan atur semuanya sendiri.
-        </p>
+        <p>Ceritakan agent yang kamu butuhkan. Semua isinya kamu tulis sendiri dengan bebas, atau biarkan AI menyusun rancangan awalnya.</p>
       </div>
 
       {unavailable && <div className="banner" style={{ width: "100%", margin: 0 }}><div>Studio belum dipasang di chain ini.</div></div>}
 
       <div className="studio">
-        <div className="studio-form stack-lg">
-          <Block n={1} title="Ceritakan agent yang kamu mau" hint="Tulis bebas, seperti menjelaskan ke teman: untuk apa, gayanya bagaimana, apa yang penting.">
+        <div className="stack-lg">
+          <section className="plate studio-ask">
+            <label className="h-sub" htmlFor="studio-desc">Agent seperti apa yang kamu butuhkan?</label>
             <textarea
-              className="textarea" rows={4} value={description} maxLength={2000}
-              placeholder="mis. Agent untuk membuat form React yang aman dan rapi, lengkap dengan tesnya"
+              id="studio-desc" className="textarea" rows={3} value={description} maxLength={2000}
+              placeholder="mis. Bikin REST API pakai Laravel dan MySQL, jawab santai"
               onChange={(e) => setDescription(e.target.value)}
             />
-            <div className="choice-row">
-              {EXAMPLES.map((x) => <button key={x} type="button" className="chip chip-pick" onClick={() => setDescription(x)}>{x.split(" ").slice(0, 4).join(" ")}…</button>)}
+            <div className="studio-examples">
+              {EXAMPLES.map((x) => <button key={x} type="button" className="idea" onClick={() => setDescription(x)}>{x}</button>)}
             </div>
             <div className="row">
-              <button className="btn btn-primary" disabled={thinking} onClick={design}>{thinking ? <><Spinner />Merancang…</> : "Rancang dengan AI"}</button>
-              <span className="xs muted">Mengisi nama, instruksi, dan sifat di bawah. Semuanya tetap bisa kamu ubah.</span>
+              <button className="btn btn-primary" disabled={thinking} onClick={design}>{thinking ? <><Spinner />Merancang…</> : "Rancang untukku"}</button>
+              {!started && <button type="button" className="link-btn" onClick={() => setStarted(true)}>atau isi sendiri dari nol</button>}
             </div>
-          </Block>
+          </section>
 
-          <Block n={2} title="Instruksi agent" hint="Inilah yang dipatuhi agent-mu. Tulis sendiri, atau sunting hasil AI: peran, cara kerja, hal yang harus dihindari. Isinya rahasia; hanya kamu yang bisa mengunduhnya.">
-            <textarea
-              className="textarea studio-soul" rows={9} value={instructions}
-              placeholder={"mis.\nKamu spesialis form React.\n- Selalu validasi masukan di sisi server.\n- Tulis tes untuk setiap alur gagal.\n- Jangan memakai pustaka UI tanpa diminta."}
-              onChange={(e) => setInstructions(e.target.value)}
-            />
-            <span className="xs" style={{ color: tooLong ? "var(--danger)" : "var(--dim)" }}>{instructions.length}/{MAX_SOUL} karakter · boleh dikosongkan</span>
-          </Block>
-
-          <Block n={3} title="Sifat" hint="Setiap sifat bebas kamu atur. Sifat ini yang diwariskan saat agent-mu dikawinkan.">
-            <div className="stack-lg">
-              {GROUPS.map((g) => (
-                <div key={g.title} className="trait-group">
-                  <div><h3 className="h-sub">{g.title}</h3><p className="xs muted">{g.hint}</p></div>
-                  {g.loci.map((i) => (
-                    <div className="trait-row" key={i}>
-                      <span className="trait-label">{LOCI[i].icon} {LOCI[i].label}</span>
-                      <div className="segmented trait-seg" role="radiogroup" aria-label={LOCI[i].label}>
-                        {LOCI[i].values.map((v, t) => (
-                          <button key={t} type="button" role="radio" aria-checked={traits[i] === t} aria-selected={traits[i] === t}
-                            onClick={() => setTraits(traits.map((x, k) => (k === i ? t : x)))}>{v}</button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+          {started && (
+            <section className="plate studio-sheet" aria-label="Otak agent">
+              <div className="sheet-head">
+                <Cell genome={avatar} size={56} />
+                <div className="sheet-title">
+                  <input className="sheet-name" value={name} maxLength={40} placeholder="Nama agent" aria-label="Nama agent" onChange={(e) => setName(e.target.value)} />
+                  <input className="sheet-role" value={role} maxLength={120} placeholder="Tugasnya dalam satu kalimat, mis. Pembuat REST API untuk toko online" aria-label="Tugas agent" onChange={(e) => setRole(e.target.value)} />
                 </div>
+              </div>
+              {problems.filter((p) => p.field === "name" || p.field === "role").map((p) => (
+                <p key={p.message} className={`xs ${p.blocking ? "text-bad" : "muted"}`}>{p.message}</p>
               ))}
-            </div>
-          </Block>
+
+              <div className="sheet-section">
+                <h2 className="h-sub">Sifat</h2>
+                <p className="xs muted">Tulis apa saja. Ganti nama sifatnya, hapus yang tidak perlu, atau tambah sifat baru. Sifat ini yang diwariskan ke anaknya kalau dikawinkan.</p>
+                <TraitEditor value={traits} onChange={setTraits} />
+                {problems.filter((p) => p.field === "traits").map((p) => <p key={p.message} className={`xs ${p.blocking ? "text-bad" : "muted"}`}>{p.message}</p>)}
+              </div>
+
+              <div className="sheet-section">
+                <div className="spread">
+                  <h2 className="h-sub">Instruksi</h2>
+                  <button type="button" className="btn btn-sm" onClick={() => setEditingSoul((v) => !v)}>{editingSoul ? "Selesai" : instructions.trim() ? "Sunting instruksi" : "Tulis instruksi"}</button>
+                </div>
+                {editingSoul
+                  ? <textarea
+                      className="textarea studio-soul" rows={9} value={instructions} autoFocus
+                      placeholder={"mis.\nKamu spesialis REST API Laravel.\n- Selalu validasi input.\n- Tulis tes untuk setiap endpoint."}
+                      onChange={(e) => setInstructions(e.target.value)}
+                    />
+                  : <p className="studio-soul-preview small">{instructions.trim() || "Belum ada instruksi. Boleh dikosongkan."}</p>}
+                <span className={`xs ${instructions.length > MAX_INSTRUCTIONS ? "text-bad" : "dim"}`}>{instructions.length}/{MAX_INSTRUCTIONS} karakter</span>
+                <p className="xs muted">
+                  Instruksi tidak ditampilkan ke orang lain, tapi dikirim ke penyedia model AI (Groq) saat agent bekerja.
+                  Semua agent memakai model AI pilihan Meiosis; isian di atas mengatur cara ia bekerja, bukan modelnya.
+                </p>
+              </div>
+            </section>
+          )}
         </div>
 
-        <aside className="studio-preview stage">
-          <div className="studio-cell"><Cell genome={preview.genome} size={132} /></div>
-          <label className="field">
-            <span>Nama (boleh dikosongkan)</span>
-            <input className="input" value={name} maxLength={40} placeholder="mis. Penjaga Form" onChange={(e) => setName(e.target.value)} />
-            {nameBytes > 32 && <small style={{ color: "var(--danger)" }}>Paling panjang 32 byte.</small>}
-          </label>
-          <GenomeStrip agent={preview} large />
-          <div className="agent-card-tags">
-            {highlights(preview, 6).map((h) => <span key={h.text} className="chip">{h.icon} {h.text}</span>)}
-            {instructions.trim() && <span className="chip chip-accent">✍ instruksi khusus</span>}
+        <aside className="studio-summary plate">
+          <div className="summary-head">
+            <Cell genome={avatar} size={44} alive={false} />
+            <div style={{ minWidth: 0 }}>
+              <div className="summary-name">{name.trim() || "Agent baru"}</div>
+              <div className="xs muted summary-role">{role.trim() || "Belum ada tugas"}</div>
+            </div>
           </div>
-          <button className="btn btn-primary btn-lg" disabled={unavailable || sending || !!actor.busy || nameBytes > 32 || tooLong || (actor.mode === "none" && !!actor.loginProblem)} onClick={create}>
-            {sending ? <><Spinner />Membuat…</> : actor.mode === "none" ? "Masuk untuk membuat" : `Buat agent · ${fee ?? "…"} ETH`}
-          </button>
+          {filled.length > 0 && (
+            <ul className="summary-traits">
+              {filled.slice(0, 6).map((t) => <li key={t.label}><span>{t.label}</span>{t.value}</li>)}
+              {filled.length > 6 && <li className="dim">+{filled.length - 6} sifat lain</li>}
+            </ul>
+          )}
+          <button className="btn btn-primary btn-lg" disabled={disabled} onClick={create}>{cta}</button>
+          {blocking[0] && started && <p className="xs text-bad">{blocking[0].message}</p>}
+          {studioFull && <p className="xs text-bad">Batas {quota!.studioPerDay} agent baru per hari tercapai. Buka lagi besok jam 07.00 WIB.</p>}
           <p className="xs muted">
-            Biaya dibayar sekali ke platform. Agent-nya jadi milikmu: bisa dipakai, dijual, disewakan, dan dikawinkan.
-            Anak-anaknya mewarisi sifat dan instruksi khususnya. <Link to="/panduan#studio">Selengkapnya</Link>
+            {costNote}
+            {quota && !studioFull ? ` Sisa ${quota.studio} dari ${quota.studioPerDay} agent baru hari ini.` : ""}
+            {" "}Agent-nya jadi milikmu: bisa dipakai, dijual, disewakan, dikawinkan, dan disunting lagi. <Link to="/panduan#studio">Selengkapnya</Link>
           </p>
         </aside>
       </div>
-    </div>
-  );
-}
 
-function Block({ n, title, hint, children }: { n: number; title: string; hint: string; children: ReactNode }) {
-  return (
-    <section className="plate studio-block">
-      <div className="studio-block-head">
-        <span className="studio-n">{n}</span>
-        <div><h2 className="h-sub">{title}</h2><p className="xs muted">{hint}</p></div>
+      <div className="sticky-cta" aria-hidden={false}>
+        <div style={{ minWidth: 0 }}>
+          <div className="summary-name">{name.trim() || "Agent baru"}</div>
+          <div className="xs muted">{free ? "Gratis selama beta" : fee ? `${fee} ETH` : ""}</div>
+        </div>
+        <button className="btn btn-primary" disabled={disabled} onClick={create}>{cta}</button>
       </div>
-      {children}
-    </section>
+    </div>
   );
 }

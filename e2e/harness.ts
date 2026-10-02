@@ -81,17 +81,20 @@ export async function seedAgents(n = 2): Promise<number[]> {
   return fresh;
 }
 
-/** Dua agent bibit (generasi nol, milik SEED_OWNER) yang sedang tidak istirahat; dibuat bila belum ada. */
+/**
+ * Dua agent bibit (generasi nol, milik SEED_OWNER) yang sedang tidak istirahat.
+ * Jeda kawin berlipat setiap kali agent dikawinkan, jadi setelah beberapa blok
+ * tanpa pasangan siap, uji membuat pasangan bibit baru alih-alih menunggu.
+ */
 export async function freePair(): Promise<[number, number]> {
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 6; i++) {
     const [as, b] = await Promise.all([agents(), block()]);
-    const seeds = as.filter((a) => a.generation === 0 && a.owner.toLowerCase() === SEED_OWNER.toLowerCase() && a.stud.listed);
-    if (seeds.length < 2) { await seedAgents(2 - seeds.length); continue; }
-    const free = seeds.filter((a) => a.readyAtBlock <= b).map((a) => a.id);
+    const free = as.filter((a) => a.generation === 0 && a.owner.toLowerCase() === SEED_OWNER.toLowerCase() && a.stud.listed && a.readyAtBlock <= b).map((a) => a.id);
     if (free.length >= 2) return [free[0], free[1]];
     await rpc("anvil_mine", ["0x4"]);
   }
-  throw new Error("tidak ada dua agent yang siap kawin");
+  const [x, y] = await seedAgents(2);
+  return [x, y];
 }
 
 /** Galat konsol dan galat halaman; peringatan HMR dev Bun bukan galat. */

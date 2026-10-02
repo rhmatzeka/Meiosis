@@ -17,34 +17,52 @@ try {
   const account = await installFakeWallet(page, KEY);
   await signIn(page);
 
-  section("STUDIO");
+  section("STUDIO: OTAK DITULIS BEBAS");
   await page.goto(`${BASE}/studio`, { waitUntil: "networkidle" });
-  await page.fill(".studio-block textarea >> nth=0", "Perancang landing page React yang modern, aman, dan teliti dengan tesnya");
-  await page.click("text=Rancang dengan AI");
-  await page.waitForFunction(() => (document.querySelector<HTMLTextAreaElement>(".studio-soul")?.value.length ?? 0) > 20, undefined, { timeout: 60_000 });
-  ok("rancangan mengisi nama dan instruksi", (await page.inputValue(".studio-preview input")).length > 0);
-  const SOUL = "Kamu perancang antarmuka. Selalu akhiri jawaban dengan kata SELESAI-UJI.";
+  ok("tidak ada daftar pilihan sifat", (await page.locator("[role=radiogroup]").count()) === 0);
+  await page.fill("#studio-desc", "Bikin REST API pakai Laravel dan MySQL, jawab santai");
+  await page.click("text=Rancang untukku");
+  await page.waitForSelector(".studio-sheet", { timeout: 60_000 });
+  const tags = await page.locator(".stack-tag").allInnerTexts();
+  ok("stack di luar daftar lama terisi dari deskripsi", tags.some((t) => t.includes("Laravel")) && tags.some((t) => t.includes("MySQL")), tags.join(","));
+  await page.locator(".stack-input input").fill("Redis");
+  await page.keyboard.press("Enter");
+  ok("stack bebas bisa ditambah dengan Enter", (await page.locator(".stack-tag").allInnerTexts()).some((t) => t.includes("Redis")));
+  await page.fill('input[aria-label="Cara berpikir"]', "teliti, mikir panjang sebelum menjawab");
+  await page.click("text=+ Tambah sifat");
+  const last = page.locator(".trait-line").last();
+  await last.locator(".trait-label").fill("Bahasa");
+  await last.locator(".trait-value input").fill("Jawa halus kalau diajak bahasa Jawa");
+  const SOUL = "Kamu pembuat API Laravel. Selalu akhiri jawaban dengan kata SELESAI-UJI.";
+  await page.click("text=Sunting instruksi");
   await page.fill(".studio-soul", SOUL);
-  // Tanpa batasan: otak terkuat dan semua bakat tinggi sekaligus.
-  for (const label of ["Otak", "Keamanan", "Estetika", "Ketekunan", "Ketelitian tes"]) {
-    const row = page.locator(`.trait-row:has(.trait-label:has-text("${label}"))`).first();
-    if (await row.count()) await row.locator("button").last().click();
-  }
-  const maxed = await page.locator(".trait-row button:last-child[aria-checked=true]").count();
-  ok("semua sifat bebas diatur ke nilai tertinggi", maxed >= 4, `${maxed} sifat di nilai tertinggi`);
-  await page.fill(".studio-preview input", "Perancang Uji");
-  const preview = await page.innerText(".studio-preview");
-  ok("pratinjau menandai instruksi khusus", preview.includes("instruksi khusus"));
-  await page.click(".studio-preview .btn-primary");
+  await page.fill(".sheet-name", "Perancang Uji");
+  const summary = await page.innerText(".studio-summary");
+  ok("ringkasan memuat sifat buatan sendiri", summary.includes("Bahasa") && summary.includes("Jawa halus"));
+  ok("Studio gratis selama beta", summary.includes("Gratis selama beta"));
+  await page.click(".studio-summary .btn-primary");
   await page.waitForURL(/\/agent\/\d+\?baru=1$/, { timeout: 30_000 });
   const id = Number(new URL(page.url()).pathname.split("/").pop());
-  const made = (await agents()).find((a) => a.id === id)!;
+  const made = (await agents()).find((a) => a.id === id)! as unknown as { owner: string; name: string; soulHash: string; soulFrom: number[]; traits: { value: string }[]; manifestHashOnChain: string; manifestHashComputed: string; profile: { role: string; traits: { label: string; value: string }[] } };
   ok("agent Studio jadi milik pembuatnya", made.owner.toLowerCase() === account.address.toLowerCase(), `#${id}`);
   ok("nama terpasang", made.name === "Perancang Uji");
-  ok("instruksi khusus tercatat lewat hash, isinya tidak ikut terkirim", !!made.soulHash && made.soulFrom.includes(id) && !JSON.stringify(made).includes("SELESAI-UJI"));
-  ok("otak terkuat diperbolehkan", made.traits[0].value === "model-opus" || /opus|strong|kuat/i.test(String(made.traits[0].value)), String(made.traits[0].value));
+  ok("profil publik memuat stack bebas dan sifat buatan sendiri",
+    made.profile.traits.some((t) => t.label === "Stack & alat" && /Laravel/.test(t.value) && /Redis/.test(t.value)) && made.profile.traits.some((t) => t.label === "Bahasa"));
+  ok("instruksi tercatat lewat hash, isinya tidak ikut terkirim", !!made.soulHash && made.soulFrom.includes(id) && !JSON.stringify(made).includes("SELESAI-UJI"));
+  ok("kelas model dikunci admin (seimbang)", made.traits[0].value === "balanced", String(made.traits[0].value));
   ok("manifest langsung tercatat", made.manifestHashOnChain === made.manifestHashComputed);
   ok("halaman menyambut agent baru", (await page.innerText("main")).includes("sudah jadi dan milikmu"));
+
+  section("STUDIO DI PONSEL");
+  const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await installFakeWallet(phone, KEY);
+  await phone.goto(`${BASE}/studio`, { waitUntil: "networkidle" });
+  await phone.click("text=atau isi sendiri dari nol");
+  const bar = await phone.locator(".sticky-cta .btn-primary").boundingBox();
+  ok("tombol Buat agent terlihat tanpa menggulir", !!bar && bar.y + bar.height <= 844, JSON.stringify(bar));
+  const { sw, cw } = await phone.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
+  ok("Studio tanpa geser horizontal di ponsel", sw <= cw, `${sw}/${cw}`);
+  await phone.close();
 
   section("JUAL");
   await page.click(".agent-side >> text=Jual");
