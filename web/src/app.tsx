@@ -4,7 +4,7 @@ import { useToast } from "./components/toast";
 import { Backdrop } from "./components/backdrop";
 import { BrandMark, Copy, Spinner } from "./components/ui";
 import { MOTION_OK, gsap, useGSAP, usePageMotion } from "./motion";
-import { useActor } from "./hooks/use-actor";
+import { useActor, useQuota } from "./hooks/use-actor";
 import { useData } from "./hooks/use-data";
 import { AgentPage } from "./pages/agent";
 import { ArenaPage } from "./pages/arena";
@@ -160,6 +160,7 @@ function AccountMenu() {
     addEventListener("mousedown", close);
     return () => removeEventListener("mousedown", close);
   }, [open]);
+  const quotaLeft = useQuota(actor, open);
 
   const signedIn = actor.mode === "privy" || actor.mode === "injected";
   if (!signedIn) {
@@ -179,6 +180,11 @@ function AccountMenu() {
             <div className="small">{actor.label ?? "Wallet"}</div>
             {actor.address && <Copy text={actor.address} label={short(actor.address)} />}
           </div>
+          {quotaLeft && (
+            <div className="xs muted account-quota" style={{ padding: "0 10px 8px" }}>
+              {quotaLeft.tasks} dari {quotaLeft.tasksPerDay} tugas gratis hari ini · {quotaLeft.studio} dari {quotaLeft.studioPerDay} agent baru
+            </div>
+          )}
           <Link to="/dompet">Dompet & agent milikku</Link>
           <button className="item" onClick={() => actor.logout()}>Keluar</button>
         </div>

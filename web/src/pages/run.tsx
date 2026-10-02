@@ -69,7 +69,7 @@ export function RunPage() {
     }
     setRunning(true);
     try {
-      const { jobId } = await post<{ jobId: string }>("/api/run", { ids: sel, task: task.trim(), mode: full ? "agent" : "single", payments });
+      const { jobId } = await post<{ jobId: string }>("/api/run", { ids: sel, task: task.trim(), mode: full ? "agent" : "single", payments }, await actor.authHeaders());
       const tick = async () => {
         try {
           const j = await get<Job>(`/api/job/${jobId}`);

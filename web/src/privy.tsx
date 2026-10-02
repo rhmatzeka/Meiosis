@@ -106,6 +106,10 @@ export function PrivyActorProvider({ children }: { children: ReactNode }) {
     logout: async () => { await logout(); setFunding(null); },
     act, busy, funding,
     sign: authenticated && wallet ? signMessage : null,
+    authHeaders: async (): Promise<Record<string, string>> => {
+      const token = authenticated ? await getAccessToken().catch(() => null) : null;
+      return token ? { authorization: `Bearer ${token}` } : {};
+    },
     loginProblem: stalled ? "Login belum bisa dipakai: Privy tidak merespons. Periksa PRIVY_APP_ID dan daftar origin di dashboard Privy." : null,
   };
   return <ActorCtx.Provider value={value}>{children}</ActorCtx.Provider>;

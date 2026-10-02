@@ -20,7 +20,8 @@ export interface McpDeps {
    * Menjalankan agent; mengembalikan jawaban lengkap (termasuk blok kode berkas).
    * `leaked` = jawaban memuat prompt dan sudah diganti penolakan; tidak ditagih.
    */
-  run: (agentId: number, task: string, context: string, mock: boolean) => Promise<{ output: string; model: string; leaked?: boolean }>;
+  /** `user` = pemilik API key; dipakai untuk jatah harian. Melempar galat berpesan ramah bila jatah habis. */
+  run: (agentId: number, task: string, context: string, mock: boolean, user: string) => Promise<{ output: string; model: string; leaked?: boolean }>;
   /** Memotong saldo lewat Credits.spend; mengembalikan hash tx. */
   charge: (address: string, agentId: number, amount: bigint, job: `0x${string}`) => Promise<string>;
   /** Mode tiruan hanya diizinkan di chain lokal. */
@@ -137,7 +138,7 @@ async function callTool(name: string, args: Record<string, unknown>, key: KeyRec
       return text(`Saldo pakai tidak cukup: perlu ${formatEther(price)} ETH, ada ${formatEther(balance)} ETH. Isi saldo di halaman Dompet Meiosis.`, true);
     }
 
-    const result = await deps.run(agentId, task, context, mock);
+    const result = await deps.run(agentId, task, context, mock, key.address);
     if (result.leaked) return text(result.output, true);
     const job = ("0x" + randomBytes(32).toString("hex")) as `0x${string}`;
     const tx = price > 0n ? await deps.charge(key.address, agentId, price, job) : null;

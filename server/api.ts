@@ -22,6 +22,7 @@ import { studioGenome, validateTraits } from "../packages/shared/src/studio";
 import { SoulStore, inheritedSoul, profileFor, promptSoul, type ProfileNode } from "./souls";
 import { encodeProfile } from "./encode";
 import { testMode } from "./mode";
+import { QuotaLedger } from "./quota";
 import { MAX_INSTRUCTIONS, composeSoul, parseSoul, type FreeTrait } from "../packages/shared/src/profile";
 import { parseSuggestion, suggestFromText, suggestPrompt } from "./suggest";
 import { faucetDecision, faucetMessage, loadFaucetState, saveFaucetState, verifyPrivyToken } from "./faucet";
@@ -183,6 +184,44 @@ const DOCKER = (() => {
 const clientIp = (req: Request, server: { requestIP(r: Request): { address: string } | null }) =>
   (process.env.TRUST_PROXY === "1" ? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() : null)
     || server.requestIP(req)?.address || "?";
+
+/**
+ * Jatah gratis beta (lihat server/quota.ts). Mode uji memakai batas longgar
+ * kecuali diisi lewat env, supaya e2e tidak kehabisan jatah.
+ */
+const quotaNum = (k: string, normal: number, test: number) => (process.env[k] ? Number(process.env[k]) : TEST ? test : normal);
+const quota = new QuotaLedger(`.runs/usage-${CHAIN}.json`, {
+  tasksPerDay: quotaNum("FREE_TASKS_PER_DAY", 5, 1000),
+  studioPerDay: quotaNum("STUDIO_PER_DAY", 3, 1000),
+  tokenBudget: quotaNum("DAILY_TOKEN_BUDGET", 300_000, 1e12),
+  resetHourUtc: (((Number(process.env.QUOTA_RESET_HOUR_WIB ?? 7) - 7) % 24) + 24) % 24,
+}, Number(process.env.MAX_OUTPUT_TOKENS ?? 3000) + 5000);
+const FULL_MODE_PUBLIC = process.env.FULL_MODE_PUBLIC === "1";
+
+const jam = (t: number) => new Date(t).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
+const quotaMessage = (f: { reason: "jatah-akun" | "anggaran-harian"; resetsAt: number }) =>
+  f.reason === "jatah-akun"
+    ? `Jatah gratismu hari ini habis (${quota.config.tasksPerDay} tugas). Buka lagi besok jam ${jam(f.resetsAt)} WIB.`
+    : `Jatah AI hari ini sudah habis untuk semua orang. Buka lagi besok jam ${jam(f.resetsAt)} WIB.`;
+
+/**
+ * Siapa pemakai jatah. Dengan Privy: akun Privy yang terverifikasi. Mode uji:
+ * alamat yang dikirim tes (x-test-user) atau IP. Tanpa Privy di luar mode uji:
+ * IP, lapis terlemah, hanya untuk server lokal tanpa login.
+ */
+async function quotaUser(req: Request, server: { requestIP(r: Request): { address: string } | null }): Promise<{ ok: true; user: string } | { ok: false; error: string }> {
+  if (TEST) return { ok: true, user: `test:${(req.headers.get("x-test-user") ?? clientIp(req, server)).toLowerCase()}` };
+  if (PRIVY_APP_ID) {
+    const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+    try { return { ok: true, user: `privy:${await verifyPrivyToken(token, PRIVY_APP_ID)}` }; }
+    catch { return { ok: false, error: "Masuk dulu untuk memakai jatah gratis." }; }
+  }
+  return { ok: true, user: `ip:${clientIp(req, server)}` };
+}
+
+/** Penyedia model menolak karena ramai (429) atau batas kecepatan. */
+const busyModel = (m: string) => /\b429\b|rate.?limit|too many requests|quota/i.test(m);
+const BUSY_MESSAGE = "AI sedang ramai. Coba lagi dalam 1 menit; jatahmu tidak berkurang.";
 
 const read = (addr: Address, abi: Abi, fn: string, args: unknown[] = []) =>
   pub.readContract({ address: addr, abi, functionName: fn, args } as never);
@@ -663,15 +702,23 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           agents: async () => (await listAgents()).map((a) => ({ id: a.id, name: a.name, modules: a.modules.filter((m): m is string => !!m), generation: a.generation, role: a.profile.role, traits: a.profile.traits })),
           priceOf: async (id) => (await read(credits, abis.credits, "maxPrice", [id])) as bigint,
           balanceOf: async (addr) => (await read(credits, abis.credits, "balanceOf", [getAddress(addr)])) as bigint,
-          run: async (id, task, context, mock) => {
-            const env = { ...process.env, MOCK_LLM: mock ? "1" : "0" };
-            const provider = mock ? undefined : getProvider(env);
-            const genome = (await read(d.registry, abis.registry, "genomeOf", [id])) as bigint;
-            const { soul, instructions } = await soulFor(id);
-            const agent = materialize(genome, await seedOf(id), { id, provider, env, soul });
-            const r = await agent.run(context.trim() ? `${task}\n\n---\n\nKonteks dari proyek pemakai:\n${context}` : task);
-            const g = guardOutput(r.output, instructions);
-            return { output: g.output, model: r.model ?? "mock", leaked: g.leaked };
+          run: async (id, task, context, mock, user) => {
+            const ticket = quota.reserveTask(`key:${user.toLowerCase()}`);
+            if (!ticket.ok) throw new Error(quotaMessage(ticket));
+            try {
+              const env = { ...process.env, MOCK_LLM: mock ? "1" : "0" };
+              const provider = mock ? undefined : getProvider(env);
+              const genome = (await read(d.registry, abis.registry, "genomeOf", [id])) as bigint;
+              const { soul, instructions } = await soulFor(id);
+              const agent = materialize(genome, await seedOf(id), { id, provider, env, soul });
+              const r = await agent.run(context.trim() ? `${task}\n\n---\n\nKonteks dari proyek pemakai:\n${context}` : task);
+              quota.settle(ticket.ticket, r.promptTokens + r.completionTokens);
+              const g = guardOutput(r.output, instructions);
+              return { output: g.output, model: r.model ?? "mock", leaked: g.leaked };
+            } catch (e) {
+              quota.release(ticket.ticket);
+              throw busyModel((e as Error).message) ? new Error(BUSY_MESSAGE) : e;
+            }
           },
           charge: async (user, id, amount, job) => {
             const r = await send(credits, abis.credits, op, "spend", [getAddress(user), id, amount, job]);
@@ -708,6 +755,12 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         return keyStore.revoke(who.address, String(b.prefix ?? "")) ? json({ ok: true }) : json({ error: "kunci tidak ditemukan" }, 404);
       }
 
+      if (p === "/api/quota") {
+        const who = await quotaUser(req, server);
+        if (!who.ok) return json({ error: who.error }, 401);
+        return json(quota.left(who.user));
+      }
+
       if (p === "/api/studio/soul" && req.method === "POST") {
         // Profil bebas + instruksi → soul tersimpan, ditambah 16 lokus untuk Studio.create.
         const b = (await req.json().catch(() => ({}))) as { text?: string; role?: string; traits?: FreeTrait[]; instructions?: string };
@@ -717,10 +770,17 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           const traits = Array.isArray(b.traits) ? b.traits.filter((t) => t && typeof t.label === "string" && typeof t.value === "string") : [];
           const text = typeof b.text === "string" ? b.text : composeSoul({ role: String(b.role ?? ""), traits, instructions });
           if (!text.trim()) return json({ error: "profil dan instruksi masih kosong" }, 400);
+          const who = await quotaUser(req, server);
+          if (!who.ok) return json({ error: who.error }, 401);
+          const slot = quota.reserveStudio(who.user);
+          if (!slot.ok) return json({ error: `Batas ${quota.config.studioPerDay} agent baru per hari tercapai. Buka lagi besok jam ${jam(slot.resetsAt)} WIB.`, quota: quota.left(who.user) }, 429);
           const hash = soulStore.put(text);
           const parsed = parseSoul(text);
-          const ai = modelMissing() || process.env.MOCK_LLM === "1" ? undefined : async (pr: { system: string; user: string }) =>
-            (await getProvider({ ...process.env, MOCK_LLM: "0" }).chat("fast", { system: pr.system, messages: [{ role: "user", content: pr.user }], temperature: 0, maxTokens: 400 })).text;
+          const ai = modelMissing() || process.env.MOCK_LLM === "1" || !quota.canSpend(2_000) ? undefined : async (pr: { system: string; user: string }) => {
+            const r = await getProvider({ ...process.env, MOCK_LLM: "0" }).chat("fast", { system: pr.system, messages: [{ role: "user", content: pr.user }], temperature: 0, maxTokens: 400 });
+            quota.addTokens("sistem:studio", r.promptTokens + r.completionTokens);
+            return r.text;
+          };
           const { loci, source } = await encodeProfile(parsed, ai);
           return json({ hash, loci, source });
         } catch (e) { return json({ error: (e as Error).message }, 400); }
@@ -730,12 +790,13 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         const { description } = (await req.json().catch(() => ({}))) as { description?: string };
         const d = String(description ?? "").slice(0, 2000);
         const fallback = suggestFromText(d);
-        if (!d.trim() || modelMissing() || process.env.MOCK_LLM === "1") return json(fallback);
+        if (!d.trim() || modelMissing() || process.env.MOCK_LLM === "1" || !quota.canSpend(3_000)) return json(fallback);
         if (!allowRun(`suggest:${clientIp(req, server)}`)) return json(fallback);
         try {
           const provider = getProvider({ ...process.env, MOCK_LLM: "0" });
           const pr = suggestPrompt(d);
           const r = await provider.chat("balanced", { system: pr.system, messages: [{ role: "user", content: pr.user }], temperature: 0.4, maxTokens: 900 });
+          quota.addTokens("sistem:saran", r.promptTokens + r.completionTokens);
           return json(parseSuggestion(r.text, fallback));
         } catch {
           return json(fallback);
@@ -977,6 +1038,9 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         let { maxSteps } = body;
         if (!task?.trim()) return json({ error: "tugas kosong" }, 400);
         if (!ids?.length) return json({ error: "belum ada agent dipilih" }, 400);
+        if (mode === "agent" && PUBLIC && !FULL_MODE_PUBLIC && !TEST) return json({ error: "Mode kerja penuh belum dibuka selama beta. Pakai mode jawab langsung." }, 400);
+        const who = await quotaUser(req, server);
+        if (!who.ok) return json({ error: who.error }, 401);
 
         /**
          * Di mode publik server ini terbuka ke internet. Kuota model milik
@@ -1008,6 +1072,17 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           if (due.length < ids.length && !mock && !allowRun(ip)) {
             return json({ error: `batas ${RUN_LIMIT_PER_HOUR} run per jam tercapai, coba lagi nanti` }, 429);
           }
+        }
+
+        // Satu agent = satu tugas dari jatah. Semua dicadangkan dulu; bila satu gagal, semuanya dikembalikan.
+        const tickets: Record<number, string> = {};
+        for (const id of ids) {
+          const t = quota.reserveTask(who.user);
+          if (!t.ok) {
+            Object.values(tickets).forEach((x) => quota.release(x));
+            return json({ error: quotaMessage(t), quota: quota.left(who.user) }, 429);
+          }
+          tickets[id] = t.ticket;
         }
 
         pruneJobs();
@@ -1113,8 +1188,12 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
                     built, output: guardOutput(r.output, soul).output,
                   };
                 }
+                const used = slot.result as { promptTokens?: number; completionTokens?: number; loop?: { promptTokens: number; completionTokens: number } };
+                quota.settle(tickets[id], (used.loop?.promptTokens ?? used.promptTokens ?? 0) + (used.loop?.completionTokens ?? used.completionTokens ?? 0));
               } catch (e) {
-                slot.error = (e as Error).message.slice(0, 300);
+                quota.release(tickets[id]);
+                const m = (e as Error).message;
+                slot.error = busyModel(m) ? BUSY_MESSAGE : m.slice(0, 300);
                 slot.result = { id, ok: false, error: slot.error };
               }
               slot.done = true;

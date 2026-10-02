@@ -80,7 +80,7 @@ export function StudioPage() {
     if (actor.mode === "none") { actor.login(); return; }
     setSending(true);
     try {
-      const soulHash = instructions.trim() ? (await post<{ hash: string }>("/api/studio/soul", { text: instructions })).hash : "";
+      const soulHash = instructions.trim() ? (await post<{ hash: string }>("/api/studio/soul", { text: instructions }, await actor.authHeaders())).hash : "";
       const r = await actor.act("studioCreate", { traits, name: name.trim(), soulHash }, { quietSuccess: true });
       if (r) {
         const fresh = await get<Agent[]>("/api/agents?fresh=1").catch(() => agents);

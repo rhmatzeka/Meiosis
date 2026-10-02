@@ -37,6 +37,26 @@ export interface Actor {
   loginProblem: string | null;
   /** Menandatangani pesan dengan wallet pengguna (personal_sign). null bila belum masuk. */
   sign: ((message: string) => Promise<string>) | null;
+  /** Header identitas untuk endpoint yang memakai jatah gratis (token Privy, atau alamat di mode uji). */
+  authHeaders: () => Promise<Record<string, string>>;
+}
+
+export interface QuotaLeft { tasks: number; tasksPerDay: number; studio: number; studioPerDay: number; resetsAt: number }
+
+/** Sisa jatah gratis hari ini untuk pengguna yang sedang masuk; null bila belum masuk atau gagal. */
+export function useQuota(actor: Actor, refreshKey: unknown = null) {
+  const [left, setLeft] = useState<QuotaLeft | null>(null);
+  useEffect(() => {
+    if (actor.mode === "none") { setLeft(null); return; }
+    let live = true;
+    actor.authHeaders()
+      .then((h) => fetch("/api/quota", { headers: h }))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((q) => live && setLeft(q))
+      .catch(() => live && setLeft(null));
+    return () => { live = false; };
+  }, [actor.mode, actor.address, refreshKey]);
+  return left;
 }
 
 /** Bukti siapa peminta untuk endpoint server: tanda tangan wallet pengguna. */
@@ -180,6 +200,7 @@ export function PlainActorProvider({ children, pending = false }: { children: Re
     logout: async () => { setAddress(undefined); try { localStorage.removeItem(REMEMBER); } catch { /* penyimpanan diblokir */ } },
     act, busy, funding: null,
     sign: address ? (async (message: string) => (await eth()!.request({ method: "personal_sign", params: [message, address] })) as string) : null,
+    authHeaders: async (): Promise<Record<string, string>> => (status?.testMode && address ? { "x-test-user": address } : {}),
     loginProblem: pending || !status || eth() ? null : "Login belum diaktifkan di server ini (PRIVY_APP_ID kosong) dan browser ini tidak punya wallet.",
   };
   return <ActorCtx.Provider value={value}>{children}</ActorCtx.Provider>;
