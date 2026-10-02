@@ -5,10 +5,11 @@
  * sedang berjalan dan otomatis berubah menjadi layar kelahiran. Karena
  * statusnya dibaca dari chain, halaman itu aman di-refresh dan dibagikan.
  */
+import { traitChips } from "../lib/describe";
 import { useEffect, useMemo, useState } from "react";
 import { formatEther } from "viem";
 import { get, same, type Agent, type Pregnancy } from "../api";
-import { AgentCard, TraitList, highlights, useCooldown } from "../components/agent";
+import { AgentCard, TraitList, useCooldown } from "../components/agent";
 import { useDownloadFull } from "../components/claude";
 import { NameDialog } from "../components/dialogs";
 import { Cell, Empty, GenomeStrip, Legend, Spinner, Stepper } from "../components/ui";
@@ -141,7 +142,7 @@ function Slot({ agent, role, cooldown, onClear }: { agent?: Agent; role: "a" | "
       <Cell genome={agent.genome} size={88} />
       <div className="slot-name">{agent.name}</div>
       <div className="agent-card-tags" style={{ justifyContent: "center" }}>
-        {highlights(agent, 2).map((h) => <span key={h.text} className="chip">{h.icon} {h.text}</span>)}
+        {traitChips(agent, 3).map((t) => <span key={t} className="chip">{t}</span>)}
       </div>
       {cooldown && <div className="xs" style={{ color: "var(--gold)" }}>{cooldown}</div>}
       <button className="btn btn-quiet btn-sm" onClick={onClear}>Ganti</button>

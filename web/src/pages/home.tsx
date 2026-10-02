@@ -4,13 +4,14 @@
  * Kawinkan, dan Pasar. Susunannya mengikuti referensi yang diberikan pemilik
  * proyek; isinya selalu data sungguhan dari chain — tanpa testimoni karangan.
  */
+import { traitChips } from "../lib/describe";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { meiosis } from "../../../packages/shared/src/genome";
 import { traitOdds } from "../../../packages/shared/src/inherit";
 import type { Profile } from "../../../packages/shared/src/profile";
 import { studioGenome } from "../../../packages/shared/src/studio";
 import type { Agent } from "../api";
-import { AgentCard, highlights } from "../components/agent";
+import { AgentCard } from "../components/agent";
 import { Cell, GenomeStrip, Legend } from "../components/ui";
 import { useData } from "../hooks/use-data";
 import { geneOrigin } from "../lib/genetics";
@@ -342,7 +343,7 @@ function AgentCarousel({ agents }: { agents: Agent[] }) {
       <div className="quote" aria-live="polite">
         <p>“{intro(a)}”</p>
         <b>{a.name}</b>
-        <small>#{a.id} · {a.designed ? "Dibuat di Studio" : `keturunan generasi ${a.generation}`} · {highlights(a, 3).map((h) => h.text).join(", ")}</small>
+        <small>#{a.id} · {a.designed ? "Dibuat di Studio" : `keturunan generasi ${a.generation}`} · {traitChips(a, 3).join(", ")}</small>
       </div>
       <div className="carousel-row">
         <button className="carousel-arrow" aria-label="Sebelumnya" onClick={() => go(i - 1)}>‹</button>

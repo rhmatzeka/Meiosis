@@ -347,3 +347,11 @@
   background: var(--membrane); border: 1px solid var(--line); color: var(--ink);
   font: 400 var(--t-sm) / 1.6 var(--font-body); white-space: pre-wrap; overflow-wrap: anywhere;
 }
+
+.agent-role { margin: 0; font-size: var(--t-md, 16px); line-height: 1.45; color: var(--ink); max-width: 60ch; }
+.profile-list { margin: 0; display: grid; gap: 0; }
+.profile-list > div { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: var(--s-3); padding: 10px 0; border-bottom: 1px solid var(--line); }
+.profile-list > div:last-child { border-bottom: 0; }
+.profile-list dt { color: var(--muted); font-size: var(--t-sm); }
+.profile-list dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 620px) { .profile-list > div { grid-template-columns: 1fr; gap: 2px; } }

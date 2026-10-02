@@ -1,34 +1,14 @@
 /** Potongan tampilan tentang satu agent: kartu, sifat, dan label pemilik. */
 import { TRAITS } from "../../../packages/shared/src/genome";
-import { same, type Agent } from "../api";
+import type { Agent } from "../api";
 import { useActor } from "../hooks/use-actor";
 import { useData } from "../hooks/use-data";
 import type { GeneOrigin } from "../lib/genetics";
 import { cooldownLabel } from "../lib/genetics";
+import { originLabel, ownerLabel, priceText, summaryLine, traitChips } from "../lib/describe";
 import { LOCI, traitLabel } from "../lib/traits";
 import { Link } from "../router";
 import { Cell } from "./ui";
-
-/** Sifat yang paling menonjol, dari trait yang punya modul skill. */
-export function highlights(a: Agent, max = 3) {
-  const t = Object.fromEntries(a.traits.map((x) => [x.locus, x.value]));
-  const out: { icon: string; text: string }[] = [];
-  if (t[6] === "high") out.push({ icon: "🛡", text: "aman" });
-  if (t[5] === "high") out.push({ icon: "🧪", text: "teliti" });
-  if (t[4] === "high") out.push({ icon: "🎨", text: "estetik" });
-  if (t[14] === "high") out.push({ icon: "🔁", text: "tekun" });
-  const stack = { react: "React", solidity: "Solidity", python: "Python" }[t[3] as string];
-  if (stack) out.push({ icon: "⚙️", text: stack });
-  const disc = { code: "kode", design: "desain", research: "riset", security: "keamanan", data: "data" }[t[1] as string];
-  if (disc && out.length < max) out.push({ icon: "🎯", text: disc });
-  if (t[0] === "strong" && out.length < max) out.push({ icon: "🧠", text: "otak kuat" });
-  return out.slice(0, max);
-}
-
-export function useOwnerLabel() {
-  const actor = useActor();
-  return (a: Agent) => (same(a.owner, actor.address) ? "milikmu" : a.ownerName);
-}
 
 export function useCooldown(a: Agent | undefined) {
   const { status } = useData();
@@ -45,18 +25,20 @@ export function AgentCard({ agent, to, onPick, pickedAs, disabledReason, note, s
   note?: string | null;
   showPrices?: boolean;
 }) {
-  const owner = useOwnerLabel();
+  const actor = useActor();
+  const { byId } = useData();
   const body = (
     <>
       <div className="agent-card-top">
         <Cell genome={agent.genome} size={44} alive={false} />
         <div style={{ minWidth: 0 }}>
-          <div className="agent-card-name">{agent.name}</div>
-          <div className="agent-card-meta">#{agent.id} · {agent.designed ? "rancangan Studio" : `generasi ${agent.generation}`} · {owner(agent)}</div>
+          <div className="agent-card-name">{agent.name} <span className="agent-card-id">#{agent.id}</span></div>
+          <div className="agent-card-meta">{originLabel(agent)} · {ownerLabel(agent.owner, actor.address)}</div>
         </div>
       </div>
+      <p className="agent-card-summary">{summaryLine(agent, (id) => byId(id)?.name)}</p>
       <div className="agent-card-tags">
-        {highlights(agent).map((h) => <span key={h.text} className="chip">{h.icon} {h.text}</span>)}
+        {traitChips(agent).map((t) => <span key={t} className="chip">{t}</span>)}
       </div>
       {agent.hidden && <span className="chip chip-danger">disembunyikan admin</span>}
       {showPrices && <Prices agent={agent} />}
@@ -109,8 +91,8 @@ export function Prices({ agent }: { agent: Agent }) {
   return (
     <div className="prices">
       {agent.sale && <span className="price price-sale"><small>Dijual{agent.sale.changedAfterListing ? " · otak diubah setelah dipasang" : ""}</small>{eth(agent.sale.priceEth)}</span>}
-      <span className="price"><small>Sewa/tugas</small>{rent > 0n ? eth(agent.rent.priceEth) : "gratis"}</span>
-      {agent.stud.listed && <span className="price"><small>Kawin</small>{BigInt(agent.stud.feeWei) > 0n ? eth(agent.stud.feeEth) : "gratis"}</span>}
+      <span className="price"><small>Sewa per tugas</small>{rent > 0n ? priceText(agent.rent.priceWei) : "pakai jatah gratis"}</span>
+      {agent.stud.listed && <span className="price"><small>Tarif kawin</small>{BigInt(agent.stud.feeWei) > 0n ? priceText(agent.stud.feeWei) : "tanpa tarif"}</span>}
     </div>
   );
 }

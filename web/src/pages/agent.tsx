@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { originLabel, ownerLabel, summaryLine } from "../lib/describe";
 import { ReportLink } from "../components/feedback";
 import { same } from "../api";
-import { AgentCard, TraitList, highlights, useCooldown, useOwnerLabel } from "../components/agent";
+import { AgentCard, TraitList, useCooldown } from "../components/agent";
 import { ClaudeDialog, useDownloadFull } from "../components/claude";
 import { NameDialog, RentPriceDialog, SellDialog, StudDialog } from "../components/dialogs";
 import { Cell, Copy, Empty, GenomeStrip, Spinner } from "../components/ui";
@@ -14,7 +15,6 @@ type Dialog = "name" | "stud" | "sell" | "rent" | "claude" | null;
 export function AgentPage({ id }: { id: number }) {
   const { byId, agents, loading, status } = useData();
   const actor = useActor();
-  const owner = useOwnerLabel();
   const a = byId(id);
   const cooldown = useCooldown(a);
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -42,12 +42,8 @@ export function AgentPage({ id }: { id: number }) {
           {a.soulVersion > 1 && status?.block && a.soulUpdatedBlock && (
             <span className="xs muted">Otak versi {a.soulVersion} · diperbarui {agoText((status.block - a.soulUpdatedBlock) * status.secPerBlock)}</span>
           )}
-          <p className="muted">
-            Agent #{a.id}, {a.designed ? "rancangan Studio" : a.generation === 0 ? "generasi pertama (founder)" : `generasi ${a.generation}`}, {owner(a) === "milikmu" ? "milikmu" : `dimiliki ${owner(a)}`}.
-          </p>
-          <div className="row" style={{ gap: 8 }}>
-            {highlights(a, 5).map((h) => <span key={h.text} className="chip">{h.icon} {h.text}</span>)}
-          </div>
+          <p className="agent-role">{summaryLine(a, (i) => byId(i)?.name)}</p>
+          <p className="muted small">Agent #{a.id} · {originLabel(a)} · {mine ? "milikmu" : `dimiliki ${ownerLabel(a.owner)}`}</p>
           <div className="row" style={{ gap: 8 }}>
             {a.stud.listed
               ? <span className="chip chip-teal">terbuka untuk kawin · {Number(a.stud.feeEth) > 0 ? `${a.stud.feeEth} ETH` : "gratis"}</span>
@@ -72,9 +68,21 @@ export function AgentPage({ id }: { id: number }) {
       <div className="agent-body">
         <section className="stack-lg">
           <div className="plate stack">
-            <h2 className="h-sub">Sifat</h2>
-            <GenomeStrip agent={a} large />
-            <TraitList agent={a} all />
+            <h2 className="h-sub">Otak agent</h2>
+            {a.profile.traits.length
+              ? <dl className="profile-list">
+                  {a.profile.traits.map((t) => {
+                    const side = a.profile.from?.[t.label.trim().toLowerCase()];
+                    const from = side ? byId(a.parents[side === "a" ? 0 : 1]) : undefined;
+                    return (
+                      <div key={t.label}>
+                        <dt>{t.label}</dt>
+                        <dd>{t.value}{from && <span className={`xs from-${side}`}> · dari {from.name}</span>}</dd>
+                      </div>
+                    );
+                  })}
+                </dl>
+              : <p className="small muted">{mine ? "Kamu belum menulis sifat untuk agent ini. Buka Sunting otak untuk menambahkannya." : "Pemiliknya belum menulis sifat untuk agent ini."}</p>}
           </div>
 
           {(parents.length > 0 || children.length > 0) && (
@@ -138,6 +146,9 @@ export function AgentPage({ id }: { id: number }) {
 
           <details className="tech plate">
             <summary>Detail teknis</summary>
+            <p className="xs muted">DNA yang tercatat di chain: menentukan peluang warisan dan kebiasaan dasar agent.</p>
+            <GenomeStrip agent={a} large />
+            <TraitList agent={a} all />
             <dl>
               <dt>genome</dt><dd><Copy text={a.genome} label={`${a.genome.slice(0, 18)}…`} /></dd>
               <dt>otak</dt><dd>{tierName} · suhu {a.params.temperature} · {a.params.maxTokens} token · {a.params.maxSteps} langkah</dd>

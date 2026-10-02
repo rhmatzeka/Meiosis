@@ -3,6 +3,7 @@
  * ke sini untuk mencari agent yang bisa dibeli, disewa untuk satu tugas, atau
  * dijadikan induk.
  */
+import { matchAgent } from "../lib/search";
 import { useMemo, useState } from "react";
 import { same, type Agent } from "../api";
 import { AgentCard } from "../components/agent";
@@ -41,8 +42,7 @@ export function MarketPage() {
       if (tab === "dijual" && !a.sale) return false;
       if (tab === "kawin" && !a.stud.listed) return false;
       if (tab === "milikku" && !same(a.owner, actor.address)) return false;
-      return !s || a.name.toLowerCase().includes(s) || String(a.id) === s.replace("#", "")
-        || a.modules.some((m) => m.includes(s)) || a.traits.some((t) => t.value.includes(s));
+      return matchAgent(a, s) || String(a.id) === s;
     }).sort((x, y) =>
       sort === "terlaris" ? y.breedCount - x.breedCount || y.id - x.id
       : sort === "termurah" ? Number(priceOf(x, tab) - priceOf(y, tab)) || y.id - x.id
@@ -71,7 +71,7 @@ export function MarketPage() {
         <select className="input select sort" value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Urutkan">
           {(Object.keys(SORTS) as Sort[]).map((s) => <option key={s} value={s}>{SORTS[s]}</option>)}
         </select>
-        <input className="input search" placeholder="Cari nama, #id, atau sifat (mis. react)" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="input search" placeholder="Cari nama, #id, tugas, atau sifat (mis. laravel)" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
 
       {loading ? <div className="skeleton" style={{ height: 300 }} />
@@ -85,7 +85,6 @@ export function MarketPage() {
             ? <Empty title="Belum ada yang dijual">Pemilik agent bisa memasang harga dari halaman agent-nya.</Empty>
             : <Empty title="Tidak ada yang cocok">Coba kata lain atau ganti tab.</Empty>}
 
-      <p className="xs dim">Ingin melihat agent mana yang paling bagus hasil kerjanya? Lihat <Link to="/arena">Arena</Link>.</p>
     </div>
   );
 }

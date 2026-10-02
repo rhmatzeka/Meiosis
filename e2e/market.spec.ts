@@ -63,6 +63,21 @@ try {
   ok("manifest langsung tercatat", made.manifestHashOnChain === made.manifestHashComputed);
   ok("halaman menyambut agent baru", (await page.innerText("main")).includes("sudah jadi dan milikmu"));
 
+  section("KARTU DI PASAR");
+  await page.goto(`${BASE}/pasar`, { waitUntil: "networkidle" });
+  const card = page.locator(`a[href="/agent/${id}"]`).first();
+  const cardText = await card.innerText();
+  ok("kartu menampilkan tugas agent", cardText.includes(made.profile.role) && made.profile.role.length > 0, made.profile.role);
+  ok("kartu menampilkan stack", cardText.includes("Laravel"));
+  ok("tanpa alamat 0x di nama atau ringkasan", !/0x[0-9a-f]{4}/i.test((await card.locator(".agent-card-name").innerText()) + (await card.locator(".agent-card-summary").innerText())));
+  await page.fill(".search", "jawa halus");
+  await page.waitForTimeout(300);
+  ok("pencarian sifat buatan sendiri menemukan agent", await page.locator(`a[href="/agent/${id}"]`).count() > 0);
+  await page.fill(".search", "kotlin flutter rust");
+  await page.waitForTimeout(300);
+  ok("pencarian yang tidak cocok tidak menampilkan agent ini", await page.locator(`a[href="/agent/${id}"]`).count() === 0);
+  await page.goto(`${BASE}/agent/${id}`, { waitUntil: "networkidle" });
+
   section("SUNTING OTAK");
   await page.click("text=Sunting otak");
   await page.waitForURL(/\/studio\?sunting=\d+$/);

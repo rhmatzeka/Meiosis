@@ -272,7 +272,7 @@
 
 .agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: var(--s-4); }
 .agent-card {
-  display: grid; gap: var(--s-3); align-content: start;
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-3); align-content: start;
   padding: var(--s-4); border-radius: var(--r-item);
   background: linear-gradient(180deg, var(--membrane-2), var(--membrane)); border: 1px solid var(--line);
   color: var(--ink); text-align: left;
@@ -391,4 +391,10 @@ details.tech dd { margin: 0; font-family: var(--font-mono); word-break: break-al
 @media (min-width: 760px) {
   .traits-cols { grid-template-columns: 1fr 1fr; column-gap: var(--s-6); }
   .traits-cols > div:nth-last-child(2) { border-bottom: 0; }
+}
+
+.agent-card-id { color: var(--dim); font-weight: 500; font-size: var(--t-xs); }
+.agent-card-summary {
+  margin: 0; color: var(--ink); font-size: var(--t-sm); line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }

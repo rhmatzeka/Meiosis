@@ -4,9 +4,10 @@
  * pertama teal, dari induk kedua pink — kode warna yang sama dengan pita genome.
  * Garis redup sampai sebuah agent disorot; saat itu hanya keluarganya yang menyala.
  */
+import { traitChips } from "../lib/describe";
 import { useMemo, useState } from "react";
 import { same, type Agent } from "../api";
-import { Prices, highlights } from "../components/agent";
+import { Prices } from "../components/agent";
 import { Cell, Empty } from "../components/ui";
 import { useActor } from "../hooks/use-actor";
 import { useData } from "../hooks/use-data";
@@ -136,7 +137,7 @@ function Detail({ a, agents }: { a: Agent; agents: Agent[] }) {
           <div className="agent-card-meta">#{a.id} · {a.designed ? "rancangan Studio" : a.generation === 0 ? "founder" : `generasi ${a.generation}`}</div>
         </div>
       </div>
-      <div className="agent-card-tags">{highlights(a, 4).map((h) => <span key={h.text} className="chip">{h.icon} {h.text}</span>)}</div>
+      <div className="agent-card-tags">{traitChips(a, 4).map((t) => <span key={t} className="chip">{t}</span>)}</div>
       <Prices agent={a} />
       <dl className="tree-kin">
         <div><dt>Induk</dt><dd>{parents.length ? parents.map((p) => p.name).join(" × ") : "tidak ada (generasi awal)"}</dd></div>
