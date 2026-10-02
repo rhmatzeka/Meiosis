@@ -339,3 +339,11 @@
   .trait-line .trait-value { grid-column: 1 / -1; grid-row: 2; }
   .trait-name { padding-top: 0; }
 }
+
+.try-row { display: flex; gap: var(--s-2); }
+.try-row .input { flex: 1; min-width: 0; }
+.try-output {
+  margin: 0; padding: var(--s-4); max-height: 420px; overflow: auto; border-radius: var(--r-field);
+  background: var(--membrane); border: 1px solid var(--line); color: var(--ink);
+  font: 400 var(--t-sm) / 1.6 var(--font-body); white-space: pre-wrap; overflow-wrap: anywhere;
+}

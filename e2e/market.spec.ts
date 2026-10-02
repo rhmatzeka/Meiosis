@@ -37,6 +37,16 @@ try {
   await page.click("text=Sunting instruksi");
   await page.fill(".studio-soul", SOUL);
   await page.fill(".sheet-name", "Perancang Uji");
+
+  const quotaLeft = async () => (await (await fetch(`${BASE}/api/quota`, { headers: { "x-test-user": account.address } })).json() as { tasks: number }).tasks;
+  const before = await quotaLeft();
+  const minted = (await agents()).length;
+  await page.fill('input[aria-label="Tugas untuk dicoba"]', "Buat endpoint login");
+  await page.click(".studio-try .try-row button");
+  await page.waitForSelector(".try-output", { timeout: 30_000 });
+  ok("coba dulu menampilkan jawaban agent", (await page.innerText(".try-output")).length > 0);
+  ok("coba dulu memakai satu tugas dari jatah", (await quotaLeft()) === before - 1, `${before} → ${await quotaLeft()}`);
+  ok("coba dulu tidak membuat agent apa pun", (await agents()).length === minted);
   const summary = await page.innerText(".studio-summary");
   ok("ringkasan memuat sifat buatan sendiri", summary.includes("Bahasa") && summary.includes("Jawa halus"));
   ok("Studio gratis selama beta", summary.includes("Gratis selama beta"));

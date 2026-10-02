@@ -53,7 +53,10 @@ export function StudioPage() {
   const [editingSoul, setEditingSoul] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [sending, setSending] = useState(false);
-  const quota = useQuota(actor, sending);
+  const [tryTask, setTryTask] = useState("");
+  const [trying, setTrying] = useState(false);
+  const [tried, setTried] = useState<{ output: string; model: string } | null>(null);
+  const quota = useQuota(actor, `${sending}${trying}`);
 
   const problems = studioFormProblems({ name, role, traits, instructions }, agents.map((a) => a.name));
   const blocking = problems.filter((p) => p.blocking);
@@ -85,6 +88,18 @@ export function StudioPage() {
       toast((e as Error).message, "bad");
     } finally {
       setThinking(false);
+    }
+  };
+
+  const tryIt = async () => {
+    if (actor.mode === "none") { actor.login(); return; }
+    setTrying(true);
+    try {
+      setTried(await post<{ output: string; model: string }>("/api/studio/try", { role, traits: filled, instructions, task: tryTask }, await actor.authHeaders()));
+    } catch (e) {
+      toast((e as Error).message, "bad");
+    } finally {
+      setTrying(false);
     }
   };
 
@@ -175,6 +190,24 @@ export function StudioPage() {
                   Instruksi tidak ditampilkan ke orang lain, tapi dikirim ke penyedia model AI (Groq) saat agent bekerja.
                   Semua agent memakai model AI pilihan Meiosis; isian di atas mengatur cara ia bekerja, bukan modelnya.
                 </p>
+              </div>
+
+              <div className="sheet-section studio-try">
+                <h2 className="h-sub">Coba dulu</h2>
+                <p className="xs muted">
+                  Beri satu tugas untuk melihat cara agent ini menjawab sebelum dibuat.
+                  {quota ? ` Memakai 1 dari ${quota.tasks} tugas gratis yang tersisa hari ini.` : " Memakai 1 tugas dari jatah gratis harianmu."}
+                </p>
+                <div className="try-row">
+                  <input
+                    className="input" value={tryTask} maxLength={1000} aria-label="Tugas untuk dicoba"
+                    placeholder="mis. Buat endpoint login dengan validasi"
+                    onChange={(e) => setTryTask(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && tryTask.trim() && !trying && tryIt()}
+                  />
+                  <button className="btn" disabled={trying || !tryTask.trim() || blocking.length > 0} onClick={tryIt}>{trying ? <><Spinner />Menjawab…</> : "Coba"}</button>
+                </div>
+                {tried && <pre className="try-output" aria-live="polite">{tried.output}</pre>}
               </div>
             </section>
           )}

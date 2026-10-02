@@ -23,6 +23,7 @@ import { SoulStore, inheritedSoul, profileFor, promptSoul, type ProfileNode } fr
 import { encodeProfile } from "./encode";
 import { testMode } from "./mode";
 import { QuotaLedger } from "./quota";
+import { tryRequestProblems } from "./try";
 import { FeedbackStore, HiddenList, isAdmin } from "./admin";
 import { Metrics, type MetricEvent } from "./metrics";
 import { MAX_INSTRUCTIONS, composeSoul, parseSoul, type FreeTrait } from "../packages/shared/src/profile";
@@ -778,6 +779,34 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         if (!who.ok) return json({ error: who.error }, 401);
         track("masuk", who.user);
         return json(quota.left(who.user));
+      }
+
+      if (p === "/api/studio/try" && req.method === "POST") {
+        // Menjalankan rancangan Studio sekali tanpa membuatnya: tanpa chain, tanpa bayar, memakai jatah tugas.
+        const b = (await req.json().catch(() => ({}))) as { role?: string; traits?: FreeTrait[]; instructions?: string; task?: string };
+        const bad = tryRequestProblems(b);
+        if (bad) return json({ error: bad }, 400);
+        const who = await quotaUser(req, server);
+        if (!who.ok) return json({ error: who.error }, 401);
+        const mock = TEST && process.env.MOCK_LLM === "1";
+        const noModel = modelMissing();
+        if (!mock && noModel) return json({ error: `server belum siap menjalankan agent: ${noModel}` }, 503);
+        const t = quota.reserveTask(who.user);
+        if (!t.ok) return json({ error: quotaMessage(t), quota: quota.left(who.user) }, 429);
+        track("coba", who.user);
+        try {
+          const soul = { role: String(b.role ?? ""), traits: Array.isArray(b.traits) ? b.traits : [], instructions: String(b.instructions ?? "") };
+          const { loci } = await encodeProfile(parseSoul(composeSoul(soul)));
+          const env = { ...process.env, MOCK_LLM: mock ? "1" : "0" };
+          const agent = materialize(studioGenome(loci), 0n, { provider: mock ? undefined : getProvider(env), env, soul });
+          const r = await agent.run(String(b.task).trim());
+          quota.settle(t.ticket, r.promptTokens + r.completionTokens);
+          return json({ output: guardOutput(r.output, soul.instructions).output, model: r.model, durationMs: r.durationMs, quota: quota.left(who.user) });
+        } catch (e) {
+          quota.release(t.ticket);
+          const m = (e as Error).message;
+          return json({ error: busyModel(m) ? BUSY_MESSAGE : m.slice(0, 300) }, busyModel(m) ? 503 : 500);
+        }
       }
 
       if (p === "/api/studio/soul" && req.method === "POST") {
