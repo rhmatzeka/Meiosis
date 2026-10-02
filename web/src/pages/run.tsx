@@ -2,6 +2,7 @@
  * Beri tugas ke satu atau beberapa agent sekaligus. Dengan tugas yang persis
  * sama, satu-satunya yang berbeda di antara hasil mereka adalah genome-nya.
  */
+import { Hint } from "../components/hint";
 import { AgentPicker } from "../components/agent-picker";
 import { ResultText } from "../components/result-view";
 import { priceText } from "../lib/describe";
@@ -148,6 +149,7 @@ export function RunPage() {
             {!sel.length ? "Pilih agent dulu di atas." : sel.length > limit ? `Paling banyak ${limit} agent sekali jalan.`
               : `Memakai ${sel.length} dari ${quota ? `${quota.tasks} tugas gratis yang tersisa hari ini` : "jatah tugas gratis harianmu"}.`}
             {total > 0n && " Harga sewa dibayar ke pemilik agent dan leluhurnya."}
+            <Hint k="jatah" />
           </span>
         </div>
       </section>

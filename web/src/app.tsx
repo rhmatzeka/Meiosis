@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Hint } from "./components/hint";
 import { post, short } from "./api";
 import { useToast } from "./components/toast";
 import { Backdrop } from "./components/backdrop";
@@ -15,6 +16,7 @@ import { StudioPage } from "./pages/studio";
 import { AdminPage } from "./pages/admin";
 import { FeedbackButton } from "./components/feedback";
 import { FamilyPage } from "./pages/family";
+import { TermsPage } from "./pages/terms";
 import { HomePage } from "./pages/home";
 import { NotFound } from "./pages/not-found";
 import { RunPage } from "./pages/run";
@@ -113,7 +115,7 @@ function Footer() {
         </div>
         <nav className="footer-links" aria-label="Tambahan">
           <div><Link to="/pasar">Pasar</Link><Link to="/studio">Studio</Link><Link to="/kawin">Kawinkan</Link></div>
-          <div><Link to="/panduan">Panduan</Link><Link to="/dompet">Dompet</Link><FeedbackButton /></div>
+          <div><Link to="/panduan">Panduan</Link><Link to="/dompet">Dompet</Link><Link to="/ketentuan">Ketentuan & Privasi</Link><FeedbackButton /></div>
         </nav>
       </div>
       <div className="footer-giant" aria-hidden>Meiosis</div>
@@ -137,17 +139,19 @@ function Routes({ path }: { path: string }) {
   if (path === "/arena") return <ArenaPage />;
   if (path === "/dompet") return <WalletPage />;
   if (path === "/admin") return <AdminPage />;
+  if (path === "/ketentuan") return <TermsPage />;
   return <NotFound />;
 }
 
 function NetworkBadge() {
   const { status, offline } = useData();
   const live = !offline && status?.chainLive;
-  const name = status ? (status.local ? "Lokal" : "Sepolia") : "…";
+  const name = status ? (status.local ? "Lokal" : "Sepolia · uji coba") : "…";
   return (
     <span className="network" title={live ? `Tersambung ke ${status?.chainName}` : "Chain tidak terjangkau"}>
       <i className={`dot ${live ? "dot-live" : "dot-bad"}`} />
       <span className="label">{name}</span>
+      {status && !status.local && <Hint k="jaringan-uji" />}
     </span>
   );
 }

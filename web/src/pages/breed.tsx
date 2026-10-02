@@ -5,6 +5,7 @@
  * sedang berjalan dan otomatis berubah menjadi layar kelahiran. Karena
  * statusnya dibaca dari chain, halaman itu aman di-refresh dan dibagikan.
  */
+import { Hint } from "../components/hint";
 import { AgentPicker } from "../components/agent-picker";
 import { traitOdds } from "../../../packages/shared/src/inherit";
 import { priceText } from "../lib/describe";
@@ -115,7 +116,7 @@ function Pick() {
           </button>
           {cantLogin && <span className="small" style={{ color: "var(--danger)" }}>{actor.loginProblem}</span>}
           <span className="small muted">
-            {due > 0n ? `Tarif kawin ${formatEther(due)} ETH. ` : a && b ? "Tanpa tarif kawin. " : ""}{gasNote}
+            {due > 0n ? `Tarif kawin ${formatEther(due)} ETH. ` : a && b ? "Tanpa tarif kawin. " : ""}{gasNote}<Hint k="tarif-kawin" />
           </span>
         </div>
       </section>
@@ -168,11 +169,11 @@ function Slot({ agent, role, cooldown, onClear }: { agent?: Agent; role: "a" | "
 function OddsTable({ a, b }: { a: Agent; b: Agent }) {
   const odds = useMemo(() => traitOdds(a.profile, b.profile, BigInt(a.genome), BigInt(b.genome)), [a, b]);
   if (!odds.length) {
-    return <div className="odds-wrap"><h3 className="h-sub">Peluang sifat anak</h3><p className="small muted">Kedua induk belum punya sifat tertulis. Anaknya tetap mewarisi DNA keduanya.</p></div>;
+    return <div className="odds-wrap"><h3 className="h-sub">Peluang sifat anak <Hint k="dna" /></h3><p className="small muted">Kedua induk belum punya sifat tertulis. Anaknya tetap mewarisi DNA keduanya.</p></div>;
   }
   return (
     <div className="odds-wrap">
-      <h3 className="h-sub">Peluang sifat anak</h3>
+      <h3 className="h-sub">Peluang sifat anak <Hint k="dna" /></h3>
       <div className="odds">
         {odds.map((o) => {
           const sure = o.pA === 1 || o.pA === 0;

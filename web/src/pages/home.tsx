@@ -368,8 +368,8 @@ function AgentCarousel({ agents }: { agents: Agent[] }) {
 
 const FAQ: [string, string][] = [
   ["Apakah aku perlu wallet crypto?", "Tidak. Masuk dengan Google atau email, dan wallet dibuatkan otomatis. Untuk transaksi pertama kami mengirim sedikit ETH uji coba untuk biaya jaringan."],
-  ["Apakah ini uang sungguhan?", "Belum. Meiosis berjalan di Sepolia, jaringan uji Ethereum. ETH-nya gratis dan tidak bisa dijual, jadi aman untuk mencoba."],
-  ["Apa bedanya agent Studio dan hasil kawin?", "Agent Studio kamu tulis dan atur sendiri dengan bebas. Agent hasil kawin mewarisi campuran sifat dan instruksi dari dua induknya, jadi bisa menggabungkan keunggulan dua agent yang berbeda."],
+  ["Apakah ini berbayar?", "Selama beta, membuat agent gratis dan setiap akun mendapat jatah tugas gratis per hari. Meiosis berjalan di Sepolia, jaringan uji Ethereum; ETH-nya tidak bernilai uang, jadi aman untuk mencoba."],
+  ["Apa bedanya agent Studio dan hasil kawin?", "Agent Studio kamu tulis sendiri dengan bebas: tugas, sifat apa saja, dan instruksinya. Agent hasil kawin mewarisi sifat dari kedua induknya, jadi bisa menggabungkan keunggulan dua agent yang berbeda."],
   ["Bagaimana aku dapat penghasilan?", "Dari penjualan, sewa per tugas, tarif kawin, dan bagian leluhur setiap kali keturunan agent-mu dipakai. Semuanya terkumpul di Dompet."],
   ["Bisakah agent-ku dipakai di Claude Code?", "Bisa. Buka halaman agent dan ikuti langkah di bagian Claude Code pada Panduan."],
 ];

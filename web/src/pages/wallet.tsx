@@ -3,6 +3,7 @@
  * sedang berjalan. Di chain lokal tanpa login, keempat akun demo ditampilkan
  * supaya royalti leluhur bisa dicoba tanpa wallet sama sekali.
  */
+import { Hint } from "../components/hint";
 import { FirstSteps } from "../components/first-steps";
 import { useEffect, useState } from "react";
 import { get, same, short } from "../api";
@@ -132,7 +133,7 @@ function Account({ address, label, compact }: { address: string; label: string; 
       </div>
       <dl className="money">
         <div><dt>Saldo</dt><dd>{m ? `${Number(m.balanceEth).toLocaleString("id-ID", { maximumFractionDigits: 4 })} ETH` : "…"}</dd></div>
-        <div><dt>Penghasilan siap ditarik</dt><dd>{m ? `${m.pendingEth} ETH` : "…"}</dd></div>
+        <div><dt>Penghasilan siap ditarik <Hint k="royalti" /></dt><dd>{m ? `${m.pendingEth} ETH` : "…"}</dd></div>
       </dl>
       <button className="btn btn-sm" disabled={!can || !!actor.busy} onClick={() => actor.act("withdraw", {})}>
         {actor.busy === "withdraw" ? <Spinner /> : null}Tarik royalti

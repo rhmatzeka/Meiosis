@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Hint } from "../components/hint";
 import { originLabel, ownerLabel, summaryLine } from "../lib/describe";
 import { ReportLink } from "../components/feedback";
 import { same } from "../api";
@@ -43,7 +44,7 @@ export function AgentPage({ id }: { id: number }) {
             <span className="xs muted">Otak versi {a.soulVersion} · diperbarui {agoText((status.block - a.soulUpdatedBlock) * status.secPerBlock)}</span>
           )}
           <p className="agent-role">{summaryLine(a, (i) => byId(i)?.name)}</p>
-          <p className="muted small">Agent #{a.id} · {originLabel(a)} · {mine ? "milikmu" : `dimiliki ${ownerLabel(a.owner)}`}</p>
+          <p className="muted small">Agent #{a.id} · {originLabel(a)} <Hint k="generasi" /> · {mine ? "milikmu" : `dimiliki ${ownerLabel(a.owner)}`}</p>
           <div className="row" style={{ gap: 8 }}>
             {a.stud.listed
               ? <span className="chip chip-teal">terbuka untuk kawin · {Number(a.stud.feeEth) > 0 ? `${a.stud.feeEth} ETH` : "gratis"}</span>
@@ -101,7 +102,7 @@ export function AgentPage({ id }: { id: number }) {
 
         <aside className="stack agent-side">
           <div className="plate stack">
-            <h2 className="h-sub">Pakai agent ini</h2>
+            <h2 className="h-sub">Pakai agent ini <Hint k="sewa" /></h2>
             {a.sale && !mine && (
               <button className="btn btn-primary" disabled={!!actor.busy} onClick={() => actor.mode === "none" ? actor.login() : actor.act("buy", { id: a.id }, { split: `Penjual menerima ${100 - (status?.market?.feeBps ?? 0) / 100}%, platform ${(status?.market?.feeBps ?? 0) / 100}%.` })}>
                 {actor.busy === "buy" ? <Spinner /> : null}Beli · {a.sale.priceEth} ETH

@@ -461,3 +461,17 @@ details.tech dd { margin: 0; font-family: var(--font-mono); word-break: break-al
 .result-code-head { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--line); }
 .result-code pre { margin: 0; padding: 12px; overflow: auto; max-height: 520px; font: 400 var(--t-xs) / 1.55 var(--font-mono); }
 .result-actions { display: flex; justify-content: flex-end; }
+
+/* ---------- istilah ---------- */
+.hint { position: relative; display: inline-flex; vertical-align: middle; margin-left: 4px; }
+.hint-btn {
+  width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--line-strong); background: transparent; color: var(--muted);
+  font: 700 10px/1 var(--font-body); cursor: pointer; display: grid; place-items: center; padding: 0;
+}
+.hint-btn:hover, .hint-btn:focus-visible, .hint-btn[aria-expanded="true"] { color: var(--ink); border-color: var(--accent); }
+.hint-pop {
+  position: absolute; z-index: 70; left: 50%; top: calc(100% + 8px); transform: translateX(-50%); width: min(260px, 80vw);
+  padding: 10px 12px; border-radius: var(--r-field); background: var(--membrane-2); border: 1px solid var(--line-strong);
+  color: var(--muted); font: 400 var(--t-xs) / 1.5 var(--font-body); text-align: left; white-space: normal; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+.hint-pop b { color: var(--ink); }

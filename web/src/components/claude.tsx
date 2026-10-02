@@ -3,6 +3,7 @@
  * dialog langkah pemasangan, unduhan `.md` lengkap untuk pemilik, dan kartu
  * saldo pakai + API key di Dompet.
  */
+import { Hint } from "./hint";
 import { useCallback, useEffect, useState } from "react";
 import { get, post, type Agent } from "../api";
 import { proofFor, useActor } from "../hooks/use-actor";
@@ -57,10 +58,10 @@ export function ClaudeDialog({ agent, onClose }: { agent: Agent; onClose: () => 
       </>}
     >
       <ol className="guide-steps small">
-        <li><span>Buat API key dan isi saldo pakai di <Link to="/dompet" onClick={onClose}>Dompet</Link>.</span></li>
+        <li><span>Buat API key dan isi saldo untuk Claude Code di <Link to="/dompet" onClick={onClose}>Dompet</Link>.</span></li>
         <li><span>Pasang Meiosis di Claude Code sekali saja (ganti dengan kuncimu):<br /><Copy text={mcpCommand(url)} label="salin perintah" /></span></li>
         <li><span>Unduh berkas agent, pindahkan ke <code>~/.claude/agents/</code> atau <code>.claude/agents/</code> proyekmu.</span></li>
-        <li><span>Di Claude Code minta: <i>"Pakai agent meiosis-{agent.id} untuk …"</i>. Setiap tugas dibayar {agent.rent.priceEth !== "0" ? `${agent.rent.priceEth} ETH` : "sesuai harga sewanya"} dari saldo pakai.</span></li>
+        <li><span>Di Claude Code minta: <i>"Pakai agent meiosis-{agent.id} untuk …"</i>. Setiap tugas dibayar {agent.rent.priceEth !== "0" ? `${agent.rent.priceEth} ETH` : "sesuai harga sewanya"} dari saldo untuk Claude Code.</span></li>
       </ol>
       <p className="xs muted">Berkas ini tidak berisi "otak" agent-nya; agent tetap bekerja di server Meiosis, jadi berkasnya aman dibagikan.</p>
     </Modal>
@@ -94,7 +95,7 @@ export function CreditsCard() {
     <div className="plate stack wallet-credits">
       <div className="spread">
         <div>
-          <h2 className="h-sub">Saldo pakai</h2>
+          <h2 className="h-sub">Saldo untuk Claude Code <Hint k="saldo-claude" /></h2>
           <p className="xs muted">Untuk memakai agent dari Claude Code. Setiap tugas memotong harga sewa agent-nya (bawaan {c.defaultPriceEth} ETH).</p>
         </div>
         <b className="mono">{c.balanceEth} ETH</b>
@@ -105,7 +106,7 @@ export function CreditsCard() {
       </div>
       {mode && (
         <Modal
-          title={mode === "deposit" ? "Isi saldo pakai" : "Tarik saldo pakai"}
+          title={mode === "deposit" ? "Isi saldo untuk Claude Code" : "Tarik saldo untuk Claude Code"}
           onClose={() => setMode(null)}
           actions={<>
             <button className="btn btn-quiet" onClick={() => setMode(null)}>Batal</button>

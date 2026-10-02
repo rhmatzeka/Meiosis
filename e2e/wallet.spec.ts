@@ -35,7 +35,7 @@ try {
   section("KAWINKAN DARI WALLET");
   const [x, y] = await freePair();
   await page.goto(`${BASE}/kawin?a=${x}&b=${y}`, { waitUntil: "networkidle" });
-  await page.click(".breed-go button");
+  await page.click(".breed-go .btn-primary");
   await page.waitForURL(/\/kawin\/\d+$/, { timeout: 30_000 });
   await page.waitForSelector(".born", { timeout: 60_000 });
   const pid = Number(page.url().split("/").pop());
@@ -79,7 +79,7 @@ try {
   ok("Dompet menampilkan royalti siap ditarik", true, `${formatEther(p0 + gained)} ETH`);
   const before = BigInt(await rpc("eth_getBalance", [account.address, "latest"]) as string);
   await page.click(".wallet-main >> text=Tarik royalti");
-  await page.waitForSelector(".wallet-main >> text=/Penghasilan siap ditarik\\s*0 ETH/", { timeout: 30_000 });
+  await page.waitForSelector(".wallet-main >> text=/Penghasilan siap ditarik\\s*\\??\\s*0 ETH/", { timeout: 30_000 });
   const after = BigInt(await rpc("eth_getBalance", [account.address, "latest"]) as string);
   ok("royalti ditarik ke wallet", after - before > p0 + gained - 10n ** 15n, `saldo naik ${(Number(after - before) / 1e18).toFixed(4)} ETH`);
 

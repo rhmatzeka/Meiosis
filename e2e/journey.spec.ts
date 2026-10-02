@@ -43,7 +43,7 @@ try {
   ok("peluang sifat bebas tampil sebelum kawin", (await page.locator(".odds-row").count()) > 0 && oddsText.includes("Stack & alat") && /\d+%|pasti/.test(oddsText), oddsText.split("\n").slice(0, 3).join(" | "));
   ok("agent yang tidak bisa dipilih disembunyikan dulu", await page.isVisible("text=Tampilkan semua"));
   ok("tanpa istilah teknis (hex/lokus/blok) di jalur utama", !/0x[0-9a-f]{8}|lokus|commit/i.test(await page.innerText("main")));
-  const go = page.locator(".breed-go button");
+  const go = page.locator(".breed-go .btn-primary");
   ok("tombol Kawinkan aktif", await go.isEnabled());
 
   section("PEMBUAHAN (dengan refresh di tengah)");
@@ -58,9 +58,9 @@ try {
   if (resting.readyAtBlock > b) {
     const p2 = await browser.newPage();
     await p2.goto(`${BASE}/kawin?a=${x}&b=${y}`, { waitUntil: "networkidle" });
-    await p2.waitForSelector(".breed-go button");
+    await p2.waitForSelector(".breed-go .btn-primary");
     ok("induk yang istirahat diberi tahu", (await p2.innerText(".breed-stage")).includes("istirahat"));
-    ok("tombol Kawinkan nonaktif saat induk istirahat", await p2.locator(".breed-go button").isDisabled());
+    ok("tombol Kawinkan nonaktif saat induk istirahat", await p2.locator(".breed-go .btn-primary").isDisabled());
     await p2.close();
   } else {
     console.log("  · cooldown sudah lewat sebelum sempat diperiksa (jeda dasar kecil), dilewati");
@@ -144,7 +144,7 @@ try {
 
   section("TANPA JEJAK DEMO (belum masuk)");
   const anon = await browser.newPage();
-  for (const path of ["/", "/pasar", "/studio", "/kawin", "/tugas", "/silsilah", "/dompet", "/panduan"]) {
+  for (const path of ["/", "/pasar", "/studio", "/kawin", "/tugas", "/silsilah", "/dompet", "/panduan", "/ketentuan"]) {
     await anon.goto(BASE + path, { waitUntil: "networkidle" });
     const body = await anon.innerText("body");
     ok(`tanpa kata demo/founder: ${path}`, !/\bdemo\b|Alice|\bBob\b|Carol|tiruan|founder/i.test(body), body.match(/.{0,30}(\bdemo\b|Alice|\bBob\b|Carol|tiruan|founder).{0,30}/i)?.[0] ?? "");
@@ -154,7 +154,7 @@ try {
   section("PONSEL 375 px");
   const phone = await browser.newPage({ viewport: { width: 375, height: 812 } });
   const phoneErrors = watchErrors(phone);
-  for (const path of ["/", `/kawin?a=${x}&b=${y}`, `/kawin/${pid}`, `/agent/${childId}`, "/pasar", "/studio", "/panduan", "/silsilah", "/tugas", "/dompet", "/admin"]) {
+  for (const path of ["/", `/kawin?a=${x}&b=${y}`, `/kawin/${pid}`, `/agent/${childId}`, "/pasar", "/studio", "/panduan", "/silsilah", "/tugas", "/dompet", "/admin", "/ketentuan"]) {
     await phone.goto(BASE + path, { waitUntil: "networkidle" });
     await phone.waitForTimeout(300);
     const { sw, cw } = await phone.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));

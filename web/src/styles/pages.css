@@ -362,3 +362,6 @@
 
 .odds-wrap .odds-row { grid-template-columns: minmax(0, 1.4fr) minmax(80px, 1fr) max-content; }
 .odds-wrap .odds-row .v { white-space: nowrap; }
+
+.terms-list { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; line-height: 1.55; max-width: 72ch; }
+.terms .link-btn { color: var(--accent-hi); text-decoration: underline; }

@@ -6,6 +6,7 @@
  * "nama sifat : isi", dan instruksi rahasia. Server menerjemahkan profil itu
  * ke genome saat agent dibuat; model AI-nya dipilih penyelenggara.
  */
+import { Hint } from "../components/hint";
 import { markTaskRun } from "../lib/onboarding";
 import { useEffect, useMemo, useState } from "react";
 import { normalizeTraits, type FreeTrait } from "../../../packages/shared/src/profile";
@@ -213,7 +214,7 @@ export function StudioPage() {
               ))}
 
               <div className="sheet-section">
-                <h2 className="h-sub">Sifat</h2>
+                <h2 className="h-sub">Sifat <Hint k="sifat" /></h2>
                 <p className="xs muted">Tulis apa saja. Ganti nama sifatnya, hapus yang tidak perlu, atau tambah sifat baru. Sifat ini yang diwariskan ke anaknya kalau dikawinkan.</p>
                 <TraitEditor value={traits} onChange={setTraits} />
                 {problems.filter((p) => p.field === "traits").map((p) => <p key={p.message} className={`xs ${p.blocking ? "text-bad" : "muted"}`}>{p.message}</p>)}
@@ -221,7 +222,7 @@ export function StudioPage() {
 
               <div className="sheet-section">
                 <div className="spread">
-                  <h2 className="h-sub">Instruksi</h2>
+                  <h2 className="h-sub">Instruksi <Hint k="instruksi" /></h2>
                   <button type="button" className="btn btn-sm" onClick={() => setEditingSoul((v) => !v)}>{editingSoul ? "Selesai" : instructions.trim() ? "Sunting instruksi" : "Tulis instruksi"}</button>
                 </div>
                 {editingSoul
