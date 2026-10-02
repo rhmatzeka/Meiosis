@@ -54,8 +54,8 @@ export function HomePage() {
       // Satu momen pembuka: label, judul per kata, lalu ajakan.
       const tl = gsap.timeline({ defaults: { ease: "expo.out" } });
       tl.from(".hero-pill", { y: 12, opacity: 0, duration: 0.7 });
-      const title = root.current?.querySelector(".hero h1");
-      if (title) tl.add(() => { splitWords(title); }, 0.1);
+      // Judul tidak dianimasikan: ia elemen terbesar di layar pertama, dan menahannya
+      // tersembunyi menunda tampilan pertama di ponsel lambat (LCP).
       tl.from(".hero-lead, .hero-cta", { y: 18, opacity: 0, duration: 0.9, stagger: 0.1 }, 0.45);
 
       // Deretan teknologi berjalan terus.
@@ -236,7 +236,7 @@ export function HomePage() {
         <div className="showcase-cta"><Link to="/pasar" className="btn btn-light btn-lg">Buka Pasar <span className="arrow"><Arrow /></span></Link></div>
       </section>
 
-      <Pricing studioFee={status?.market?.studioFeeEth ?? "0.002"} feePct={(status?.market?.feeBps ?? 250) / 100} />
+      <Pricing studioFee={status?.market?.studioFeeEth ?? "0"} feePct={(status?.market?.feeBps ?? 1000) / 100} />
 
       {newest.length > 0 && <AgentCarousel agents={newest.slice(0, 8)} />}
 
@@ -279,9 +279,9 @@ export function HomePage() {
 function Pricing({ studioFee, feePct }: { studioFee: string; feePct: number }) {
   const [side, setSide] = useState<"pembuat" | "pemakai">("pembuat");
   const cards = side === "pembuat" ? [
-    { t: "Studio", s: "Rancang agent baru", p: `${studioFee} ETH`, u: "sekali", l: ["Tulis bebas atau dirancang AI", "Langsung jadi milikmu", "Bisa dijual, disewa, dikawinkan"], to: "/studio", cta: "Buka Studio" },
+    { t: "Studio", s: "Rancang agent baru", p: Number(studioFee) === 0 ? "Gratis" : `${studioFee} ETH`, u: Number(studioFee) === 0 ? "selama beta" : "sekali", l: ["Tulis bebas atau dirancang AI", "Langsung jadi milikmu", "Bisa dijual, disewa, dikawinkan"], to: "/studio", cta: "Buka Studio" },
     { t: "Jual", s: "Pasang harga agent-mu", p: `${feePct}%`, u: "per penjualan", l: ["Agent tetap di tanganmu sampai laku", "Sisanya untukmu dan leluhurnya", "Batal jual kapan saja"], to: "/pasar?tab=milikku", cta: "Jual agent", hot: true },
-    { t: "Sewakan", s: "Harga per tugas pilihanmu", p: `${feePct}%`, u: "per tugas", l: ["Orang bayar sekali per tugas", "Penghasilan masuk ke Dompet", "Keturunannya ikut membayarmu"], to: "/pasar?tab=milikku", cta: "Pasang harga" },
+    { t: "Sewakan", s: "Harga per tugas pilihanmu", p: `${feePct}%`, u: "per tugas", l: ["Kamu yang menentukan harganya", "Penghasilan masuk ke Dompet", "Keturunannya ikut membayarmu"], to: "/pasar?tab=milikku", cta: "Pasang harga" },
   ] : [
     { t: "Kawinkan", s: "Jadikan agent orang sebagai induk", p: "Tarif pemilik", u: "sering gratis", l: ["Lihat peluang sifat dulu", "Anaknya jadi milikmu", "Menetas otomatis"], to: "/kawin", cta: "Kawinkan" },
     { t: "Sewa per tugas", s: "Pakai agent tanpa membelinya", p: "Harga pemilik", u: "per tugas", l: ["Tulis tugas, bayar, selesai", "Hasil muncul di halaman", "Tanpa langganan"], to: "/pasar?tab=sewa", cta: "Cari agent", hot: true },

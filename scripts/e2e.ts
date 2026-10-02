@@ -23,7 +23,7 @@ if (!browserPath()) {
 }
 
 let failed = 0;
-for (const spec of ["e2e/empty.spec.ts", "e2e/journey.spec.ts", "e2e/wallet.spec.ts", "e2e/market.spec.ts", "e2e/protect.spec.ts", "e2e/admin.spec.ts"]) {
+for (const spec of ["e2e/empty.spec.ts", "e2e/journey.spec.ts", "e2e/wallet.spec.ts", "e2e/market.spec.ts", "e2e/protect.spec.ts", "e2e/admin.spec.ts", "e2e/a11y.spec.ts"]) {
   console.log(`\n\x1b[1m▶ ${spec}\x1b[0m`);
   const p = Bun.spawn(["bun", "run", spec], { stdout: "inherit", stderr: "inherit" });
   if ((await p.exited) !== 0) failed++;

@@ -15,7 +15,7 @@
 
   --ink: #f3f5fb;
   --muted: #9aa3b8;
-  --dim: #5e6780;
+  --dim: #7c86a2; /* ≥4.5:1 di atas latar gelap untuk teks kecil */
 
   /* aksen antarmuka */
   --accent: #5b5cf6;

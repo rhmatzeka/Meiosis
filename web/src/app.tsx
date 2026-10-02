@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Hint } from "./components/hint";
 import { post, short } from "./api";
 import { useToast } from "./components/toast";
@@ -7,21 +7,23 @@ import { BrandMark, Copy, Spinner } from "./components/ui";
 import { MOTION_OK, gsap, useGSAP, usePageMotion } from "./motion";
 import { useActor, useQuota } from "./hooks/use-actor";
 import { useData } from "./hooks/use-data";
-import { AgentPage } from "./pages/agent";
-import { ArenaPage } from "./pages/arena";
-import { BreedPage } from "./pages/breed";
-import { GuidePage } from "./pages/guide";
-import { MarketPage } from "./pages/market";
-import { StudioPage } from "./pages/studio";
-import { AdminPage } from "./pages/admin";
 import { FeedbackButton } from "./components/feedback";
-import { FamilyPage } from "./pages/family";
-import { TermsPage } from "./pages/terms";
 import { HomePage } from "./pages/home";
 import { NotFound } from "./pages/not-found";
-import { RunPage } from "./pages/run";
-import { WalletPage } from "./pages/wallet";
 import { Link, Redirect, match, useLocation } from "./router";
+
+/** Setiap halaman selain beranda dimuat terpisah: layar pertama tidak membawa kode Studio, Admin, dan lainnya. */
+const AgentPage = lazy(() => import("./pages/agent").then((m) => ({ default: m.AgentPage })));
+const ArenaPage = lazy(() => import("./pages/arena").then((m) => ({ default: m.ArenaPage })));
+const BreedPage = lazy(() => import("./pages/breed").then((m) => ({ default: m.BreedPage })));
+const GuidePage = lazy(() => import("./pages/guide").then((m) => ({ default: m.GuidePage })));
+const MarketPage = lazy(() => import("./pages/market").then((m) => ({ default: m.MarketPage })));
+const StudioPage = lazy(() => import("./pages/studio").then((m) => ({ default: m.StudioPage })));
+const AdminPage = lazy(() => import("./pages/admin").then((m) => ({ default: m.AdminPage })));
+const FamilyPage = lazy(() => import("./pages/family").then((m) => ({ default: m.FamilyPage })));
+const TermsPage = lazy(() => import("./pages/terms").then((m) => ({ default: m.TermsPage })));
+const RunPage = lazy(() => import("./pages/run").then((m) => ({ default: m.RunPage })));
+const WalletPage = lazy(() => import("./pages/wallet").then((m) => ({ default: m.WalletPage })));
 
 const NAV = [
   { to: "/pasar", label: "Pasar" },
@@ -124,6 +126,10 @@ function Footer() {
 }
 
 function Routes({ path }: { path: string }) {
+  return <Suspense fallback={<div className="skeleton" style={{ height: 420 }} />}><Route path={path} /></Suspense>;
+}
+
+function Route({ path }: { path: string }) {
   if (path === "/") return <HomePage />;
   if (path === "/kawin") return <BreedPage />;
   const preg = match("/kawin/:pid", path);

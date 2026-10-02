@@ -24,6 +24,7 @@ import { encodeProfile } from "./encode";
 import { testMode } from "./mode";
 import { QuotaLedger } from "./quota";
 import { tryRequestProblems } from "./try";
+import { serveFont, serveStatic } from "./static";
 import { FeedbackStore, HiddenList, isAdmin } from "./admin";
 import { Metrics, type MetricEvent } from "./metrics";
 import { MAX_INSTRUCTIONS, composeSoul, parseSoul, type FreeTrait } from "../packages/shared/src/profile";
@@ -703,15 +704,7 @@ if (operator) {
 const DIST = resolve("dist/web");
 const USE_DIST = PUBLIC && existsSync(join(DIST, "index.html"));
 if (PUBLIC && !USE_DIST) console.warn("  ⚠ dist/web belum ada: jalankan `bun run build:web` supaya halaman jauh lebih ringan");
-function serveDist(req: Request) {
-  const path = resolve(DIST, "." + decodeURIComponent(new URL(req.url).pathname));
-  if (path.startsWith(DIST + "/") && existsSync(path) && statSync(path).isFile()) {
-    return new Response(Bun.file(path), { headers: { "cache-control": "public, max-age=31536000, immutable" } });
-  }
-  return new Response(Bun.file(join(DIST, "index.html")), {
-    headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" },
-  });
-}
+const serveDist = (req: Request) => serveStatic(req, DIST);
 
 Bun.serve({
   port: PORT,
@@ -722,6 +715,7 @@ Bun.serve({
   routes: {
     "/api/*": (req, server) => handle(req, server),
     "/artifact/*": (req, server) => handle(req, server),
+    "/fonts/*": serveFont,
     "/mcp": (req, server) => handle(req, server),
     // Semua rute lain milik aplikasi (SPA): /kawin/3, /agent/7, dst.
     "/*": USE_DIST ? serveDist : app,

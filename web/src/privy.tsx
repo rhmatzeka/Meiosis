@@ -10,7 +10,7 @@ import { useToast } from "./components/toast";
 import { ActorCtx, useActCore, type Actor, type BuiltTx, type Eip1193 } from "./hooks/use-actor";
 import { useData } from "./hooks/use-data";
 
-export function PrivyAuth({ appId, chain, children }: { appId: string; chain: Chain; children: ReactNode }) {
+export function PrivyAuth({ appId, chain, autoLogin = false, children }: { appId: string; chain: Chain; autoLogin?: boolean; children: ReactNode }) {
   return (
     <PrivyProvider
       appId={appId}
@@ -28,13 +28,26 @@ export function PrivyAuth({ appId, chain, children }: { appId: string; chain: Ch
         supportedChains: [chain],
       }}
     >
-      <PrivyActorProvider>{children}</PrivyActorProvider>
+      <PrivyActorProvider autoLogin={autoLogin}>{children}</PrivyActorProvider>
     </PrivyProvider>
   );
 }
 
-export function PrivyActorProvider({ children }: { children: ReactNode }) {
+export function PrivyActorProvider({ children, autoLogin = false }: { children: ReactNode; autoLogin?: boolean }) {
   const { ready, authenticated, login, logout, user, getAccessToken } = usePrivy();
+
+  // SDK baru dimuat karena tombol Masuk ditekan: buka jendela login begitu siap.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (!autoLogin || !ready || authenticated || opened.current) return;
+    opened.current = true;
+    login();
+  }, [autoLogin, ready, authenticated, login]);
+  // Tanda untuk kunjungan berikutnya: muat Privy lebih awal supaya sesi langsung pulih.
+  useEffect(() => {
+    if (!ready) return;
+    try { authenticated ? localStorage.setItem("meiosis:privy", "1") : localStorage.removeItem("meiosis:privy"); } catch { /* penyimpanan diblokir */ }
+  }, [ready, authenticated]);
   const { wallets } = useWallets();
   const { status, refresh } = useData();
   const toast = useToast();

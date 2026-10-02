@@ -153,7 +153,7 @@ const REMEMBER = "meiosis:wallet";
  * `pending`: Privy sedang dimuat. Jangan tawarkan MetaMask atau menyebut login
  * tidak tersedia; sebentar lagi provider ini diganti PrivyActorProvider.
  */
-export function PlainActorProvider({ children, pending = false }: { children: ReactNode; pending?: boolean }) {
+export function PlainActorProvider({ children, pending = false, onLogin }: { children: ReactNode; pending?: boolean; onLogin?: () => void }) {
   const { status } = useData();
   const toast = useToast();
   const [address, setAddress] = useState<string | undefined>();
@@ -203,20 +203,22 @@ export function PlainActorProvider({ children, pending = false }: { children: Re
     return (await p.request({ method: "eth_sendTransaction", params: [{ from: address, to: tx.to, data: tx.data, value: tx.value }] })) as string;
   }, [address, status]);
 
-  const { act, busy } = useActCore(address ? sign : null, address, login);
+  // Dengan Privy: tombol Masuk memuat SDK Privy lalu membuka jendela login-nya.
+  const doLogin = onLogin ?? login;
+  const { act, busy } = useActCore(address ? sign : null, address, doLogin);
 
   const value: Actor = {
     mode: address ? "injected" : "none",
     address,
     label: undefined,
     ready: !!status && !pending,
-    canLogin: !pending && !!eth(),
-    login,
+    canLogin: !pending && (!!onLogin || !!eth()),
+    login: doLogin,
     logout: async () => { setAddress(undefined); try { localStorage.removeItem(REMEMBER); } catch { /* penyimpanan diblokir */ } },
     act, busy, funding: null,
     sign: address ? (async (message: string) => (await eth()!.request({ method: "personal_sign", params: [message, address] })) as string) : null,
     authHeaders: async (): Promise<Record<string, string>> => (status?.testMode && address ? { "x-test-user": address } : {}),
-    loginProblem: pending || !status || eth() ? null : "Login belum diaktifkan di server ini (PRIVY_APP_ID kosong) dan browser ini tidak punya wallet.",
+    loginProblem: pending || !status || onLogin || eth() ? null : "Login belum diaktifkan di server ini (PRIVY_APP_ID kosong) dan browser ini tidak punya wallet.",
   };
   return <ActorCtx.Provider value={value}>{children}</ActorCtx.Provider>;
 }

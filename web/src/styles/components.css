@@ -475,3 +475,6 @@ details.tech dd { margin: 0; font-family: var(--font-mono); word-break: break-al
   color: var(--muted); font: 400 var(--t-xs) / 1.5 var(--font-body); text-align: left; white-space: normal; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
 }
 .hint-pop b { color: var(--ink); }
+
+.footer-links .link-btn { color: var(--muted); font-size: var(--t-sm); }
+.footer-links .link-btn:hover { color: var(--ink); text-decoration: none; }

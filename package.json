@@ -8,7 +8,7 @@
     "analyze:litter": "bun run scripts/analyze-litter.ts",
     "anvil": "anvil --block-time 2",
     "arena": "bun run scripts/discrimination-test.ts",
-    "build:web": "rm -rf dist/web && bun build web/index.html --outdir dist/web --splitting --minify --sourcemap=linked",
+    "build:web": "rm -rf dist/web && bun build web/index.html --outdir dist/web --splitting --production --sourcemap=linked",
     "demo:local": "bun run scripts/demo-local.ts",
     "demo:runtime": "bun run scripts/demo-runtime.ts",
     "deploy:sepolia": "CHAIN=sepolia bun run scripts/deploy.ts",
@@ -34,6 +34,7 @@
     "@types/bun": "^1.4.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "axe-core": "4",
     "playwright-core": "^1.63.0",
     "typescript": "^5.6.0"
   },

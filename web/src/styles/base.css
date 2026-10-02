@@ -51,3 +51,6 @@ button { font: inherit; color: inherit; }
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Tautan di tengah kalimat harus terlihat sebagai tautan tanpa bergantung pada warna saja. */
+main p a:not(.btn), main dd a:not(.btn), main li a:not(.btn), .guide-note a:not(.btn) { text-decoration: underline; text-underline-offset: 2px; }
