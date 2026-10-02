@@ -71,3 +71,14 @@ test("batas bisa diubah admin tanpa restart", () => {
   q.configure({ tasksPerDay: 5 });
   expect(q.reserveTask("privy:1", T0).ok).toBe(true);
 });
+
+test("reserveTasks: semua atau tidak sama sekali", () => {
+  const q = new QuotaLedger(file("j.json"), { ...cfg, tasksPerDay: 3 });
+  const two = q.reserveTasks("privy:1", 2, T0);
+  expect(two.ok).toBe(true);
+  const fail = q.reserveTasks("privy:1", 2, T0);
+  expect(fail).toMatchObject({ ok: false, reason: "jatah-akun" });
+  expect(q.left("privy:1", T0).tasks).toBe(1);
+  if (two.ok) two.tickets.forEach((t) => q.release(t));
+  expect(q.left("privy:1", T0).tasks).toBe(3);
+});

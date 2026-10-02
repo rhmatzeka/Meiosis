@@ -1222,41 +1222,39 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         const noModel = modelMissing();
         if (!mock && noModel) return json({ error: `server belum siap menjalankan agent: ${noModel}` }, 503);
 
+        const hiddenId = ids.find((id) => hidden.has(Number(id)));
+        if (hiddenId) return json({ error: `Agent #${hiddenId} disembunyikan admin dan tidak bisa disewa.` }, 403);
+        // Jatah dicadangkan SEBELUM pembayaran diperiksa dan ditandai terpakai: bila jatah habis,
+        // pengguna belum kehilangan tx bayarnya. Gagal sesudah ini → jatah dikembalikan.
+        const reserved = quota.reserveTasks(who.user, ids.length);
+        if (!reserved.ok) return json({ error: quotaMessage(reserved), quota: quota.left(who.user) }, 429);
+        const tickets: Record<number, string> = Object.fromEntries(ids.map((id, i) => [id, reserved.tickets[i]]));
+        const refuse = (body: Record<string, unknown>, status: number) => { reserved.tickets.forEach((t) => quota.release(t)); return json(body, status); };
+
         let paid: string[] = [];
         if (PUBLIC) {
-          if (workdir) return json({ error: "workdir hanya tersedia di mesin lokal" }, 400);
-          if (ids.length > 3) return json({ error: "paling banyak 3 agent sekali jalan" }, 400);
+          if (workdir) return refuse({ error: "workdir hanya tersedia di mesin lokal" }, 400);
+          if (ids.length > 3) return refuse({ error: "paling banyak 3 agent sekali jalan" }, 400);
           maxSteps = Math.min(maxSteps ?? 10, 10);
           const ip = clientIp(req, server);
           // Setiap agent dengan harga sewa > 0 wajib dibayar lewat Market.rent.
           const prices = mock ? ids.map(() => 0n) : await Promise.all(ids.map(rentPriceOf));
           const due = ids.filter((_, i) => prices[i] > 0n);
+          // Semua penolakan terjadi sebelum bukti bayar ditandai terpakai.
+          if (due.length < ids.length && !mock && !allowRun(ip)) {
+            return refuse({ error: `batas ${RUN_LIMIT_PER_HOUR} run per jam tercapai, coba lagi nanti` }, 429);
+          }
           if (due.length) {
             try {
               paid = await Promise.all(due.map((id) => checkPayment(id, payments?.[id] ?? "")));
             } catch (e) {
-              return json({ error: (e as Error).message, prices: Object.fromEntries(ids.map((id, i) => [id, formatEther(prices[i])])) }, 402);
+              return refuse({ error: (e as Error).message, prices: Object.fromEntries(ids.map((id, i) => [id, formatEther(prices[i])])) }, 402);
             }
-            if (new Set(paid).size !== paid.length) return json({ error: "satu tx pembayaran hanya untuk satu agent" }, 400);
+            if (new Set(paid).size !== paid.length) return refuse({ error: "satu tx pembayaran hanya untuk satu agent" }, 400);
             markPaid(paid);
-          }
-          if (due.length < ids.length && !mock && !allowRun(ip)) {
-            return json({ error: `batas ${RUN_LIMIT_PER_HOUR} run per jam tercapai, coba lagi nanti` }, 429);
           }
         }
 
-        const hiddenId = ids.find((id) => hidden.has(Number(id)));
-        if (hiddenId) return json({ error: `Agent #${hiddenId} disembunyikan admin dan tidak bisa disewa.` }, 403);
-        // Satu agent = satu tugas dari jatah. Semua dicadangkan dulu; bila satu gagal, semuanya dikembalikan.
-        const tickets: Record<number, string> = {};
-        for (const id of ids) {
-          const t = quota.reserveTask(who.user);
-          if (!t.ok) {
-            Object.values(tickets).forEach((x) => quota.release(x));
-            return json({ error: quotaMessage(t), quota: quota.left(who.user) }, 429);
-          }
-          tickets[id] = t.ticket;
-        }
         track("tugas", who.user);
         if (paid.length) track("tugas-berbayar", who.user);
 

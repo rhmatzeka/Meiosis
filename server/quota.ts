@@ -43,6 +43,17 @@ export class QuotaLedger {
     this.save();
     return { ok: true, ticket };
   }
+  /** Beberapa tugas sekaligus: semua dicadangkan, atau tidak satu pun. */
+  reserveTasks(user: string, n: number, now = Date.now()): { ok: true; tickets: string[] } | Fail {
+    const tickets: string[] = [];
+    for (let i = 0; i < n; i++) {
+      const t = this.reserveTask(user, now);
+      if (!t.ok) { tickets.forEach((x) => this.release(x)); return t; }
+      tickets.push(t.ticket);
+    }
+    return { ok: true, tickets };
+  }
+
   settle(ticket: string, tokensUsed: number) {
     const d = this.days[ticket.split(":")[0]];
     const r = d?.reserved[ticket];
