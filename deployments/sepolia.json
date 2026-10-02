@@ -1,0 +1,12 @@
+{
+  "chainId": 11155111,
+  "registry": "0x6b845c95d9016c327eb6196070c455421d507cfb",
+  "genesis": "0x7b5f1631e246114fb17bb197a7e6409241882ba6",
+  "royalty": "0x1683c9675041735662eab7dad22213f3fa81eb3d",
+  "hatchery": "0x0f743a9728d1e856405eb062b01da5cb15e40c51",
+  "skills": "0x2ed95a08b28b7f4f8a5cfd6d95ec2e71e693ca41",
+  "studio": "0x6e069bec48d473e62b55011db26b059ab1808ad5",
+  "market": "0x0fec3f3f7ac845c0b69c567754737893d3005a54",
+  "credits": "0x084e8a4bad73bc53cf4c91aaf3ff2977c2365eb7",
+  "block": 11827422
+}
