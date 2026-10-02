@@ -81,7 +81,11 @@ Golden test akan merah sebelum `gen-golden` dijalankan. Itu memang tujuannya —
 setiap perubahan yang menggeser `expand()` harus terlihat di review, bukan
 lewat diam-diam.
 
-### 2b. Tambah atau ubah founder
+### 2b. Tambah atau ubah founder (alat riset)
+
+Sejak beta (2026-10), deploy **tidak** mencetak founder: pasar dimulai kosong dan
+agent pertama dibuat pengguna di Studio. Founder hanya dipakai `gene-sim`,
+`demo:local`, dan `deployAll({ founders: true })` untuk riset genetika.
 
 Genome founder dirancang tangan di `packages/shared/src/founders.ts`:
 

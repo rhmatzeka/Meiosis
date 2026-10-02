@@ -12,7 +12,14 @@ Rencana lengkap: [PLAN.md](./PLAN.md) · Cara menguji: [TESTING.md](./TESTING.md
 
 ## Hasil perkawinan itu berbentuk apa?
 
-Seekor agent adalah **NFT berisi genome 256-bit**. Genome itu dirakit —
+Seekor agent adalah **NFT berisi genome 256-bit** ditambah **profil bebas**
+yang ditulis pembuatnya: tugas, sifat apa saja (`label = isi`, misalnya
+"Stack & alat = Laravel, MySQL" atau "Bahasa = Jawa halus"), dan instruksi
+rahasia. Profil dan instruksi disimpan di server; hash-nya tercatat di
+`Studio.soulOf`, dan pemilik bisa menyuntingnya (`Studio.setSoul`, bernomor
+versi). Saat dua agent dikawinkan, setiap sifat bebas anak diambil dari induk
+yang alelnya terekspresi di lokus sifat itu, memakai seed kelahiran dari event
+`Hatched`. Genome itu dirakit —
 deterministik, byte per byte — menjadi manifest (tier model, tool, parameter)
 dan system prompt yang disusun dari modul skill warisannya.
 
@@ -23,7 +30,7 @@ Agent bisa dipakai dengan tiga cara:
 2. **Dari Claude Code lewat MCP** — lihat [MCP.md](./MCP.md).
 3. **Di Claude Code lewat berkas `.md`**. Untuk umum berkasnya "remote": tanpa
    prompt, ia meneruskan tugas ke server Meiosis dan dibayar per tugas dari
-   saldo pakai. Pemilik agent bisa mengunduh `.md` lengkap yang berlisensi dan
+   saldo untuk Claude Code. Pemilik agent bisa mengunduh `.md` lengkap yang berlisensi dan
    ber-watermark; `bun run verify-agent <berkas>` memeriksa genome, manifestHash,
    dan tanda tangan lisensinya, dan `bun run trace-leak <berkas>` melacak
    pemegang lisensi dari berkas yang bocor.
@@ -34,12 +41,13 @@ Agent bisa dipakai dengan tiga cara:
 |---|---|
 | P0 — GeneLib, fuzz test, simulator gen | ✅ selesai |
 | P1 — kontrak inti, kelahiran jalan di Anvil | ✅ selesai |
-| P1b — deploy Sepolia | skrip siap (`bun run deploy:sepolia`), menunggu ETH faucet |
+| P1b — deploy Sepolia | skrip siap (`bun run deploy:sepolia`); beta di laptop lewat Cloudflare Tunnel (`deploy/laptop/`) |
 | P2 — runtime `expand()` + 12 modul skill | ✅ selesai |
 | P3 — sandbox, scorer, judge, arena | sebagian: pipa jalan, hybrid vigor belum terbukti |
 | P4 — web UI | ✅ React + **login Privy** (email/Google/wallet), alur kawin terpandu, faucet & penetasan otomatis, silsilah, arena, dompet, ekspor |
 | Perlindungan | ✅ prompt modul privat (hanya hash yang publik), **MCP online berbayar** + saldo pakai, `.md` remote untuk umum, `.md` lengkap berlisensi & ber-watermark untuk pemilik |
-| Marketplace | ✅ **Studio** (rancang agent, aturan di kontrak), **Pasar** jual-beli, **sewa per tugas** berbayar, Panduan untuk orang awam |
+| Marketplace | ✅ **Studio** tanpa daftar pilihan (profil bebas, Coba dulu, Sunting otak), **Pasar** jual-beli, **sewa per tugas**, konfirmasi bayar, Panduan untuk orang awam |
+| Beta publik | ✅ gratis dengan jatah per akun Privy dan anggaran token harian, model dikunci admin, panel `/admin` (biaya, moderasi, metrik, masukan), Ketentuan & Privasi, tanpa akun demo maupun founder |
 | Royalti leluhur | ✅ `LineageRoyalty.sol` — sewa dan tarif kawin mengalir sampai 4 generasi |
 | P4 — orchestrator & indexer | belum |
 
@@ -47,6 +55,7 @@ Agent bisa dipakai dengan tiga cara:
 
 ```bash
 bun run start            # satu perintah: siapkan semuanya, lalu buka localhost:5173
+bun run start --test     # sama, tapi mode uji (akun Anvil + LLM tiruan) untuk `bun run e2e`
 bun run stop             # hentikan
 
 bun run setup            # (manual) bun install + forge-std + openzeppelin + compile
@@ -57,7 +66,7 @@ bun test                  # 39 test runtime, termasuk 20 berkas acuan expand()
 
 bun run anvil             # di terminal terpisah
 bun run ui                # http://localhost:5173 — beranda, kawinkan, koleksi, silsilah, tugas, arena, dompet
-bun run e2e               # uji browser sungguhan: perjalanan juri + jalur wallet
+bun run e2e               # uji browser sungguhan (butuh `bun run start --test`): 7 spec termasuk aksesibilitas
 bun run demo:local        # deploy -> mint -> breed -> hatch -> rakit agent
 bun run demo:runtime      # tiga agent, tugas identik, model sungguhan
 
@@ -66,9 +75,10 @@ bun run ui:sepolia        # UI tersambung ke Sepolia; pengunjung pakai wallet se
 bun run verify-agent f.md # buktikan berkas ekspor asli terhadap chain
 ```
 
-Tanpa login di chain lokal, transaksi ditandatangani server dengan akun demo
-Anvil. Setelah masuk (Privy: email, Google, atau wallet; tanpa `PRIVY_APP_ID`:
-MetaMask), dan selalu di Sepolia, pengguna menandatangani sendiri. Server hanya
+Tidak ada akun demo maupun agent bawaan: pasar dimulai kosong, dan setiap
+transaksi ditandatangani wallet pengguna (Privy: email, Google, atau wallet;
+tanpa `PRIVY_APP_ID`: MetaMask). Akun Anvil yang dipegang server hanya hidup di
+mode uji (`TEST_ACCOUNTS=1`, dipasang `bun run start --test`). Server hanya
 menyusun calldata di `/api/tx` dan tidak pernah memegang kunci pengguna. Satu
 wallet operator membayar gas faucet pengguna baru dan penetasan otomatis
 (lihat [DEPLOY.md](./DEPLOY.md#faucet-dan-keeper)).
@@ -89,8 +99,8 @@ mempercayai siapa pun.
 | `LineageRoyalty.sol` | bayar agent; 5% → induk, 2,5% → kakek-nenek, … sampai 4 generasi; pola tarik |
 | `SkillRegistry.sol` | trait → modul skill, append-only; diisi otomatis saat deploy |
 | `Studio.sol` | rancang agent generasi nol: dominansi 1, otak ≤ seimbang, ≤ 2 bakat; biaya ke platform |
-| `Market.sol` | jual-beli & sewa per tugas; 2,5% platform, sisanya lewat royalti leluhur |
-| `Credits.sol` | saldo pakai untuk Claude Code; operator hanya bisa memotong sebesar harga satu tugas |
+| `Market.sol` | jual-beli & sewa per tugas; biaya platform (beta 10%), sisanya lewat royalti leluhur |
+| `Credits.sol` | saldo untuk Claude Code; operator hanya bisa memotong sebesar harga satu tugas |
 
 ## Runtime
 

@@ -1,7 +1,8 @@
 # Deploy ke Sepolia dan membuka Meiosis untuk umum
 
-Di chain lokal, server memegang akun demo dan menandatangani semuanya sendiri.
-Di Sepolia tidak begitu: **server tidak memegang kunci pengguna siapa pun.**
+**Server tidak memegang kunci pengguna siapa pun**, baik di Sepolia maupun di
+chain lokal (akun Anvil yang dipegang server hanya hidup di mode uji,
+`TEST_ACCOUNTS=1`).
 Setiap pengunjung masuk lewat Privy (email, Google, atau wallet yang sudah
 punya), mengawinkan agent dengan wallet itu, dan anaknya jadi miliknya.
 
@@ -41,9 +42,9 @@ bun run deploy:sepolia
 ```
 
 Skrip ini memeriksa saldo dulu, lalu: deploy lima kontrak, mendaftarkan 12
-modul skill ke `SkillRegistry`, mencetak empat founder, memasangnya sebagai
-pejantan, mencatat manifestHash-nya, lalu **menyegel generasi nol untuk
-selamanya**. Alamatnya tertulis di `deployments/sepolia.json` — commit berkas
+modul skill ke `SkillRegistry`, lalu **menyegel generasi nol dalam keadaan
+kosong**: tidak ada founder, pasar dimulai kosong, dan agent pertama dibuat
+pengguna di Studio. Alamatnya tertulis di `deployments/sepolia.json` — commit berkas
 itu, karena server membacanya.
 
 Aman dijalankan ulang. Kalau RPC putus di tengah jalan, jalankan lagi dan ia
@@ -53,11 +54,10 @@ melanjutkan dari langkah terakhir yang belum selesai.
 |---|---|
 | `DEPLOYER_PRIVATE_KEY` | wajib |
 | `SEPOLIA_RPC_URL` | opsional; tanpa ini dipakai RPC publik, dengan cadangan otomatis |
-| `FOUNDER_OWNERS` | alamat dipisah koma; founder dibagi bergiliran. Bagikan ke ≥3 alamat supaya royalti bermakna (PLAN.md §12.1b) |
-| `STUD_FEE_ETH` | tarif kawin awal tiap founder, bawaan 0 |
-| `STUDIO_FEE_ETH` | biaya merancang agent di Studio, bawaan `0.002` |
-| `MARKET_FEE_BPS` | biaya platform jual-beli & sewa, bawaan `250` (2,5%), paling tinggi 1000 |
-| `BASE_COOLDOWN_BLOCKS` | jeda kawin dasar dalam blok (bawaan kontrak 10, berlipat tiap kawin). Untuk hari penjurian isi `1`, supaya founder bisa dikawinkan banyak juri berturut-turut |
+| `STUDIO_FEE_ETH` | biaya membuat agent di Studio, bawaan `0` (gratis selama beta; bisa dinaikkan nanti dengan `Studio.setFee`) |
+| `MARKET_FEE_BPS` | biaya platform jual-beli & sewa, bawaan `1000` (10%), paling tinggi 1000 |
+| `CREDITS_DEFAULT_PRICE_ETH` | harga satu tugas lewat Claude Code bila pemilik tidak memasang, bawaan `0` (beta dibatasi jatah) |
+| `BASE_COOLDOWN_BLOCKS` | jeda kawin dasar dalam blok (bawaan kontrak 10, berlipat tiap kawin) |
 
 ### Verifikasi di Etherscan
 
@@ -67,6 +67,28 @@ ETHERSCAN_API_KEY=... bun run verify:sepolia
 
 Kode yang terverifikasi membuat siapa pun bisa membaca fungsi `meiosis()` dan
 pembagian royaltinya sendiri di Etherscan.
+
+## Beta di laptop lewat Cloudflare Tunnel
+
+Sebelum pindah ke VPS, beta dibuka dari laptop di `https://meiosis.rahmateka.my.id`.
+
+```bash
+# sekali: tunnel bernama "meiosis" dan DNS-nya (sudah dibuat 2026-10-02)
+cloudflared tunnel create meiosis
+cloudflared tunnel route dns meiosis meiosis.rahmateka.my.id
+# ~/.cloudflared/meiosis.yml: ingress meiosis.rahmateka.my.id → http://localhost:5173
+
+bun run build:web                      # build produksi (React production, halaman dipecah, font terpisah)
+bash deploy/laptop/install.sh          # layanan systemd user: server Sepolia, tunnel, tahan-tidur, cadangan tiap jam, cek kesehatan tiap 5 menit
+bash deploy/laptop/install.sh --stop   # matikan semuanya
+```
+
+- **Cadangan**: `scripts/backup.ts` mengenkripsi soul agent, jatah, moderasi, metrik, dan `private/` ke `~/backup-flashdisk/meiosis` (openssl AES-256 + PBKDF2, kunci di `~/.config/meiosis/backup.key`; simpan salinan kunci di tempat aman). Pulihkan dengan `bun run scripts/backup.ts --restore <arsip>`.
+- **Kesehatan**: `scripts/health.ts` memeriksa server, chain, saldo operator, dan anggaran token; masalah dikirim sebagai notifikasi desktop dan dicatat di `.runs/health.log`.
+- **Admin**: isi `ADMIN_ADDRESSES` dengan alamat wallet-mu, lalu buka `/admin`.
+- **Privy**: tambahkan `https://meiosis.rahmateka.my.id` di dashboard Privy → Allowed origins.
+
+Pindah ke VPS baru (bukan VPS tradebot) bila selama dua minggu: ≥20 akun aktif per hari, cek kesehatan gagal >2× seminggu karena laptop mati, atau ada pengguna di luar lingkaran pertemanan yang kembali setelah 7 hari.
 
 ## 2. Menjalankan server untuk Sepolia
 
@@ -195,15 +217,17 @@ menjalankan kode buatan mesin. Di Sepolia (atau `PUBLIC=1`), `/api/run`:
 | `workdir` ditolak | direktori host bukan milik pengunjung |
 | paling banyak 3 agent dan 10 langkah per run | satu permintaan tidak boleh menghabiskan kuota harian |
 | agent berharga sewa > 0 → dibayar dulu lewat `Market.rent` | harga = harga pasang pemilik, atau `RUN_PRICE_ETH` bila pemilik tidak memasang. Server memeriksa event `Rented` di chain: pasar, agent, jumlah; satu tx hanya untuk satu tugas |
-| harga sewa 0 → jatah `RUN_LIMIT_PER_HOUR` per IP | tanpa bayaran, kuotanya dijatah. Set `TRUST_PROXY=1` di belakang Caddy |
+| setiap tugas memakai jatah akun Privy | `FREE_TASKS_PER_DAY` per akun (bawaan 5) dan `DAILY_TOKEN_BUDGET` untuk semua orang (bawaan 300.000 token); pulih jam 07.00 WIB. Tanpa token Privy → 401. Batas per IP `RUN_LIMIT_PER_HOUR` tetap jadi lapis kedua; set `TRUST_PROXY=1` di belakang Caddy/Cloudflare |
+| model dikunci admin | kelas model dipotong ke `MAX_TIER` (bawaan `balanced`), jawaban ke `MAX_OUTPUT_TOKENS`, kerja penuh mati untuk publik (`FULL_MODE_PUBLIC=0`) |
+| Studio | `STUDIO_PER_DAY` agent baru per akun per hari (bawaan 3); "Coba dulu" memakai jatah tugas |
 | tanpa kunci model → run ditolak sebelum bayar | pengunjung tidak boleh membayar untuk run yang pasti gagal |
 
-Bayaran sewa dipotong 2,5% untuk platform (menutup biaya server dan model),
+Bayaran sewa dipotong biaya platform (`MARKET_FEE_BPS`, beta 10%) (menutup biaya server dan model),
 sisanya ke pemilik agent — dan 5% ke pemilik induknya, 2,5% ke kakek-neneknya,
 sampai empat generasi. Pemilik yang memakai agent-nya sendiri di server juga
 membayar sewa, tapi sebagian besar kembali kepadanya sebagai royalti.
 
-Kas platform (biaya Studio dan 2,5% pasar) ditarik pemilik kontrak dengan
+Kas platform (biaya Studio dan biaya pasar) ditarik pemilik kontrak dengan
 `withdrawFees()` di `Studio` dan `Market`.
 
 ## 4. Membawa agent keluar

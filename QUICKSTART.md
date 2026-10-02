@@ -36,11 +36,17 @@ bun run start
 ```
 
 Satu perintah ini memeriksa prasyarat, memasang dependensi, membangun image
-sandbox, menyalakan chain lokal, men-deploy kontrak, mencetak empat agent
-generasi nol ke tiga pemilik berbeda, lalu menyegel generasi nol. Yang sudah
-jalan akan dilewati, jadi aman dijalankan berulang.
+sandbox, menyalakan chain lokal, lalu men-deploy kontrak. Pasar dimulai
+**kosong**: tidak ada agent bawaan maupun akun demo. Agent pertama kamu buat
+sendiri di Studio. Yang sudah jalan akan dilewati, jadi aman dijalankan berulang.
 
-Buka **http://localhost:5173**.
+Buka **http://localhost:5173**, klik **Masuk**, lalu buka **Studio**:
+ceritakan agent yang kamu butuhkan, klik **Rancang untukku**, sunting tugas,
+sifat (teks bebas, termasuk sifat buatan sendiri), dan instruksinya, **Coba**
+satu tugas, lalu **Buat agent**.
+
+Untuk uji otomatis, nyalakan dengan `bun run start --test` (akun Anvil yang
+dipegang server + LLM tiruan); `bun run e2e` menolak berjalan tanpa mode itu.
 
 Berhenti dengan `bun run stop`.
 
@@ -117,6 +123,7 @@ memakai wallet browser (MetaMask) langsung.
 
 Anak yang kamu kawinkan jadi milikmu. Di halaman agent-nya ada bagian **Milikmu**:
 
+- **Sunting otak**: ubah tugas, sifat, dan instruksi; tercatat sebagai versi baru
 - **Beri nama**: tersimpan on-chain
 - **Buka untuk kawin**: pasang tarif; siapa pun bisa mengawinkan agent-mu dengan membayarnya
 - **Tarik royalti** di **Dompet**: bayaran untuk agent-mu *dan* untuk keturunannya
@@ -124,7 +131,8 @@ Anak yang kamu kawinkan jadi milikmu. Di halaman agent-nya ada bagian **Milikmu*
 Setiap bayaran ke sebuah agent, 5% mengalir ke pemilik induknya, 2,5% ke
 kakek-neneknya, sampai empat generasi. Memilih induk yang baik adalah investasi.
 
-Tanpa wallet di chain lokal, semua tombol tetap jalan memakai akun demo.
+Selama beta, setiap akun mendapat jatah tugas gratis per hari (pulih jam 07.00
+WIB); sisanya terlihat di menu akun.
 
 ## Pakai dari Claude Code
 
@@ -139,7 +147,7 @@ Lalu ngobrol biasa:
 Untuk repo-mu sendiri, sebutkan foldernya:
 
 > Pakai agent Meiosis yang punya security-instinct-high untuk memperbaiki tes
-> yang gagal di folder `demo-repo`. Perintah ceknya `bun test`.
+> yang gagal di folder `contoh-repo`. Perintah ceknya `bun test`.
 
 > Pasang agent Meiosis #5 sebagai subagent di proyek ini.
 

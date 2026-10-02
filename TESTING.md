@@ -23,7 +23,7 @@ Sekitar 66 detik. Menjalankan empat hal:
 
 | Yang diperiksa | Artinya kalau hijau |
 |---|---|
-| 10.000 simulasi perkawinan | Genome founder menghasilkan ≥40% anak yang mewarisi kedua trait unggulan |
+| 10.000 simulasi perkawinan | Genome founder (alat riset, tidak di-deploy) menghasilkan ≥40% anak yang mewarisi kedua trait unggulan |
 | 38 test Foundry | Commit–reveal aman, `reroll` memulihkan, royalti terbagi ke empat generasi tanpa wei hilang, nama hanya bisa diganti pemilik, dan **Solidity identik dengan TypeScript** |
 | 39 test runtime | `expand()` deterministik — 20 genome acuan menghasilkan `manifestHash` yang sama persis; ekspor `.md` bisa dibaca balik identik |
 | Sandbox | Kode benar lolos tiga tahap; kode rusak lolos build tapi gagal typecheck dan gagal render |
@@ -58,88 +58,49 @@ promptnya diubah ditolak.
 ### Uji UI lewat browser sungguhan
 
 ```bash
-bun run start       # chain lokal + server + keeper
-bun run e2e         # ~1 menit, tanpa kuota model, butuh Chrome/Chromium di mesin ini
+bun run start --test   # chain lokal + server mode uji (akun Anvil + LLM tiruan, jatah longgar)
+bun run e2e            # 7 spec, ±10 menit, tanpa kuota model; butuh Chrome/Chromium
 ```
 
-`e2e/journey.spec.ts` menjalani perjalanan juri dengan akun demo: beranda →
-kawinkan → refresh di tengah pembuahan → lahir → unduh `.md` → `verify-agent`
-SAH. Ia juga memeriksa induk yang sedang istirahat, banner saat chain mati,
-tugas mode tiruan, dan bahwa sebelas halaman tidak bisa digeser menyamping di
-layar 375 px.
+`bun run e2e` menolak berjalan bila server tidak dalam mode uji. Spec-nya:
 
-`e2e/wallet.spec.ts` memakai wallet EIP-1193 tiruan yang menandatangani dengan
-akun Anvil #6: masuk, kawinkan, catat manifest, beri nama, pasang tarif,
-royalti 95%, tarik royalti, dan ekspor.
+| Spec | Yang diperiksa |
+|---|---|
+| `empty.spec.ts` | pasar kosong (data agent dicegat jadi kosong): tiap halaman tanpa galat dan mengarah ke Studio |
+| `journey.spec.ts` | tanpa jejak demo, masuk dengan wallet tiruan, peluang sifat bebas sebelum kawin, refresh di tengah pembuahan, lahir, catat manifest, unduh `.md` lalu `verify-agent` SAH, picker bisa dicari, hasil tugas bisa diunduh, chain mati, animasi, layar 375 px tanpa geser |
+| `wallet.spec.ts` | jalur wallet EIP-1193 tiruan (Anvil #6): kawin, aksi pemilik, royalti, ekspor; wallet baru bersaldo 0 melihat langkah pertama, lembar konfirmasi menolak bayar (tanpa transaksi), lalu bayar sewa setelah diisi |
+| `market.spec.ts` | Studio tanpa daftar pilihan: Rancang untukku, stack bebas, sifat buatan sendiri, Coba dulu (memakai jatah), buat agent, kartu Pasar dan pencarian sifat, Sunting otak (versi 2), Studio di ponsel, jual-beli dengan biaya platform |
+| `protect.spec.ts` | saldo untuk Claude Code (dengan konfirmasi bayar), API key, MCP seperti Claude Code, `.md` remote vs lengkap, pelacakan kebocoran |
+| `admin.spec.ts` | `/admin` hanya untuk admin (Anvil #9 di mode uji), masukan dari footer, laporan → sembunyikan → tampilkan lagi |
+| `a11y.spec.ts` | axe-core tanpa pelanggaran serious/critical di 10 halaman × desktop dan ponsel; Studio bisa diisi hanya dengan keyboard |
+
+Agent untuk uji dibuat sendiri oleh `seedAgents()` di `e2e/harness.ts` lewat
+Studio (tidak ada founder), atas nama akun Anvil #1.
 
 Browser dicari di `/usr/bin/chromium`, `/usr/bin/google-chrome`, dan
-sejenisnya; atau tunjuk langsung dengan `CHROMIUM_PATH`.
-
-Login Privy tidak bisa diuji otomatis karena butuh email/Google sungguhan. Daftar
-periksa manualnya ada di [DEPLOY.md](./DEPLOY.md#daftar-periksa-login-privy).
-
-Memeriksa API saja tidak cukup: halaman bisa mati karena satu galat JavaScript
-sementara seluruh endpoint tetap sehat. Uji ini memuat halaman, mengumpulkan
-galat konsol, menekan tombolnya seperti manusia, lalu menunggu hasilnya muncul
-di DOM.
-
-Perintah satuan, kalau mau memisah:
-
-```bash
-bun run gene-sim          # simulasi genetik + laporan sebaran
-bun run test:contracts    # forge test
-bun run test              # test runtime
-bun run test:sandbox      # sandbox saja
-```
-
----
+`/opt/google/chrome/chrome`, atau lewat `CHROMIUM_PATH`.
 
 ## 2. Lewat UI — cara paling enak melihat semuanya
 
-Dua terminal, lalu buka browser.
-
 ```bash
-# terminal 1
-bun run anvil
-
-# terminal 2
-bun run ui          # http://localhost:5173
+bun run start          # mode biasa: tanpa akun demo, tanpa agent bawaan
 ```
 
-Di halaman itu:
-
-1. **Klik "Deploy & mint generasi nol"** — sekali klik: empat kontrak ter-deploy,
-   empat founder ter-mint ke tiga pemilik berbeda, generasi nol disegel.
-2. **Tab Roster** — kartu tiap agent beserta trait yang terekspresi dan modul
-   skill yang aktif. Klik **"catat ke chain"** pada baris manifest; setelah itu
-   berubah jadi **✓ cocok**, artinya agent yang akan dijalankan runtime terbukti
-   agent yang tercatat di chain.
-3. **Tab Kawinkan** — pilih dua induk, lihat kekerabatan dan perbandingan
-   trait-nya, lalu klik Kawinkan. Muncul kartu kehamilan dengan hitung mundur
-   blok. Klik **"Majukan 6 blok"** untuk mempercepat, lalu **Tetaskan**.
-4. **Tab Jalankan** — inilah cara memakai agent-nya. Pilih satu atau beberapa
-   agent, tulis tugas (atau pakai contoh yang tersedia), klik Jalankan. Genome
-   dibaca dari chain, dirakit jadi agent, lalu dijalankan sungguhan. Kalau
-   memilih beberapa agent sekaligus, semuanya menerima tugas yang persis sama —
-   sehingga satu-satunya yang berbeda di antara keluaran mereka adalah genome.
-
-   Contoh yang paling jelas memperlihatkan pengaruh genome: pilih `#1 Solidity
-   Smith` dan `#2 Pixel Sense`, lalu pakai tugas contoh **Audit singkat**.
-   #1 menjawab 171 token dan langsung menunjuk XSS; #2 menjawab 562 token
-   dengan tabel lima masalah dan menaruh XSS di urutan kedua.
-
-   Centang **bangun & render hasilnya** (aktif secara bawaan) supaya kode yang
-   ditulis agent benar-benar dibangun di sandbox, dirender dengan Chromium, lalu
-   ditampilkan sebagai screenshot desktop dan ponsel berikut skornya. Tanpa ini
-   kamu hanya melihat teks yang belum tentu jalan.
-
-   Centang **mode tiruan** kalau hanya ingin menguji alurnya tanpa memakai kuota.
-
-5. **Tab Silsilah** — pohon keluarga; anak muncul di generasi berikutnya.
-6. **Tab Arena** — hasil ronde terakhir, lengkap dengan rincian tiap baris rubrik.
-
-UI ini memakai kunci bawaan Anvil yang memang publik, jadi tidak perlu MetaMask.
-Untuk Sepolia nanti, `breed()` harus dipanggil dari wallet pengguna sendiri.
+1. Buka http://localhost:5173 dan klik **Masuk** (Privy bila `PRIVY_APP_ID`
+   terisi, selain itu MetaMask).
+2. **Studio**: ceritakan agent yang kamu butuhkan → **Rancang untukku** →
+   sunting tugas, sifat (teks bebas, tambah sifat sendiri), dan instruksi →
+   **Coba** satu tugas → **Buat agent**.
+3. Buat agent kedua dengan sifat berbeda, buka untuk kawin, lalu **Kawinkan**:
+   tabel peluang menunjukkan sifat mana yang pasti turun dan mana yang 50:50.
+   Sekitar satu menit kemudian anaknya lahir; halaman anak menunjukkan dari induk
+   mana setiap sifat berasal.
+4. **Beri tugas**: cari agent di picker, tulis tugas, **Jalankan**. Blok kode
+   bisa disalin per blok, dan seluruh jawaban bisa diunduh.
+5. **Dompet**: langkah pertama, saldo, transaksi berjalan, saldo untuk Claude
+   Code, dan API key.
+6. **/admin** (alamat di `ADMIN_ADDRESSES`): pemakaian AI hari ini, saldo
+   operator, minat 7 hari, laporan, masukan, dan pengaturan jatah.
 
 ### Tanpa UI
 
