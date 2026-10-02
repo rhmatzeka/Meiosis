@@ -108,7 +108,7 @@ export function Prices({ agent }: { agent: Agent }) {
   const rent = BigInt(agent.rent.priceWei);
   return (
     <div className="prices">
-      {agent.sale && <span className="price price-sale"><small>Dijual</small>{eth(agent.sale.priceEth)}</span>}
+      {agent.sale && <span className="price price-sale"><small>Dijual{agent.sale.changedAfterListing ? " · otak diubah setelah dipasang" : ""}</small>{eth(agent.sale.priceEth)}</span>}
       <span className="price"><small>Sewa/tugas</small>{rent > 0n ? eth(agent.rent.priceEth) : "gratis"}</span>
       {agent.stud.listed && <span className="price"><small>Kawin</small>{BigInt(agent.stud.feeWei) > 0n ? eth(agent.stud.feeEth) : "gratis"}</span>}
     </div>

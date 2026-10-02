@@ -8,10 +8,12 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BASE, api, finish, installFakeWallet, launch, ok, section, signIn, watchErrors } from "./harness";
+import { BASE, SEED_OWNER, api, finish, installFakeWallet, launch, ok, section, seedAgents, signIn, watchErrors } from "./harness";
 
 const KEY = "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97"; // Anvil #8
-const ALICE = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"; // pemilik founder #1
+const ALICE = SEED_OWNER; // pemilik agent bibit uji (Anvil #1)
+/** Agent milik ALICE yang dibuat khusus untuk uji ini, supaya tidak bergantung pada urutan spec lain. */
+const AID = (await seedAgents(1))[0];
 
 const credits = async (addr: string) => BigInt((await api<{ balanceWei: string }>(`/api/credits?address=${addr}`)).balanceWei);
 const royalty = async (addr: string) => BigInt((await api<{ pendingWei: string }>(`/api/royalty?address=${addr}`)).pendingWei);
@@ -48,25 +50,25 @@ try {
   const tools = (await mcp({ method: "tools/list" })).result?.tools?.map((t) => t.name) ?? [];
   ok("tiga tool tersedia", tools.join() === "meiosis_list_agents,meiosis_balance,meiosis_run", tools.join());
   const r0 = await royalty(ALICE);
-  const run = await mcp({ method: "tools/call", params: { name: "meiosis_run", arguments: { agent_id: 1, task: "Buat fungsi tambah", mock: true } } });
+  const run = await mcp({ method: "tools/call", params: { name: "meiosis_run", arguments: { agent_id: AID, task: "Buat fungsi tambah", mock: true } } });
   ok("tugas berjalan dan hasilnya kembali", !run.result?.isError && (run.result?.content?.[0].text ?? "").includes("[MOCK]"), run.result?.content?.[0].text.slice(0, 60));
   const c2 = await credits(account.address);
   const price = c1 - c2;
   ok("saldo dipotong sebesar harga satu tugas", price > 0n && price <= 10n ** 15n, `${Number(price) / 1e18} ETH`);
   const feeBps = BigInt((await api<{ market: { feeBps: number } }>("/api/status")).market.feeBps);
   ok(`pemilik agent menerima ${(10000 - Number(feeBps)) / 100}%`, (await royalty(ALICE)) - r0 === (price * (10000n - feeBps)) / 10000n);
-  const bad = await mcp({ method: "tools/call", params: { name: "meiosis_run", arguments: { agent_id: 1, task: "x", context: "a".repeat(70_000), mock: true } } });
+  const bad = await mcp({ method: "tools/call", params: { name: "meiosis_run", arguments: { agent_id: AID, task: "x", context: "a".repeat(70_000), mock: true } } });
   ok("konteks terlalu besar ditolak tanpa memotong saldo", !!bad.result?.isError && (await credits(account.address)) === c2);
 
   section("BERKAS .md");
-  const remote = await (await fetch(`${BASE}/api/agents/1/agent.md`)).text();
+  const remote = await (await fetch(`${BASE}/api/agents/${AID}/agent.md`)).text();
   ok(".md umum tanpa prompt, memakai MCP", !remote.includes("meiosis:prompt") && remote.includes("mcp__meiosis__meiosis_run"));
-  const msg = `Meiosis: unduh agent #1 untuk ${account.address} pada ${new Date().toISOString()}`;
+  const msg = `Meiosis: unduh agent #${AID} untuk ${account.address} pada ${new Date().toISOString()}`;
   const signature = await account.signMessage({ message: msg });
-  const denied = await fetch(`${BASE}/api/agents/1/agent.md`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ address: account.address, message: msg, signature }) });
+  const denied = await fetch(`${BASE}/api/agents/${AID}/agent.md`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ address: account.address, message: msg, signature }) });
   ok("bukan pemilik tidak bisa mengunduh .md lengkap", denied.status === 403);
 
-  const full = await (await fetch(`${BASE}/api/agents/1/agent.md`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ as: ALICE }) })).text();
+  const full = await (await fetch(`${BASE}/api/agents/${AID}/agent.md`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ as: ALICE }) })).text();
   const dir = mkdtempSync(join(tmpdir(), "meiosis-leak-"));
   const leaked = join(dir, "bocor.md");
   writeFileSync(leaked, full.replace(/<!-- meiosis:provenance[\s\S]*?-->/, "")); // header dibuang si pembocor

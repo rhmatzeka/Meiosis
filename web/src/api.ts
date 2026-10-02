@@ -45,7 +45,7 @@ export interface Agent {
   readyAtBlock: number;
   cooldownBlocks: number;
   /** Listing jual yang sah, atau null. */
-  sale: { seller: string; priceWei: string; priceEth: string } | null;
+  sale: { seller: string; priceWei: string; priceEth: string; changedAfterListing?: boolean } | null;
   /** Harga sewa satu tugas: ownerPriceWei 0 berarti memakai harga bawaan platform. */
   rent: { ownerPriceWei: string; priceWei: string; priceEth: string };
   /** Dirancang di Studio (bukan founder asli, bukan hasil kawin). */
@@ -54,6 +54,9 @@ export interface Agent {
   soulHash: string | null;
   /** Agent yang instruksi khususnya berlaku untuk agent ini: dirinya, atau leluhurnya. */
   soulFrom: number[];
+  /** Berapa kali otak agent ditetapkan (0 = tanpa soul sendiri), dan blok penyuntingan terakhir. */
+  soulVersion: number;
+  soulUpdatedBlock: number | null;
   /** Disembunyikan admin: tidak tampil di Pasar, Kawinkan, Tugas, atau MCP. */
   hidden: boolean;
   /** Profil publik: milik sendiri, atau warisan kedua induk. Tanpa instruksi. */

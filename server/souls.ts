@@ -49,14 +49,15 @@ export class SoulStore {
  */
 export function inheritedSoul(
   id: number,
-  lookup: (id: number) => { soulHash: string | null; parents: number[] } | undefined,
+  /** `at`: blok tempat leluhur dibaca (saat keturunannya lahir); kosong = versi terbaru. */
+  lookup: (id: number, at?: number) => { soulHash: string | null; parents: number[]; birthBlock?: number } | undefined,
   get: (hash: string) => string | null,
   cap = 6000,
 ): { text: string; sources: number[] } {
   const seen = new Set<string>();
   const parts: { id: number; text: string }[] = [];
-  const walk = (i: number, depth: number) => {
-    const a = lookup(i);
+  const walk = (i: number, depth: number, at?: number) => {
+    const a = lookup(i, at);
     if (!a || depth > 8) return;
     if (a.soulHash) {
       if (seen.has(a.soulHash)) return;
@@ -65,7 +66,8 @@ export function inheritedSoul(
       if (t) parts.push({ id: i, text: t });
       return;
     }
-    for (const p of a.parents) if (p) walk(p, depth + 1);
+    // Induk dibaca sebagaimana adanya saat agent ini lahir: suntingan sesudahnya tidak ikut turun.
+    for (const p of a.parents) if (p) walk(p, depth + 1, a.birthBlock);
   };
   walk(id, 0);
 
@@ -81,7 +83,7 @@ export function inheritedSoul(
 }
 
 /** Yang dibutuhkan untuk menghitung profil seorang agent. */
-export interface ProfileNode { genome: bigint; seed: bigint; parents: [number, number] | number[]; soulText: string | null }
+export interface ProfileNode { genome: bigint; seed: bigint; parents: [number, number] | number[]; soulText: string | null; birthBlock?: number }
 export interface PublicProfile { role: string; traits: FreeTrait[]; inherited: boolean; from?: Record<string, "a" | "b"> }
 
 /**
@@ -89,20 +91,26 @@ export interface PublicProfile { role: string; traits: FreeTrait[]; inherited: b
  * anak yang sudah disunting pemiliknya); selain itu diwariskan dari kedua
  * induk mengikuti alel yang terekspresi (inheritProfile). Instruksi tidak ikut.
  */
-export function profileFor(id: number, node: (id: number) => ProfileNode | undefined, memo = new Map<number, PublicProfile>()): PublicProfile {
-  const hit = memo.get(id);
+/**
+ * `node(id, at)` memberi soul agent sebagaimana pada blok `at` (kosong = terbaru).
+ * Anak membaca induknya pada blok kelahirannya, jadi suntingan induk sesudahnya
+ * tidak mengubah sifat anak milik orang lain.
+ */
+export function profileFor(id: number, node: (id: number, at?: number) => ProfileNode | undefined, memo = new Map<string, PublicProfile>(), at?: number): PublicProfile {
+  const key = `${id}@${at ?? "now"}`;
+  const hit = memo.get(key);
   if (hit) return hit;
-  const n = node(id);
+  const n = node(id, at);
   let out: PublicProfile = { role: "", traits: [], inherited: false };
   if (n?.soulText) {
     const p = parseSoul(n.soulText);
     out = { role: p.role, traits: p.traits, inherited: false };
   } else if (n && n.parents[0] && n.parents[1]) {
-    const a = profileFor(n.parents[0], node, memo), b = profileFor(n.parents[1], node, memo);
+    const a = profileFor(n.parents[0], node, memo, n.birthBlock), b = profileFor(n.parents[1], node, memo, n.birthBlock);
     const p = inheritProfile(a, b, n.genome, n.seed);
     out = { role: p.role, traits: p.traits, inherited: true, from: p.from };
   }
-  memo.set(id, out);
+  memo.set(key, out);
   return out;
 }
 
@@ -110,7 +118,7 @@ export function profileFor(id: number, node: (id: number) => ProfileNode | undef
 export function promptSoul(
   id: number,
   profile: Profile,
-  lookup: (id: number) => { soulHash: string | null; parents: number[] } | undefined,
+  lookup: (id: number, at?: number) => { soulHash: string | null; parents: number[]; birthBlock?: number } | undefined,
   get: (hash: string) => string | null,
 ): Soul {
   const own = inheritedSoul(id, lookup, (h) => { const t = get(h); return t === null ? null : parseSoul(t).instructions || null; });

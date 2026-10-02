@@ -151,3 +151,37 @@ test("soul 12 sifat × 200 karakter + instruksi 4000 bisa disimpan", () => {
   });
   expect(() => new SoulStore(join(dir, "big.json")).put(text)).not.toThrow();
 });
+
+describe("versi otak saat anak lahir", () => {
+  const { composeSoul } = require("../packages/shared/src/profile") as typeof import("../packages/shared/src/profile");
+  const { meiosis } = require("../packages/shared/src/genome") as typeof import("../packages/shared/src/genome");
+  const { defaultTraits, studioGenome } = require("../packages/shared/src/studio") as typeof import("../packages/shared/src/studio");
+  const g = studioGenome(defaultTraits());
+  const v1 = composeSoul({ role: "Versi lama", traits: [{ label: "Hobi", value: "bola" }], instructions: "RAHASIA-LAMA" });
+  const v2 = composeSoul({ role: "Versi baru", traits: [{ label: "Hobi", value: "catur" }], instructions: "RAHASIA-BARU" });
+  const other = composeSoul({ role: "Induk B", traits: [], instructions: "" });
+  // induk 1 disunting di blok 50; anak 3 lahir di blok 20; anak 4 lahir di blok 60
+  const history: Record<number, { block: number; text: string }[]> = { 1: [{ block: 10, text: v1 }, { block: 50, text: v2 }], 2: [{ block: 10, text: other }] };
+  const soulAt = (id: number, at?: number) => {
+    const h = (history[id] ?? []).filter((x) => at === undefined || x.block <= at);
+    return h.length ? h[h.length - 1].text : null;
+  };
+  const birth: Record<number, number> = { 1: 10, 2: 10, 3: 20, 4: 60 };
+  const node = (id: number, at?: number): ProfileNode | undefined => id > 4 ? undefined : ({
+    genome: id <= 2 ? g : meiosis(g, g, BigInt(id)), seed: BigInt(id), parents: id <= 2 ? [0, 0] : [1, 2], birthBlock: birth[id], soulText: soulAt(id, at),
+  });
+
+  test("anak memakai otak induk versi saat ia lahir, bukan versi sunting terbaru", () => {
+    const hobi = (id: number) => profileFor(id, node).traits.find((t) => t.label === "Hobi")?.value;
+    expect(hobi(3)).toBe("bola");
+    expect(hobi(4)).toBe("catur");
+    expect(profileFor(1, node).role).toBe("Versi baru");
+  });
+
+  test("instruksi warisan juga memakai versi saat lahir", () => {
+    const lookup = (id: number, at?: number) => { const n = node(id, at); return n && { soulHash: n.soulText ? `h${id}@${at ?? "now"}` : null, parents: n.parents, birthBlock: n.birthBlock }; };
+    const get = (h: string) => { const [id, at] = h.slice(1).split("@"); return soulAt(Number(id), at === "now" ? undefined : Number(at)); };
+    expect(promptSoul(3, { role: "", traits: [] }, lookup, get).instructions).toContain("RAHASIA-LAMA");
+    expect(promptSoul(4, { role: "", traits: [] }, lookup, get).instructions).toContain("RAHASIA-BARU");
+  });
+});

@@ -39,6 +39,9 @@ export function AgentPage({ id }: { id: number }) {
         <Cell genome={a.genome} size={148} />
         <div className="stack" style={{ gap: 10, minWidth: 0 }}>
           <h1 className="h-page">{a.name}</h1>
+          {a.soulVersion > 1 && status?.block && a.soulUpdatedBlock && (
+            <span className="xs muted">Otak versi {a.soulVersion} · diperbarui {agoText((status.block - a.soulUpdatedBlock) * status.secPerBlock)}</span>
+          )}
           <p className="muted">
             Agent #{a.id}, {a.designed ? "rancangan Studio" : a.generation === 0 ? "generasi pertama (founder)" : `generasi ${a.generation}`}, {owner(a) === "milikmu" ? "milikmu" : `dimiliki ${owner(a)}`}.
           </p>
@@ -117,6 +120,7 @@ export function AgentPage({ id }: { id: number }) {
               <button className="btn" onClick={() => setDialog("rent")} disabled={!status?.market}>
                 Harga sewa · {BigInt(a.rent.ownerPriceWei) > 0n ? `${a.rent.priceEth} ETH` : "bawaan"}
               </button>
+              <Link className="btn" to={`/studio?sunting=${a.id}`}>Sunting otak</Link>
               <button className="btn" onClick={() => setDialog("name")}>Beri nama</button>
               <button className="btn" onClick={() => setDialog("stud")}>{a.stud.listed ? "Ubah tarif kawin" : "Buka untuk kawin"}</button>
               {a.stud.listed && (
@@ -157,4 +161,12 @@ export function AgentPage({ id }: { id: number }) {
       {dialog === "rent" && <RentPriceDialog agent={a} onClose={() => setDialog(null)} />}
     </div>
   );
+}
+
+/** "3 menit lalu", "2 hari lalu" dari selisih detik. */
+function agoText(sec: number) {
+  if (sec < 90) return "baru saja";
+  if (sec < 3600) return `${Math.round(sec / 60)} menit lalu`;
+  if (sec < 86_400) return `${Math.round(sec / 3600)} jam lalu`;
+  return `${Math.round(sec / 86_400)} hari lalu`;
 }

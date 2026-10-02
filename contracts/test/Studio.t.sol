@@ -104,4 +104,52 @@ contract StudioTest is Test {
     }
 
     receive() external payable {}
+
+    // --- sunting otak (setSoul) ---------------------------------------------
+
+    address bob = makeAddr("bob");
+
+    function _create(address who) internal returns (uint64 id) {
+        vm.deal(who, 1 ether);
+        vm.prank(who);
+        id = studio.create{value: FEE}(_default(), "Awal", 0, keccak256("awal"));
+    }
+
+    function test_CreateWithSoulStartsAtVersionOne() public {
+        uint64 id = _create(alice);
+        assertEq(studio.soulVersion(id), 1);
+    }
+
+    function test_OwnerCanSetSoulAndVersionGrows() public {
+        uint64 id = _create(alice);
+        uint32 v = studio.soulVersion(id);
+        vm.prank(alice);
+        studio.setSoul(id, keccak256("baru"));
+        assertEq(studio.soulOf(id), keccak256("baru"));
+        assertEq(studio.soulVersion(id), v + 1);
+    }
+
+    function test_NonOwnerCannotSetSoul() public {
+        uint64 id = _create(alice);
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(Studio.NotOwner.selector, id));
+        studio.setSoul(id, keccak256("x"));
+    }
+
+    function test_BuyerCanSetSoulAfterTransfer() public {
+        uint64 id = _create(alice);
+        vm.prank(alice);
+        reg.transferFrom(alice, bob, id);
+        vm.prank(bob);
+        studio.setSoul(id, keccak256("milik bob"));
+        assertEq(studio.soulOf(id), keccak256("milik bob"));
+    }
+
+    function test_SetSoulEmitsEvent() public {
+        uint64 id = _create(alice);
+        vm.expectEmit(true, false, false, true);
+        emit Studio.SoulSet(id, keccak256("v"), studio.soulVersion(id) + 1);
+        vm.prank(alice);
+        studio.setSoul(id, keccak256("v"));
+    }
 }

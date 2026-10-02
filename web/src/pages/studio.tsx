@@ -6,17 +6,17 @@
  * "nama sifat : isi", dan instruksi rahasia. Server menerjemahkan profil itu
  * ke genome saat agent dibuat; model AI-nya dipilih penyelenggara.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { normalizeTraits, type FreeTrait } from "../../../packages/shared/src/profile";
 import { studioGenome } from "../../../packages/shared/src/studio";
 import { get, post, same, type Agent } from "../api";
 import { useToast } from "../components/toast";
 import { TraitEditor } from "../components/trait-editor";
 import { Cell, Spinner } from "../components/ui";
-import { useActor, useQuota } from "../hooks/use-actor";
+import { proofFor, useActor, useQuota } from "../hooks/use-actor";
 import { useData } from "../hooks/use-data";
 import { emptyTraits, studioFormProblems } from "../lib/studio-form";
-import { Link, navigate, useTitle } from "../router";
+import { Link, navigate, useLocation, useTitle } from "../router";
 
 const MAX_INSTRUCTIONS = 4000;
 const EXAMPLES = [
@@ -40,8 +40,11 @@ function mergeTraits(current: FreeTrait[], incoming: FreeTrait[]): FreeTrait[] {
 }
 
 export function StudioPage() {
-  useTitle("Studio");
-  const { status, agents, refresh } = useData();
+  const { query } = useLocation();
+  const editId = Number(query.get("sunting")) || 0;
+  useTitle(editId ? "Sunting otak" : "Studio");
+  const { status, agents, refresh, byId } = useData();
+  const editing = editId ? byId(editId) : undefined;
   const actor = useActor();
   const toast = useToast();
   const [description, setDescription] = useState("");
@@ -57,14 +60,33 @@ export function StudioPage() {
   const [trying, setTrying] = useState(false);
   const [tried, setTried] = useState<{ output: string; model: string } | null>(null);
   const quota = useQuota(actor, `${sending}${trying}`);
+  const [loadedEdit, setLoadedEdit] = useState(0);
 
-  const problems = studioFormProblems({ name, role, traits, instructions }, agents.map((a) => a.name));
+  // Mode sunting: pemilik membuka otak agent-nya (profil + instruksi miliknya sendiri).
+  useEffect(() => {
+    if (!editId || !editing || loadedEdit === editId || actor.mode === "none" || !same(editing.owner, actor.address)) return;
+    setLoadedEdit(editId);
+    (async () => {
+      try {
+        const s = await post<{ role: string; traits: FreeTrait[]; instructions: string }>(`/api/agents/${editId}/soul`, await proofFor(actor, `sunting otak #${editId}`));
+        setName(editing.name);
+        setRole(s.role);
+        setTraits(s.traits.length ? mergeTraits(s.traits, []) : emptyTraits());
+        setInstructions(s.instructions);
+        setStarted(true);
+      } catch (e) {
+        toast((e as Error).message, "bad");
+      }
+    })();
+  }, [editId, editing, actor.mode, actor.address, loadedEdit]);
+
+  const problems = studioFormProblems({ name, role, traits, instructions }, agents.filter((a) => a.id !== editId).map((a) => a.name));
   const blocking = problems.filter((p) => p.blocking);
   const filled = normalizeTraits(traits);
   const fee = status?.market?.studioFeeEth ?? null;
   const unavailable = fee === null;
   const free = fee !== null && Number(fee) === 0;
-  const studioFull = quota !== null && quota.studio <= 0;
+  const studioFull = !editId && quota !== null && quota.studio <= 0;
 
   // Avatar pratinjau: warna sel ikut berubah saat profil disunting.
   const avatar = useMemo(() => {
@@ -103,8 +125,23 @@ export function StudioPage() {
     }
   };
 
+  const save = async () => {
+    if (!editing) return;
+    setSending(true);
+    try {
+      const soul = await post<{ hash: string }>("/api/studio/soul", { role, traits: filled, instructions, edit: editing.id }, await actor.authHeaders());
+      const r = await actor.act("setSoul", { id: editing.id, soulHash: soul.hash }, { quietSuccess: true });
+      if (r && name.trim() && name.trim() !== editing.name) await actor.act("setName", { id: editing.id, name: name.trim() }, { quietSuccess: true });
+      if (r) { await refresh(true); toast("Otak agent sudah diperbarui.", "ok"); navigate(`/agent/${editing.id}`); return; }
+    } catch (e) {
+      toast((e as Error).message, "bad");
+    }
+    setSending(false);
+  };
+
   const create = async () => {
     if (actor.mode === "none") { actor.login(); return; }
+    if (editing) return save();
     setSending(true);
     try {
       const soul = await post<{ hash: string; loci: number[] }>("/api/studio/soul", { role, traits: filled, instructions }, await actor.authHeaders());
@@ -122,22 +159,29 @@ export function StudioPage() {
     setSending(false);
   };
 
-  const disabled = unavailable || sending || !!actor.busy || blocking.length > 0 || studioFull || (actor.mode === "none" && !!actor.loginProblem);
-  const cta = sending ? <><Spinner />Membuat…</> : actor.mode === "none" ? "Masuk untuk membuat" : free ? "Buat agent" : `Buat agent · ${fee} ETH`;
+  const notOwner = !!editId && !!editing && actor.mode !== "none" && !same(editing.owner, actor.address);
+  const disabled = notOwner || unavailable || sending || !!actor.busy || blocking.length > 0 || studioFull || (actor.mode === "none" && !!actor.loginProblem);
+  const cta = editId
+    ? (sending ? <><Spinner />Menyimpan…</> : actor.mode === "none" ? "Masuk untuk menyunting" : "Simpan perubahan")
+    : sending ? <><Spinner />Membuat…</> : actor.mode === "none" ? "Masuk untuk membuat" : free ? "Buat agent" : `Buat agent · ${fee} ETH`;
   const costNote = free ? "Gratis selama beta. Kamu hanya membayar biaya jaringan yang sangat kecil." : fee ? `Biaya ${fee} ETH sekali bayar, ditambah biaya jaringan.` : "";
 
   return (
     <div className="stack-lg studio-page">
       <div className="page-head">
-        <h1 className="h-page">Studio</h1>
-        <p>Ceritakan agent yang kamu butuhkan. Semua isinya kamu tulis sendiri dengan bebas, atau biarkan AI menyusun rancangan awalnya.</p>
+        <h1 className="h-page">{editId ? `Sunting otak ${editing?.name ?? `#${editId}`}` : "Studio"}</h1>
+        <p>{editId
+          ? "Ubah tugas, sifat, dan instruksinya. DNA agent tidak berubah, dan anak yang sudah lahir tetap memakai otak versi saat ia lahir. Anak berikutnya mewarisi versi baru ini."
+          : "Ceritakan agent yang kamu butuhkan. Semua isinya kamu tulis sendiri dengan bebas, atau biarkan AI menyusun rancangan awalnya."}</p>
       </div>
+      {notOwner && <div className="banner" style={{ width: "100%", margin: 0 }}><div>Hanya pemilik agent ini yang bisa menyunting otaknya.</div></div>}
+      {editId > 0 && actor.mode === "none" && <div className="banner banner-info" style={{ width: "100%", margin: 0 }}><div>Masuk dengan wallet pemilik untuk membuka otak agent ini.</div></div>}
 
       {unavailable && <div className="banner" style={{ width: "100%", margin: 0 }}><div>Studio belum dipasang di chain ini.</div></div>}
 
       <div className="studio">
         <div className="stack-lg">
-          <section className="plate studio-ask">
+          {!editId && <section className="plate studio-ask">
             <label className="h-sub" htmlFor="studio-desc">Agent seperti apa yang kamu butuhkan?</label>
             <textarea
               id="studio-desc" className="textarea" rows={3} value={description} maxLength={2000}
@@ -151,7 +195,7 @@ export function StudioPage() {
               <button className="btn btn-primary" disabled={thinking} onClick={design}>{thinking ? <><Spinner />Merancang…</> : "Rancang untukku"}</button>
               {!started && <button type="button" className="link-btn" onClick={() => setStarted(true)}>atau isi sendiri dari nol</button>}
             </div>
-          </section>
+          </section>}
 
           {started && (
             <section className="plate studio-sheet" aria-label="Otak agent">
@@ -231,7 +275,7 @@ export function StudioPage() {
           {blocking[0] && started && <p className="xs text-bad">{blocking[0].message}</p>}
           {studioFull && <p className="xs text-bad">Batas {quota!.studioPerDay} agent baru per hari tercapai. Buka lagi besok jam 07.00 WIB.</p>}
           <p className="xs muted">
-            {costNote}
+            {editId ? "Menyimpan perubahan hanya memakai biaya jaringan." : costNote}
             {quota && !studioFull ? ` Sisa ${quota.studio} dari ${quota.studioPerDay} agent baru hari ini.` : ""}
             {" "}Agent-nya jadi milikmu: bisa dipakai, dijual, disewakan, dikawinkan, dan disunting lagi. <Link to="/panduan#studio">Selengkapnya</Link>
           </p>

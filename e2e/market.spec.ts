@@ -63,6 +63,19 @@ try {
   ok("manifest langsung tercatat", made.manifestHashOnChain === made.manifestHashComputed);
   ok("halaman menyambut agent baru", (await page.innerText("main")).includes("sudah jadi dan milikmu"));
 
+  section("SUNTING OTAK");
+  await page.click("text=Sunting otak");
+  await page.waitForURL(/\/studio\?sunting=\d+$/);
+  await page.waitForFunction(() => (document.querySelector<HTMLInputElement>('input[aria-label="Gaya bicara"]')?.value ?? "").length > 0, undefined, { timeout: 30_000 });
+  ok("otak lama terbuka untuk disunting", (await page.inputValue('input[aria-label="Gaya bicara"]')).length > 0);
+  await page.fill('input[aria-label="Gaya bicara"]', "formal dan sopan");
+  await page.click(".studio-summary .btn-primary");
+  await page.waitForURL(new RegExp(`/agent/${id}$`), { timeout: 30_000 });
+  await page.waitForSelector("text=Otak versi 2", { timeout: 30_000 });
+  const edited = (await agents()).find((a) => a.id === id) as unknown as { soulVersion: number; profile: { traits: { label: string; value: string }[] } };
+  ok("versi otak naik menjadi 2", edited.soulVersion === 2);
+  ok("profil publik memakai isi baru", edited.profile.traits.some((t) => t.label === "Gaya bicara" && t.value === "formal dan sopan"));
+
   section("STUDIO DI PONSEL");
   const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await installFakeWallet(phone, KEY);

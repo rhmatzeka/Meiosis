@@ -290,6 +290,7 @@ async function readAgent(d: Deployment, id: number) {
     d.studio ? read(d.studio, abis.studio, "designed", [id]) as Promise<boolean> : false,
   ]);
   const soulRaw = d.studio ? ((await read(d.studio, abis.studio, "soulOf", [id])) as string) : null;
+  const soulVersion = d.studio ? Number(await read(d.studio, abis.studio, "soulVersion", [id]).catch(() => 0)) : 0;
   const ownSoul = soulRaw && !/^0x0+$/.test(soulRaw) ? soulRaw : null;
   const founderName = !chosenName && a.generation === 0 && !designed
     ? ((await read(d.genesis, abis.genesis, "founderName", [id])) as string) : "";
@@ -321,6 +322,7 @@ async function readAgent(d: Deployment, id: number) {
     rent: { ownerPriceWei: rentWei.toString(), priceWei: effectiveRentWei(rentWei, RUN_PRICE).toString(), priceEth: formatEther(effectiveRentWei(rentWei, RUN_PRICE)) },
     designed,
     soulHash: ownSoul,
+    soulVersion,
     cooldownBlocks: Number(cooldown),
     traits: e.map((t, i) => ({ locus: i, name: LOCUS_NAMES[i], value: traitName(i, t) })),
     modules: manifest.traits.filter((t) => t.module).map((t) => t.module),
@@ -334,19 +336,23 @@ const listAgents = cached(async () => {
   const d = dep;
   const total = Number(await read(d.registry, abis.registry, "totalMinted"));
   await scanHatched(d);
+  const edits = await scanEdits(d);
   const rows = await Promise.all(Array.from({ length: total }, (_, i) => readAgent(d, i + 1)));
   // Dari agent mana instruksi khususnya berasal (dirinya, atau leluhur). Isinya tidak pernah dikirim.
   const byId = new Map(rows.map((a) => [a.id, a]));
   // Profil publik: soul sendiri, atau warisan kedua induk menurut seed kelahiran. Instruksi tidak ikut.
   const memo = new Map();
-  const node = (i: number): ProfileNode | undefined => {
+  const node = (i: number, at?: number): ProfileNode | undefined => {
     const x = byId.get(i);
-    return x && { genome: BigInt(x.genomeRaw), seed: BigInt(x.birthSeed), parents: x.parents, soulText: x.soulHash ? soulStore.get(x.soulHash) : null };
+    const hash = x && soulHashAt(x.soulHash, i, at);
+    return x && { genome: BigInt(x.genomeRaw), seed: BigInt(x.birthSeed), parents: x.parents, birthBlock: x.birthBlock, soulText: hash ? soulStore.get(hash) : null };
   };
   return rows.map((a) => ({
     ...a,
-    soulFrom: inheritedSoul(a.id, (i) => { const x = byId.get(i); return x && { soulHash: x.soulHash, parents: x.parents }; }, (h) => soulStore.get(h)).sources,
+    soulFrom: inheritedSoul(a.id, (i, at) => { const x = byId.get(i); return x && { soulHash: soulHashAt(x.soulHash, i, at), parents: x.parents, birthBlock: x.birthBlock }; }, (h) => soulStore.get(h)).sources,
     profile: profileFor(a.id, node, memo),
+    soulUpdatedBlock: edits.soul.get(a.id) ?? null,
+    sale: a.sale ? { ...a.sale, changedAfterListing: (edits.soul.get(a.id) ?? 0) > (edits.listed.get(a.id) ?? Infinity) } : null,
     hidden: hidden.has(a.id),
   }));
 });
@@ -385,6 +391,46 @@ async function scanHatched(d: Deployment) {
 }
 
 /**
+ * Kapan soul terakhir disunting (event Studio.SoulSet) dan kapan listing jual
+ * terakhir dipasang (event Market.Listed), per agent. Dipindai bertahap seperti
+ * Hatched, supaya label "diperbarui" dan "diubah setelah dipasang" bisa dihitung.
+ */
+const editScan = { key: "", to: 0n, soul: new Map<number, number>(), listed: new Map<number, number>(), history: new Map<number, { block: number; hash: string }[]>() };
+async function scanEdits(d: Deployment) {
+  const key = `${d.studio}:${d.market}`;
+  if (editScan.key !== key) Object.assign(editScan, { key, to: 0n, soul: new Map(), listed: new Map(), history: new Map() });
+  if (!d.studio) return editScan;
+  const head = await pub.getBlockNumber();
+  const from = editScan.to ? editScan.to + 1n : BigInt(d.block);
+  try {
+    for (const [a, b] of blockRanges(from, head, 9_000n)) {
+      const souls = await pub.getContractEvents({ address: d.studio, abi: abis.studio, eventName: "SoulSet", fromBlock: a, toBlock: b }) as unknown as { blockNumber: bigint; args: { id: bigint; soulHash: string } }[];
+      for (const l of souls) {
+        const id = Number(l.args.id);
+        editScan.soul.set(id, Number(l.blockNumber));
+        editScan.history.set(id, [...(editScan.history.get(id) ?? []), { block: Number(l.blockNumber), hash: l.args.soulHash }]);
+      }
+      if (d.market) {
+        const listed = await pub.getContractEvents({ address: d.market, abi: abis.market, eventName: "Listed", fromBlock: a, toBlock: b }) as unknown as { blockNumber: bigint; args: { id: bigint } }[];
+        for (const l of listed) editScan.listed.set(Number(l.args.id), Number(l.blockNumber));
+      }
+      editScan.to = b;
+    }
+  } catch (e) {
+    console.warn(`  pemindaian SoulSet/Listed berhenti di blok ${editScan.to}: ${(e as Error).message.split("\n")[0].slice(0, 120)}`);
+  }
+  return editScan;
+}
+
+/** Hash soul agent pada blok `at` (kosong = terbaru); null bila belum punya soul saat itu. */
+function soulHashAt(current: string | null, id: number, at?: number): string | null {
+  if (at === undefined) return current;
+  const h = (editScan.history.get(id) ?? []).filter((x) => x.block <= at);
+  const hash = h.length ? h[h.length - 1].hash : null;
+  return hash && !/^0x0+$/.test(hash) ? hash : null;
+}
+
+/**
  * Soul yang dipakai saat agent bekerja: profil publiknya (milik sendiri atau
  * warisan) dan instruksi rahasia garis keturunannya. `text` = bentuk utuh untuk
  * ekspor; `instructions` = yang dijaga agar tidak bocor di keluaran.
@@ -393,7 +439,7 @@ async function soulFor(id: number) {
   const all = await listAgents();
   const byId = new Map(all.map((a) => [a.id, a]));
   const profile = byId.get(id)?.profile ?? { role: "", traits: [] };
-  const soul = promptSoul(id, profile, (i) => { const a = byId.get(i); return a && { soulHash: a.soulHash, parents: a.parents }; }, (h) => soulStore.get(h));
+  const soul = promptSoul(id, profile, (i, at) => { const a = byId.get(i); return a && { soulHash: soulHashAt(a.soulHash, i, at), parents: a.parents, birthBlock: a.birthBlock }; }, (h) => soulStore.get(h));
   return { soul, text: composeSoul(soul), instructions: soul.instructions };
 }
 
@@ -539,6 +585,12 @@ async function buildTx(action: string, a: Record<string, unknown>, from?: string
       const [, price, valid] = (await read(d.market!, abis.market, "listingOf", [id()])) as [string, bigint, boolean];
       if (!valid) throw new Error(`#${a.id} sedang tidak dijual`);
       return call(d.market!, abis.market, "buy", [id()], price, `beli #${a.id}`);
+    }
+    case "setSoul": {
+      if (!d.studio) throw new Error("Studio belum ter-deploy di chain ini");
+      const soul = String(a.soulHash ?? "");
+      if (!/^0x[0-9a-f]{64}$/i.test(soul) || !soulStore.get(soul)) throw new Error("isi otak belum tersimpan di server, simpan ulang");
+      return call(d.studio, abis.studio, "setSoul", [id(), soul], 0n, `sunting otak #${a.id}`);
     }
     case "setRentPrice":
       return call(d.market!, abis.market, "setRentPrice", [id(), eth("priceEth")], 0n, `pasang harga sewa #${a.id}`);
@@ -811,7 +863,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
 
       if (p === "/api/studio/soul" && req.method === "POST") {
         // Profil bebas + instruksi → soul tersimpan, ditambah 16 lokus untuk Studio.create.
-        const b = (await req.json().catch(() => ({}))) as { text?: string; role?: string; traits?: FreeTrait[]; instructions?: string };
+        const b = (await req.json().catch(() => ({}))) as { text?: string; role?: string; traits?: FreeTrait[]; instructions?: string; edit?: number };
         try {
           const instructions = String(b.instructions ?? "");
           if (instructions.length > MAX_INSTRUCTIONS) return json({ error: `instruksi paling panjang ${MAX_INSTRUCTIONS} karakter` }, 400);
@@ -820,10 +872,12 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           if (!text.trim()) return json({ error: "profil dan instruksi masih kosong" }, 400);
           const who = await quotaUser(req, server);
           if (!who.ok) return json({ error: who.error }, 401);
-          const slot = quota.reserveStudio(who.user);
+          // Menyunting agent yang sudah ada tidak memakai jatah agent baru; dibatasi per jam saja.
+          if (b.edit && !allowRun(`sunting:${who.user}`)) return json({ error: "Terlalu sering menyunting. Coba lagi sebentar lagi." }, 429);
+          const slot = b.edit ? { ok: true as const } : quota.reserveStudio(who.user);
           if (!slot.ok) return json({ error: `Batas ${quota.config.studioPerDay} agent baru per hari tercapai. Buka lagi besok jam ${jam(slot.resetsAt)} WIB.`, quota: quota.left(who.user) }, 429);
           const hash = soulStore.put(text);
-          track("buat", who.user);
+          if (!b.edit) track("buat", who.user);
           const parsed = parseSoul(text);
           const ai = modelMissing() || process.env.MOCK_LLM === "1" || !quota.canSpend(2_000) ? undefined : async (pr: { system: string; user: string }) => {
             const r = await getProvider({ ...process.env, MOCK_LLM: "0" }).chat("fast", { system: pr.system, messages: [{ role: "user", content: pr.user }], temperature: 0, maxTokens: 400 });
@@ -1011,6 +1065,19 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
 
       // Ekspor. GET = `.md` remote untuk siapa saja (tanpa prompt).
       // POST = `.md` lengkap untuk pemilik, bertanda tangan dan ber-watermark.
+      // Pemilik membuka otak agent-nya untuk disunting: profil + instruksi miliknya sendiri saja.
+      const own = p.match(/^\/api\/agents\/(\d+)\/soul$/);
+      if (own && req.method === "POST") {
+        const a = (await listAgents(true)).find((x) => x.id === Number(own[1]));
+        if (!a) return json({ error: "agent tidak ditemukan" }, 404);
+        const who = await provenAddress((await req.json().catch(() => ({}))) as Record<string, string>, `sunting otak #${a.id}`);
+        if (!who.ok) return json({ error: who.error }, 401);
+        if (who.address.toLowerCase() !== a.owner.toLowerCase()) return json({ error: "Hanya pemilik agent ini yang bisa menyuntingnya." }, 403);
+        const text = a.soulHash ? soulStore.get(a.soulHash) : null;
+        const s = text ? parseSoul(text) : { role: a.profile.role, traits: a.profile.traits, instructions: "" };
+        return json({ ...s, version: a.soulVersion, inherited: !text });
+      }
+
       const ex = p.match(/^\/api\/agents\/(\d+)\/(agent\.md|manifest\.json)$/);
       if (ex) {
         if (!dep) return json({ error: "belum di-deploy" }, 400);
