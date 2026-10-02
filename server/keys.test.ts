@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { privateKeyToAccount } from "viem/accounts";
-import { KeyStore, checkSigned, signedMessage } from "./keys";
+import { KeyStore, UsedSignatures, checkSigned, signedMessage } from "./keys";
 
 const acct = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");
 const other = privateKeyToAccount("0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a");
@@ -39,6 +39,23 @@ describe("checkSigned", () => {
     expect(r.ok).toBe(false);
   });
 
+  test("tanda tangan yang sama tidak bisa dipakai dua kali", async () => {
+    const message = signedMessage("panel admin", acct.address, new Date(NOW).toISOString());
+    const signature = await acct.signMessage({ message });
+    const seen = new UsedSignatures();
+    const req = { address: acct.address, message, signature, action: "panel admin", now: NOW, seen };
+    expect(await checkSigned(req)).toEqual({ ok: true });
+    const again = await checkSigned(req);
+    expect(again.ok).toBe(false);
+    if (!again.ok) expect(again.error).toContain("sudah dipakai");
+  });
+  test("tanda tangan yang ditolak tidak dihitung terpakai", async () => {
+    const message = signedMessage("panel admin", acct.address, new Date(NOW).toISOString());
+    const signature = await acct.signMessage({ message });
+    const seen = new UsedSignatures();
+    expect((await checkSigned({ address: acct.address, message, signature, action: "aksi lain", now: NOW, seen })).ok).toBe(false);
+    expect(await checkSigned({ address: acct.address, message, signature, action: "panel admin", now: NOW, seen })).toEqual({ ok: true });
+  });
   test("pesan yang menyebut alamat lain ditolak", async () => {
     const message = signedMessage("buat API key", other.address, new Date(NOW).toISOString());
     const signature = await acct.signMessage({ message });

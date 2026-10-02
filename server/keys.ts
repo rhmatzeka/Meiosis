@@ -16,8 +16,20 @@ const VALID_MS = 10 * 60_000;
 export const signedMessage = (action: string, address: string, iso: string) =>
   `Meiosis: ${action} untuk ${getAddress(address)} pada ${iso}`;
 
+/** Tanda tangan yang sudah diterima, disimpan selama masih berlaku supaya tidak bisa diputar ulang. */
+export class UsedSignatures {
+  private at = new Map<string, number>();
+  /** Kuncinya pesan (aksi + alamat + waktu), bukan tanda tangan: bentuk tanda tangan ECDSA bisa diubah tanpa jadi tidak sah. */
+  claim(message: string, now: number) {
+    for (const [m, t] of this.at) if (now - t > VALID_MS + 60_000) this.at.delete(m);
+    if (this.at.has(message)) return false;
+    this.at.set(message, now);
+    return true;
+  }
+}
+
 export async function checkSigned(o: {
-  address: string; message: string; signature: string; action: string; now?: number;
+  address: string; message: string; signature: string; action: string; now?: number; seen?: UsedSignatures;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!isAddress(o.address)) return { ok: false, error: "alamat tidak sah" };
   const m = o.message.match(/^Meiosis: (.+) untuk (0x[0-9a-fA-F]{40}) pada (.+)$/);
@@ -27,7 +39,9 @@ export async function checkSigned(o: {
   const now = o.now ?? Date.now();
   if (!Number.isFinite(at) || now - at > VALID_MS || at - now > 60_000) return { ok: false, error: "tanda tangan kedaluwarsa, coba lagi" };
   const valid = await verifyMessage({ address: getAddress(o.address), message: o.message, signature: o.signature as `0x${string}` }).catch(() => false);
-  return valid ? { ok: true } : { ok: false, error: "tanda tangan tidak cocok dengan alamat" };
+  if (!valid) return { ok: false, error: "tanda tangan tidak cocok dengan alamat" };
+  if (o.seen && !o.seen.claim(o.message, now)) return { ok: false, error: "tanda tangan sudah dipakai, coba lagi" };
+  return { ok: true };
 }
 
 export interface KeyRecord { hash: string; prefix: string; address: string; label: string; createdAt: number }

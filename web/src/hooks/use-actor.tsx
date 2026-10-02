@@ -13,6 +13,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { get, post, same } from "../api";
 import { useToast } from "../components/toast";
 import { humanError } from "../lib/errors";
+import { proofStamp } from "../lib/proof";
 import { affordability } from "../lib/afford";
 import { addPending, removePending } from "../lib/pending";
 import { ethText, usePay } from "../components/pay-sheet";
@@ -66,7 +67,7 @@ export function useQuota(actor: Actor, refreshKey: unknown = null) {
 export async function proofFor(actor: Actor, action: string): Promise<Record<string, string>> {
   if (!actor.address || !actor.sign) throw new Error("Masuk dulu.");
   const { getAddress } = await import("viem");
-  const message = `Meiosis: ${action} untuk ${getAddress(actor.address)} pada ${new Date().toISOString()}`;
+  const message = `Meiosis: ${action} untuk ${getAddress(actor.address)} pada ${proofStamp()}`;
   return { address: actor.address, message, signature: await actor.sign(message) };
 }
 

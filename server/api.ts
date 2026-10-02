@@ -19,7 +19,7 @@ import { startKeeper } from "./keeper";
 import { blockRanges } from "./ranges";
 import { checkRent, effectiveRentWei, type RentEvent } from "./rent";
 import { studioGenome, validateTraits } from "../packages/shared/src/studio";
-import { SoulStore, inheritedSoul, profileFor, promptSoul, type ProfileNode } from "./souls";
+import { SoulStore, inheritedSoul, profileFor, promptSoul, soulHash, type ProfileNode } from "./souls";
 import { encodeProfile } from "./encode";
 import { testMode } from "./mode";
 import { QuotaLedger } from "./quota";
@@ -33,7 +33,7 @@ import { faucetDecision, faucetMessage, loadFaucetState, saveFaucetState, verify
 import { toClaudeAgent, toRemoteAgent, licenseStatement, agentSlug } from "../runtime/export";
 import { catalog, promptsAvailable } from "../runtime/genome/catalog";
 import { redactPromptLeak } from "../runtime/guard";
-import { KeyStore, checkSigned } from "./keys";
+import { KeyStore, UsedSignatures, checkSigned } from "./keys";
 import { handleMcp } from "./mcp-http";
 import { randomBytes } from "node:crypto";
 import { express, relatedness, LOCUS_NAMES, traitName, LOCUS_COUNT } from "../packages/shared/src/genome";
@@ -141,6 +141,8 @@ const guardOutput = (output: string, soul = "") =>
 
 /** API key Claude Code dan lisensi `.md` lengkap, disimpan per chain. */
 const keyStore = new KeyStore(`.runs/api-keys-${CHAIN}.json`);
+/** Setiap pesan bertanda tangan hanya diterima sekali (admin, API key, unduh, sunting otak). */
+const usedSignatures = new UsedSignatures();
 const LICENSES = `.runs/licenses-${CHAIN}.json`;
 const PUBLIC_URL = process.env.PUBLIC_URL?.replace(/\/+$/, "") || "";
 const originOf = (req: Request) => PUBLIC_URL || new URL(req.url).origin;
@@ -151,7 +153,7 @@ const originOf = (req: Request) => PUBLIC_URL || new URL(req.url).origin;
  */
 async function provenAddress(b: { as?: string; address?: string; message?: string; signature?: string }, action: string) {
   if (TEST && b.as && wallets.some((w) => w.account.address.toLowerCase() === b.as!.toLowerCase())) return { ok: true as const, address: getAddress(b.as) };
-  const r = await checkSigned({ address: b.address ?? "", message: b.message ?? "", signature: b.signature ?? "", action });
+  const r = await checkSigned({ address: b.address ?? "", message: b.message ?? "", signature: b.signature ?? "", action, seen: usedSignatures });
   return r.ok ? { ok: true as const, address: getAddress(b.address!) } : { ok: false as const, error: r.error };
 }
 
@@ -396,10 +398,10 @@ async function scanHatched(d: Deployment) {
  * terakhir dipasang (event Market.Listed), per agent. Dipindai bertahap seperti
  * Hatched, supaya label "diperbarui" dan "diubah setelah dipasang" bisa dihitung.
  */
-const editScan = { key: "", to: 0n, soul: new Map<number, number>(), listed: new Map<number, number>(), history: new Map<number, { block: number; hash: string }[]>() };
+const editScan = { key: "", to: 0n, soul: new Map<number, number>(), listed: new Map<number, number>(), history: new Map<number, { block: number; hash: string }[]>(), made: new Set<string>() };
 async function scanEdits(d: Deployment) {
   const key = `${d.studio}:${d.market}`;
-  if (editScan.key !== key) Object.assign(editScan, { key, to: 0n, soul: new Map(), listed: new Map(), history: new Map() });
+  if (editScan.key !== key) Object.assign(editScan, { key, to: 0n, soul: new Map(), listed: new Map(), history: new Map(), made: new Set() });
   if (!d.studio) return editScan;
   const head = await pub.getBlockNumber();
   const from = editScan.to ? editScan.to + 1n : BigInt(d.block);
@@ -411,6 +413,8 @@ async function scanEdits(d: Deployment) {
         editScan.soul.set(id, Number(l.blockNumber));
         editScan.history.set(id, [...(editScan.history.get(id) ?? []), { block: Number(l.blockNumber), hash: l.args.soulHash }]);
       }
+      const made = await pub.getContractEvents({ address: d.studio, abi: abis.studio, eventName: "Designed", fromBlock: a, toBlock: b }) as unknown as { args: { soulHash: string } }[];
+      for (const l of made) editScan.made.add(l.args.soulHash.toLowerCase());
       if (d.market) {
         const listed = await pub.getContractEvents({ address: d.market, abi: abis.market, eventName: "Listed", fromBlock: a, toBlock: b }) as unknown as { blockNumber: bigint; args: { id: bigint } }[];
         for (const l of listed) editScan.listed.set(Number(l.args.id), Number(l.blockNumber));
@@ -421,6 +425,13 @@ async function scanEdits(d: Deployment) {
     console.warn(`  pemindaian SoulSet/Listed berhenti di blok ${editScan.to}: ${(e as Error).message.split("\n")[0].slice(0, 120)}`);
   }
   return editScan;
+}
+
+/** Apakah soul dengan hash ini sudah jadi agent Studio on-chain (event Designed). */
+async function studioMade(): Promise<(hash: string) => boolean> {
+  if (!dep?.studio) return () => false;
+  const { made } = await scanEdits(dep);
+  return (h) => made.has(h.toLowerCase());
 }
 
 /** Hash soul agent pada blok `at` (kosong = terbaru); null bila belum punya soul saat itu. */
@@ -513,6 +524,8 @@ async function buildTx(action: string, a: Record<string, unknown>, from?: string
       if (!from || !isAddress(from)) throw new Error("hubungkan wallet dulu");
       const pa = id("a"), pb = id("b");
       if (pa === pb) throw new Error("induk tidak boleh sama");
+      const hid = [pa, pb].find((x) => hidden.has(x));
+      if (hid) throw new Error(`Agent #${hid} disembunyikan admin dan tidak bisa dikawinkan.`);
       const head = await pub.getBlockNumber();
       let value = 0n;
       for (const x of [pa, pb]) {
@@ -607,7 +620,7 @@ async function buildTx(action: string, a: Record<string, unknown>, from?: string
 // ---------------------------------------------------------------------------
 // Pembayaran sewa untuk /api/run di mode publik
 
-const USED_PAYMENTS = ".runs/used-payments.json";
+const USED_PAYMENTS = `.runs/used-payments-${CHAIN}.json`;
 const usedPayments = new Set<string>(
   existsSync(USED_PAYMENTS) ? (JSON.parse(readFileSync(USED_PAYMENTS, "utf8")) as string[]) : [],
 );
@@ -824,7 +837,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         const who = await quotaUser(req, server);
         if (!who.ok) return json({ error: who.error }, 401);
         track("masuk", who.user);
-        return json(quota.left(who.user));
+        return json(quota.left(who.user, Date.now(), await studioMade()));
       }
 
       if (p === "/api/studio/try" && req.method === "POST") {
@@ -868,8 +881,10 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           if (!who.ok) return json({ error: who.error }, 401);
           // Menyunting agent yang sudah ada tidak memakai jatah agent baru; dibatasi per jam saja.
           if (b.edit && !allowRun(`sunting:${who.user}`)) return json({ error: "Terlalu sering menyunting. Coba lagi sebentar lagi." }, 429);
-          const slot = b.edit ? { ok: true as const } : quota.reserveStudio(who.user);
-          if (!slot.ok) return json({ error: `Batas ${quota.config.studioPerDay} agent baru per hari tercapai. Buka lagi besok jam ${jam(slot.resetsAt)} WIB.`, quota: quota.left(who.user) }, 429);
+          // Soul yang transaksinya batal tidak menghabiskan jatah: slotnya dipakai soul berikutnya.
+          const used = b.edit ? undefined : await studioMade();
+          const slot = used ? quota.reserveStudio(who.user, Date.now(), { hash: soulHash(text), used }) : { ok: true as const };
+          if (!slot.ok) return json({ error: `Batas ${quota.config.studioPerDay} agent baru per hari tercapai. Buka lagi besok jam ${jam(slot.resetsAt)} WIB.`, quota: quota.left(who.user, Date.now(), used) }, 429);
           const hash = soulStore.put(text);
           if (!b.edit) track("buat", who.user);
           const parsed = parseSoul(text);

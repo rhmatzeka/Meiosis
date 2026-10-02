@@ -7,7 +7,13 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname } from "node:path";
 
 export interface QuotaConfig { tasksPerDay: number; studioPerDay: number; tokenBudget: number; resetHourUtc: number }
-interface Day { tasks: Record<string, number>; studio: Record<string, number>; tokens: Record<string, number>; reserved: Record<string, { user: string; est: number }> }
+interface Day {
+  tasks: Record<string, number>; studio: Record<string, number>; tokens: Record<string, number>; reserved: Record<string, { user: string; est: number }>;
+  /** Soul terakhir per akun yang sudah memakai jatah Studio; bila belum dibuat on-chain, slotnya boleh dipakai soul berikutnya. */
+  studioOpen?: Record<string, string>;
+}
+/** Soul yang mau disimpan dan cara memeriksa apakah sebuah hash soul sudah jadi agent on-chain. */
+export interface StudioSoul { hash: string; used: (hash: string) => boolean }
 type Fail = { ok: false; reason: "jatah-akun" | "anggaran-harian"; resetsAt: number };
 
 export const dayKey = (now: number, resetHourUtc: number) => new Date(now - resetHourUtc * 3_600_000).toISOString().slice(0, 10);
@@ -70,10 +76,17 @@ export class QuotaLedger {
     d.tasks[r.user] = Math.max(0, (d.tasks[r.user] ?? 1) - 1);
     this.save();
   }
-  reserveStudio(user: string, now = Date.now()): { ok: true } | Fail {
+  /** Soul yang sudah memakai jatah tapi transaksinya batal: jatah itu belum benar-benar terpakai. */
+  private studioUnused(d: Day, user: string, used?: (hash: string) => boolean) {
+    const open = d.studioOpen?.[user];
+    return !!open && !!used && !used(open);
+  }
+  reserveStudio(user: string, now = Date.now(), soul?: StudioSoul): { ok: true } | Fail {
     const d = this.day(now);
-    if ((d.studio[user] ?? 0) >= this.cfg.studioPerDay) return { ok: false, reason: "jatah-akun", resetsAt: this.resetsAt(now) };
-    d.studio[user] = (d.studio[user] ?? 0) + 1;
+    const reuse = this.studioUnused(d, user, soul?.used);
+    if (!reuse && (d.studio[user] ?? 0) >= this.cfg.studioPerDay) return { ok: false, reason: "jatah-akun", resetsAt: this.resetsAt(now) };
+    if (!reuse) d.studio[user] = (d.studio[user] ?? 0) + 1;
+    if (soul) (d.studioOpen ??= {})[user] = soul.hash;
     this.save();
     return { ok: true };
   }
@@ -86,11 +99,12 @@ export class QuotaLedger {
   canSpend(est: number, now = Date.now()) {
     return this.spent(this.day(now)) + est <= this.cfg.tokenBudget;
   }
-  left(user: string, now = Date.now()) {
+  left(user: string, now = Date.now(), used?: (hash: string) => boolean) {
     const d = this.day(now);
+    const studioUsed = (d.studio[user] ?? 0) - (this.studioUnused(d, user, used) ? 1 : 0);
     return {
       tasks: Math.max(0, this.cfg.tasksPerDay - (d.tasks[user] ?? 0)), tasksPerDay: this.cfg.tasksPerDay,
-      studio: Math.max(0, this.cfg.studioPerDay - (d.studio[user] ?? 0)), studioPerDay: this.cfg.studioPerDay,
+      studio: Math.max(0, this.cfg.studioPerDay - studioUsed), studioPerDay: this.cfg.studioPerDay,
       resetsAt: this.resetsAt(now),
     };
   }

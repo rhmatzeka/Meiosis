@@ -52,6 +52,18 @@ test("batas Studio per akun per hari", () => {
   expect(q.reserveStudio("privy:1", T0).ok).toBe(true);
   expect(q.reserveStudio("privy:1", T0).ok).toBe(false);
 });
+test("soul Studio yang batal dibuat on-chain tidak menghabiskan jatah", () => {
+  const q = new QuotaLedger(file("f2.json"), cfg);
+  const none = () => false;
+  expect(q.reserveStudio("privy:1", T0, { hash: "0xa", used: none }).ok).toBe(true);
+  // Transaksi #0xa dibatalkan: jatah masih terbuka, soul baru memakai slot yang sama.
+  expect(q.left("privy:1", T0, none).studio).toBe(1);
+  expect(q.reserveStudio("privy:1", T0, { hash: "0xb", used: none }).ok).toBe(true);
+  // Setelah #0xb benar-benar dibuat on-chain, jatah habis.
+  const madeB = (h: string) => h === "0xb";
+  expect(q.left("privy:1", T0, madeB).studio).toBe(0);
+  expect(q.reserveStudio("privy:1", T0, { hash: "0xc", used: madeB }).ok).toBe(false);
+});
 test("pemakaian sistem (saran AI) masuk anggaran tanpa memakai jatah akun", () => {
   const q = new QuotaLedger(file("g.json"), { ...cfg, tokenBudget: 5_000 }, 1_000);
   expect(q.canSpend(4_000, T0)).toBe(true);

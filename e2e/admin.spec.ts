@@ -3,6 +3,7 @@
  * bergerak; laporan pengguna bisa dipakai untuk menyembunyikan agent; masukan
  * dari footer sampai ke admin. Butuh `bun run start --test` (Anvil #9 = admin).
  */
+import { privateKeyToAccount } from "viem/accounts";
 import { BASE, agents, api, finish, freePair, installFakeWallet, launch, ok, section, signIn, watchErrors } from "./harness";
 
 const ADMIN_KEY = "0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6"; // Anvil #9
@@ -23,6 +24,11 @@ try {
   await other.waitForSelector("text=Halaman ini khusus admin", { timeout: 15_000 }).catch(() => {});
   ok("wallet biasa ditolak", (await other.innerText("main")).includes("Halaman ini khusus admin"));
   ok("API admin menolak tanpa tanda tangan", (await post("/api/admin/overview", {})).status === 401);
+  const admin = privateKeyToAccount(ADMIN_KEY);
+  const message = `Meiosis: panel admin untuk ${admin.address} pada ${new Date().toISOString()}`;
+  const proof = { address: admin.address, message, signature: await admin.signMessage({ message }) };
+  ok("tanda tangan admin diterima sekali", (await post("/api/admin/overview", proof)).status === 200);
+  ok("tanda tangan admin yang diputar ulang ditolak", (await post("/api/admin/overview", proof)).status === 401);
 
   section("MASUKAN DARI FOOTER");
   await other.goto(BASE, { waitUntil: "networkidle" });
@@ -35,7 +41,7 @@ try {
   await other.close();
 
   section("LAPORAN → SEMBUNYIKAN");
-  const [x] = await freePair();
+  const [x, y] = await freePair();
   const rep = await post("/api/report", { id: x, reason: "isinya menipu" });
   ok("laporan diterima", rep.status === 200, JSON.stringify(rep.body));
   const run = await post("/api/run", { ids: [x], task: "halo", mode: "single" });
@@ -61,6 +67,8 @@ try {
   ok("agent hilang dari Pasar", (await page.locator(`a[href="/agent/${x}"]`).count()) === 0);
   const blocked = await post("/api/run", { ids: [x], task: "halo", mode: "single" });
   ok("agent tersembunyi tidak bisa disewa", blocked.status === 403);
+  const bred = await post("/api/tx", { action: "breed", args: { a: y, b: x }, from: privateKeyToAccount(OTHER_KEY).address });
+  ok("agent tersembunyi tidak bisa dikawinkan lewat link langsung", bred.status === 400 && String(bred.body.error).includes("disembunyikan"), JSON.stringify(bred.body));
 
   await page.goto(`${BASE}/admin`, { waitUntil: "networkidle" });
   await page.waitForSelector("text=Tampilkan lagi", { timeout: 15_000 });
