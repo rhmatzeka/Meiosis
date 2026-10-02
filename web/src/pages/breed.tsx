@@ -5,6 +5,9 @@
  * sedang berjalan dan otomatis berubah menjadi layar kelahiran. Karena
  * statusnya dibaca dari chain, halaman itu aman di-refresh dan dibagikan.
  */
+import { AgentPicker } from "../components/agent-picker";
+import { traitOdds } from "../../../packages/shared/src/inherit";
+import { priceText } from "../lib/describe";
 import { traitChips } from "../lib/describe";
 import { useEffect, useMemo, useState } from "react";
 import { formatEther } from "viem";
@@ -35,6 +38,7 @@ function Pick() {
   const { query } = useLocation();
   const a = byId(Number(query.get("a"))), b = byId(Number(query.get("b")));
   const [sending, setSending] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   const setPair = (na?: Agent, nb?: Agent) => {
     const q = new URLSearchParams();
@@ -91,7 +95,7 @@ function Pick() {
       <div className="page-head">
         <Stepper step={1} />
         <h1 className="h-page">Pilih dua induk</h1>
-        <p>Klik dua agent di bawah. Sifat yang dominan pada salah satu induk hampir pasti turun; sifat yang tersembunyi bisa muncul atau hilang.</p>
+        <p>Pilih dua induk dari daftar di bawah. Sebelum mengawinkan, kamu bisa melihat sifat mana yang pasti turun ke anaknya dan mana yang untung-untungan.</p>
       </div>
 
       <section className="stage breed-stage">
@@ -111,27 +115,29 @@ function Pick() {
           </button>
           {cantLogin && <span className="small" style={{ color: "var(--danger)" }}>{actor.loginProblem}</span>}
           <span className="small muted">
-            {due > 0n ? `Tarif kawin ${formatEther(due)} ETH. ` : a && b ? "Tarif kawin gratis. " : ""}{gasNote}
+            {due > 0n ? `Tarif kawin ${formatEther(due)} ETH. ` : a && b ? "Tanpa tarif kawin. " : ""}{gasNote}
           </span>
         </div>
       </section>
 
       <section className="stack">
-        <h2 className="h-section">Koleksi</h2>
-        <div className="agent-grid">
-          {agents.map((x) => {
+        <div className="spread">
+          <h2 className="h-section">Pilih induk</h2>
+          <label className="check small"><input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /><span>Tampilkan semua</span></label>
+        </div>
+        <AgentPicker
+          agents={showAll ? agents : pickable}
+          selected={[a?.id, b?.id].filter((x): x is number => !!x)}
+          onToggle={pick}
+          placeholder="Cari induk: nama, tugas, atau stack (mis. flutter)"
+          meta={(x) => {
             const cd = cooldownLabel(x.readyAtBlock, status?.block ?? 0, status?.secPerBlock ?? 12);
             const picked = a?.id === x.id ? "a" : b?.id === x.id ? "b" : undefined;
             const can = picked ? { ok: true } : canPickParent({ id: x.id, owner: x.owner, studListed: x.stud.listed }, [], actor.address);
-            return (
-              <AgentCard
-                key={x.id} agent={x} onPick={() => pick(x)} pickedAs={picked}
-                disabledReason={can.ok ? null : `Tidak bisa dipilih: ${can.reason}`}
-                note={cd ?? (x.stud.listed && BigInt(x.stud.feeWei) > 0n && !same(x.owner, actor.address) ? `Tarif ${x.stud.feeEth} ETH` : null)}
-              />
-            );
-          })}
-        </div>
+            return { tag: picked, disabled: can.ok ? null : `Tidak bisa dipilih: ${can.reason}`, note: cd };
+          }}
+          aside={(x) => same(x.owner, actor.address) ? "milikmu" : BigInt(x.stud.feeWei) > 0n ? priceText(x.stud.feeWei) : "tanpa tarif"}
+        />
       </section>
     </div>
   );
@@ -160,26 +166,29 @@ function Slot({ agent, role, cooldown, onClear }: { agent?: Agent; role: "a" | "
 }
 
 function OddsTable({ a, b }: { a: Agent; b: Agent }) {
-  const odds = useMemo(() => inheritanceOdds(BigInt(a.genome), BigInt(b.genome)), [a.genome, b.genome]);
+  const odds = useMemo(() => traitOdds(a.profile, b.profile, BigInt(a.genome), BigInt(b.genome)), [a, b]);
+  if (!odds.length) {
+    return <div className="odds-wrap"><h3 className="h-sub">Peluang sifat anak</h3><p className="small muted">Kedua induk belum punya sifat tertulis. Anaknya tetap mewarisi DNA keduanya.</p></div>;
+  }
   return (
     <div className="odds-wrap">
       <h3 className="h-sub">Peluang sifat anak</h3>
       <div className="odds">
-        {LOCI.filter((l) => l.matters).map((l) => {
-          const o = odds[l.index].odds;
-          const top = o[0];
+        {odds.map((o) => {
+          const sure = o.pA === 1 || o.pA === 0;
+          const val = o.pA >= 0.5 ? o.a : o.b;
           return (
-            <div className="odds-row" key={l.index}>
-              <span>{l.icon} {l.label} <b>{traitLabel(l.index, top.trait)}</b>
-                {o.length > 1 && <span className="dim xs"> atau {o.slice(1).map((x) => traitLabel(l.index, x.trait)).join(", ")}</span>}
+            <div className="odds-row" key={o.label}>
+              <span>{o.label} <b>{sure ? val : o.a}</b>
+                {!sure && <span className="dim xs"> atau {o.b}</span>}
               </span>
-              <div className="track"><b style={{ width: `${top.p * 100}%` }} /></div>
-              <span className="v">{top.p === 1 ? "pasti" : `${Math.round(top.p * 100)}%`}</span>
+              <div className="track"><b style={{ width: `${(sure ? 1 : o.pA) * 100}%` }} /></div>
+              <span className="v">{sure ? "pasti turun" : `${Math.round(o.pA * 100)}% : ${Math.round((1 - o.pA) * 100)}%`}</span>
             </div>
           );
         })}
       </div>
-      <p className="xs dim">Ada peluang kecil (±1% per gen) terjadi mutasi yang memunculkan sifat baru.</p>
+      <p className="xs dim">Sifat yang dimiliki kedua induk diambil dari salah satunya; sifat yang hanya dimiliki satu induk pasti turun.</p>
     </div>
   );
 }

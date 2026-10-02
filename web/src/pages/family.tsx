@@ -5,7 +5,7 @@
  * Garis redup sampai sebuah agent disorot; saat itu hanya keluarganya yang menyala.
  */
 import { traitChips } from "../lib/describe";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { same, type Agent } from "../api";
 import { Prices } from "../components/agent";
 import { Cell, Empty } from "../components/ui";
@@ -37,6 +37,20 @@ export function FamilyPage() {
     const gens = [...new Set(agents.map((a) => a.generation))].sort((a, b) => a - b);
     return { W, H, at, rows, gens };
   }, [agents]);
+
+  // Pohon yang lebih lebar dari layar: beri tanda bisa digeser, atau paskan dengan skala.
+  const wrap = useRef<HTMLDivElement>(null);
+  const [wrapW, setWrapW] = useState(0);
+  const [fit, setFit] = useState(false);
+  useEffect(() => {
+    const el = wrap.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setWrapW(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [loading, agents.length]);
+  const overflow = wrapW > 0 && view.W > wrapW + 1;
+  const scale = fit && overflow ? wrapW / view.W : 1;
 
   if (loading) return <div className="skeleton" style={{ height: 400 }} />;
   if (!agents.length) return <Empty title="Silsilah tumbuh saat agent dikawinkan" action={<Link to="/studio" className="btn btn-primary">Buat agent pertama</Link>}>Belum ada agent. Buat agent di Studio, lalu kawinkan dua agent untuk melihat keturunannya di sini.</Empty>;
@@ -70,8 +84,16 @@ export function FamilyPage() {
       </div>
 
       <div className="tree-layout">
-        <div className="stage tree-wrap">
-          <div className="tree-canvas" style={{ width: view.W, height: view.H }} onMouseLeave={() => setFocus(null)}>
+        <div className="tree-main">
+        {overflow && (
+          <div className="tree-tools">
+            <span className="xs muted">{fit ? "Ukuran diperkecil supaya muat di layar." : "Geser untuk melihat semua →"}</span>
+            <button className="btn btn-sm" onClick={() => setFit((f) => !f)}>{fit ? "Ukuran asli" : "Pas di layar"}</button>
+          </div>
+        )}
+        <div className={`stage tree-wrap ${overflow && !fit ? "can-scroll" : ""}`} ref={wrap}>
+          <div style={{ width: view.W * scale, height: view.H * scale }}>
+          <div className="tree-canvas" style={{ width: view.W, height: view.H, transform: scale !== 1 ? `scale(${scale})` : undefined, transformOrigin: "0 0" }} onMouseLeave={() => setFocus(null)}>
             {view.rows.map((_, r) => (
               <span key={r} className="tree-gen" style={{ top: PAD_Y + r * ROW + NODE / 2 }}>
                 {view.gens[r] === 0 ? "Generasi awal" : `Generasi ${view.gens[r]}`}
@@ -110,6 +132,8 @@ export function FamilyPage() {
               );
             })}
           </div>
+          </div>
+        </div>
         </div>
 
         <aside className="plate tree-detail">
@@ -134,7 +158,7 @@ function Detail({ a, agents }: { a: Agent; agents: Agent[] }) {
         <Cell genome={a.genome} size={52} />
         <div style={{ minWidth: 0 }}>
           <div className="agent-card-name">{a.name}</div>
-          <div className="agent-card-meta">#{a.id} · {a.designed ? "rancangan Studio" : a.generation === 0 ? "founder" : `generasi ${a.generation}`}</div>
+          <div className="agent-card-meta">#{a.id} · {a.designed ? "Dibuat di Studio" : `keturunan generasi ${a.generation}`}</div>
         </div>
       </div>
       <div className="agent-card-tags">{traitChips(a, 4).map((t) => <span key={t} className="chip">{t}</span>)}</div>

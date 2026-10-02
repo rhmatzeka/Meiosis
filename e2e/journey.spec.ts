@@ -10,6 +10,7 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { matchAgent } from "../web/src/lib/search";
 import { BASE, agents, api, block, finish, freePair, installFakeWallet, launch, ok, section, signIn, watchErrors } from "./harness";
 
 const KEY = "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"; // Anvil #5
@@ -38,7 +39,9 @@ try {
   const [x, y] = await freePair();
   await page.goto(`${BASE}/kawin?a=${x}&b=${y}`, { waitUntil: "networkidle" });
   await page.waitForSelector(".odds-row");
-  ok("peluang warisan tampil sebelum kawin", (await page.locator(".odds-row").count()) === 8);
+  const oddsText = await page.innerText(".odds");
+  ok("peluang sifat bebas tampil sebelum kawin", (await page.locator(".odds-row").count()) > 0 && oddsText.includes("Stack & alat") && /\d+%|pasti/.test(oddsText), oddsText.split("\n").slice(0, 3).join(" | "));
+  ok("agent yang tidak bisa dipilih disembunyikan dulu", await page.isVisible("text=Tampilkan semua"));
   ok("tanpa istilah teknis (hex/lokus/blok) di jalur utama", !/0x[0-9a-f]{8}|lokus|commit/i.test(await page.innerText("main")));
   const go = page.locator(".breed-go button");
   ok("tombol Kawinkan aktif", await go.isEnabled());
@@ -89,12 +92,21 @@ try {
   ok("berkas lengkap berlisensi dan ber-watermark", out.includes("ditandatangani operator Meiosis") && out.includes("watermark cocok"));
 
   section("BERI TUGAS (LLM tiruan di mode uji)");
+  await page.goto(`${BASE}/tugas`, { waitUntil: "networkidle" });
+  await page.fill(".picker input", "flutter");
+  await page.waitForTimeout(200);
+  const rows = await page.locator(".picker-row").allInnerTexts();
+  const all = (await agents()) as unknown as { id: number; name: string; hidden: boolean; profile: { role: string; traits: { label: string; value: string }[] } }[];
+  const shownIds = rows.map((r) => Number(r.match(/#(\d+)/)?.[1]));
+  const flutter = all.filter((a) => !a.hidden && matchAgent(a, "flutter")).map((a) => a.id);
+  ok("picker agent bisa dicari lewat stack", rows.length > 0 && rows.length < all.length && shownIds.length === flutter.length && shownIds.every((id) => flutter.includes(id)), `${rows.length} dari ${all.length} agent`);
   await page.goto(`${BASE}/tugas?id=${childId}`, { waitUntil: "networkidle" });
   ok("tidak ada pilihan mode tiruan untuk pengguna", !(await page.isVisible("text=Mode tiruan")));
   await page.click("text=Komponen form");
   await page.click(".stage button.btn-primary");
   await page.waitForSelector("article.plate", { timeout: 30_000 });
   ok("hasil tugas tampil", (await page.innerText("article.plate")).includes("[MOCK]"));
+  ok("hasil bisa diunduh", await page.isVisible("article.plate >> text=Unduh .md"));
 
   section("TAUTAN KEHAMILAN YANG TIDAK ADA");
   // Kasus terburuk: chain yang belum pernah punya kehamilan sama sekali.
@@ -142,12 +154,14 @@ try {
   section("PONSEL 375 px");
   const phone = await browser.newPage({ viewport: { width: 375, height: 812 } });
   const phoneErrors = watchErrors(phone);
-  for (const path of ["/", `/kawin?a=${x}&b=${y}`, `/kawin/${pid}`, `/agent/${childId}`, "/pasar", "/studio", "/panduan", "/silsilah", "/tugas", "/arena", "/dompet"]) {
+  for (const path of ["/", `/kawin?a=${x}&b=${y}`, `/kawin/${pid}`, `/agent/${childId}`, "/pasar", "/studio", "/panduan", "/silsilah", "/tugas", "/dompet", "/admin"]) {
     await phone.goto(BASE + path, { waitUntil: "networkidle" });
     await phone.waitForTimeout(300);
     const { sw, cw } = await phone.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
     ok(`tanpa geser horizontal: ${path}`, sw <= cw, `${sw}/${cw}`);
   }
+  await phone.goto(`${BASE}/silsilah`, { waitUntil: "networkidle" });
+  ok("silsilah di ponsel memberi tanda bisa digeser", await phone.isVisible("text=Geser untuk melihat semua"));
   await phone.goto(BASE, { waitUntil: "networkidle" });
   await phone.click(".menu-btn");
   ok("menu ponsel terbuka dan berisi Pasar", await phone.isVisible(".mobile-menu >> text=Pasar"));

@@ -355,3 +355,10 @@
 .profile-list dt { color: var(--muted); font-size: var(--t-sm); }
 .profile-list dd { margin: 0; overflow-wrap: anywhere; }
 @media (max-width: 620px) { .profile-list > div { grid-template-columns: 1fr; gap: 2px; } }
+
+.tree-main { display: grid; gap: var(--s-2); min-width: 0; }
+.tree-tools { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); }
+.tree-wrap.can-scroll { box-shadow: inset -28px 0 24px -18px rgba(0, 0, 0, 0.75); }
+
+.odds-wrap .odds-row { grid-template-columns: minmax(0, 1.4fr) minmax(80px, 1fr) max-content; }
+.odds-wrap .odds-row .v { white-space: nowrap; }

@@ -2,14 +2,17 @@
  * Beri tugas ke satu atau beberapa agent sekaligus. Dengan tugas yang persis
  * sama, satu-satunya yang berbeda di antara hasil mereka adalah genome-nya.
  */
+import { AgentPicker } from "../components/agent-picker";
+import { ResultText } from "../components/result-view";
+import { priceText } from "../lib/describe";
+import { normalizeStack, slotOf } from "../../../packages/shared/src/profile";
 import { markTaskRun } from "../lib/onboarding";
 import { useEffect, useRef, useState } from "react";
 import { formatEther } from "viem";
 import { get, post, type Agent } from "../api";
-import { AgentCard } from "../components/agent";
 import { useToast } from "../components/toast";
 import { Empty, Spinner } from "../components/ui";
-import { useActor } from "../hooks/use-actor";
+import { useActor, useQuota } from "../hooks/use-actor";
 import { useData } from "../hooks/use-data";
 import { Link, useLocation, useTitle } from "../router";
 
@@ -51,6 +54,12 @@ export function RunPage() {
   useEffect(() => { setFull(!!status?.docker); }, [status?.docker]);
   useEffect(() => () => clearTimeout(poll.current), []);
 
+  const quota = useQuota(actor, running);
+  // Contoh tugas mengikuti stack agent pertama yang dipilih, bila ada.
+  const firstStack = normalizeStack(byId(sel[0] ?? 0)?.profile.traits.find((t) => slotOf(t.label)?.tags)?.value ?? "")[0];
+  const examples: [string, string][] = firstStack
+    ? [[`Contoh ${firstStack}`, `Buat contoh kecil yang menunjukkan praktik terbaik ${firstStack}, lengkap dengan penjelasan singkat.`], ...EXAMPLES.slice(0, 2)]
+    : EXAMPLES;
   const toggle = (a: Agent) => setSel((s) => (s.includes(a.id) ? s.filter((x) => x !== a.id) : [...s, a.id]));
   const priceOf = (id: number) => BigInt(byId(id)?.rent.priceWei ?? "0");
   const total = sel.reduce((s, id) => s + priceOf(id), 0n);
@@ -101,42 +110,44 @@ export function RunPage() {
         <p>Pilih satu agent, atau beberapa sekaligus untuk membandingkan. Genome dibaca dari chain lalu dirakit menjadi agent yang benar-benar bekerja.</p>
       </div>
 
-      {!status?.docker && (
-        <div className="banner banner-info" style={{ width: "100%", margin: 0 }}>
-          <div>
-            <b>Server ini belum bisa membangun hasil kerja agent</b> karena Docker belum terpasang. Agent tetap bisa menjawab
-            dalam mode cepat. Untuk kerja penuh (menulis, membangun, memperbaiki sendiri), bawa agent pulang sebagai <code>.md</code> dan
-            pakai dari Claude Code.
-          </div>
-        </div>
-      )}
       {status && !status.runReady && (
         <div className="banner" style={{ width: "100%", margin: 0 }}>
-          <div><b>Server ini belum punya kunci model</b>, jadi agent hanya bisa jalan dalam mode tiruan. Pemilik server: isi <code>GROQ_API_KEY</code> di <code>.env</code> lalu nyalakan ulang.</div>
+          <div><b>Agent belum bisa bekerja di server ini</b> karena kunci model AI belum dipasang. Pemilik server: isi <code>GROQ_API_KEY</code> di <code>.env</code> lalu nyalakan ulang.</div>
         </div>
       )}
 
+      <section className="plate stack run-pick">
+        <div className="spread">
+          <h2 className="h-sub">1. Pilih agent</h2>
+          <span className="small muted">{sel.length ? `Dipilih: ${sel.map((id) => byId(id)?.name ?? `#${id}`).join(", ")}` : `Boleh lebih dari satu (paling banyak ${limit}) untuk membandingkan.`}</span>
+        </div>
+        <AgentPicker agents={agents} selected={sel} onToggle={toggle} aside={(a) => priceText(a.rent.priceWei)} />
+      </section>
+
       <section className="stage stack">
         <div className="spread">
-          <h2 className="h-sub">Tugas</h2>
+          <h2 className="h-sub">2. Tulis tugasnya</h2>
           <div className="row" style={{ gap: 6 }}>
-            {EXAMPLES.map(([label, text]) => <button key={label} className="btn btn-sm" onClick={() => setTask(text)}>{label}</button>)}
+            {examples.map(([label, text]) => <button key={label} className="btn btn-sm" onClick={() => setTask(text)}>{label}</button>)}
           </div>
         </div>
         <textarea className="textarea" value={task} onChange={(e) => setTask(e.target.value)} placeholder="Tulis apa yang harus dikerjakan agent…" rows={5} />
-        <div className="run-options">
-          <label className="check">
-            <input type="checkbox" checked={full} disabled={!status?.docker} onChange={(e) => setFull(e.target.checked)} />
-            <span><b>Kerja penuh</b>: agent memakai tool, membangun hasilnya di sandbox, dan memperbaiki sendiri (maks. 10 langkah)</span>
-          </label>
-        </div>
+        {status?.docker && !status.public && (
+          <div className="run-options">
+            <label className="check">
+              <input type="checkbox" checked={full} onChange={(e) => setFull(e.target.checked)} />
+              <span><b>Kerja penuh</b>: agent memakai tool, membangun hasilnya di sandbox, dan memperbaiki sendiri (maks. 10 langkah)</span>
+            </label>
+          </div>
+        )}
         <div className="row">
           <button className="btn btn-primary btn-lg" disabled={!sel.length || !task.trim() || running || sel.length > limit} onClick={run}>
             {running ? <><Spinner />Bekerja…</> : `${sel.length > 1 ? `Jalankan di ${sel.length} agent` : "Jalankan"}${total > 0n ? ` · bayar ${formatEther(total)} ETH` : ""}`}
           </button>
           <span className="small muted">
-            {!sel.length ? "Pilih agent di bawah." : sel.length > limit ? `Paling banyak ${limit} agent sekali jalan.` : sel.map((id) => byId(id)?.name).join(", ")}
-            {total > 0n && " · dibayar ke pemilik agent dan leluhurnya, sekali untuk tugas ini"}
+            {!sel.length ? "Pilih agent dulu di atas." : sel.length > limit ? `Paling banyak ${limit} agent sekali jalan.`
+              : `Memakai ${sel.length} dari ${quota ? `${quota.tasks} tugas gratis yang tersisa hari ini` : "jatah tugas gratis harianmu"}.`}
+            {total > 0n && " Harga sewa dibayar ke pemilik agent dan leluhurnya."}
           </span>
         </div>
       </section>
@@ -144,12 +155,6 @@ export function RunPage() {
       {job && <JobView job={job} />}
       {error && <div className="banner" style={{ width: "100%", margin: 0 }}><div>{error}</div></div>}
 
-      <section className="stack">
-        <h2 className="h-section">Pilih agent</h2>
-        <div className="agent-grid">
-          {agents.map((a) => <AgentCard key={a.id} agent={a} onPick={() => toggle(a)} pickedAs={sel.includes(a.id) ? "a" : undefined} showPrices />)}
-        </div>
-      </section>
     </div>
   );
 }
@@ -200,10 +205,9 @@ function ResultView({ r }: { r: Result }) {
         </>
       )}
       {r.built && <BuiltView b={r.built} />}
-      <details className="tech" open={!r.built}>
-        <summary>{r.loop ? "Ringkasan agent" : "Jawaban agent"}</summary>
-        <pre className="output"><code>{r.output ?? ""}</code></pre>
-      </details>
+      {r.built
+        ? <details className="tech"><summary>{r.loop ? "Ringkasan agent" : "Jawaban agent"}</summary><ResultText text={r.output ?? ""} filename={`tugas-agent-${r.id}.md`} /></details>
+        : <ResultText text={r.output ?? ""} filename={`tugas-agent-${r.id}.md`} />}
     </article>
   );
 }
