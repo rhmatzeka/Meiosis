@@ -12,7 +12,8 @@ import { existsSync, mkdirSync } from "node:fs";
 
 const RPC = "http://127.0.0.1:8545";
 const TEST = process.argv.includes("--test");
-const UI = "http://127.0.0.1:5173";
+const PORT = process.env.UI_PORT ?? "5173";
+const UI = `http://127.0.0.1:${PORT}`;
 
 const c = {
   ok: (s: string) => console.log(`  \x1b[32m✓\x1b[0m ${s}`),
@@ -157,7 +158,7 @@ if (await reachable(`${UI}/api/status`)) {
   // --test: akun Anvil dan LLM tiruan untuk `bun run e2e`. Tanpa flag, server berperilaku seperti produksi.
   detach(TEST ? "env TEST_ACCOUNTS=1 MOCK_LLM=1 FREE_TASKS_PER_DAY=1000 STUDIO_PER_DAY=1000 DAILY_TOKEN_BUDGET=1000000000000 TRUST_PROXY=0 bun run server/api.ts" : "env TEST_ACCOUNTS=0 bun run server/api.ts", ".runs/server.log");
   if (!(await waitFor(() => reachable(`${UI}/api/status`), 25, "server"))) process.exit(1);
-  c.ok("server jalan di :5173");
+  c.ok(`server jalan di :${PORT}`);
 }
 
 // ---------------------------------------------------------------- deploy

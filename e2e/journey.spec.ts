@@ -11,7 +11,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { matchAgent } from "../web/src/lib/search";
-import { BASE, agents, api, block, finish, freePair, installFakeWallet, launch, ok, section, signIn, watchErrors } from "./harness";
+import { BASE, agents, api, block, finish, freePair, installFakeWallet, launch, ok, seedAgents, section, signIn, watchErrors } from "./harness";
 
 const KEY = "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"; // Anvil #5
 
@@ -85,13 +85,17 @@ try {
   const file = join(dir, dl.suggestedFilename());
   await dl.saveAs(file);
   ok("berkas .md terunduh", /^meiosis-\d+-.+\.md$/.test(dl.suggestedFilename()), dl.suggestedFilename());
-  const v = Bun.spawnSync(["bun", "run", "scripts/verify-agent.ts", file], { stdout: "pipe", stderr: "pipe" });
+  // Operator diperiksa ke server uji ini, bukan ke :5173 yang bisa saja layanan beta.
+  const v = Bun.spawnSync(["bun", "run", "scripts/verify-agent.ts", file], { stdout: "pipe", stderr: "pipe", env: { ...process.env, MEIOSIS_API: BASE } });
   const out = v.stdout.toString();
   ok("verify-agent menyatakan SAH", v.exitCode === 0 && out.includes("SAH"), out.split("\n").filter((l) => /✓|✗|⊘/.test(l)).length + " baris cek");
   ok("manifest tercatat di chain", !out.includes("belum dicatat"));
   ok("berkas lengkap berlisensi dan ber-watermark", out.includes("ditandatangani operator Meiosis") && out.includes("watermark cocok"));
 
   section("BERI TUGAS (LLM tiruan di mode uji)");
+  // Di chain baru belum ada agent Flutter (dibuat market.spec); jangan bergantung pada urutan spec.
+  type Searchable = Parameters<typeof matchAgent>[0];
+  if (!((await agents()) as unknown as Searchable[]).some((a) => matchAgent(a, "flutter"))) await seedAgents(1, "Pelukis Flutter");
   await page.goto(`${BASE}/tugas`, { waitUntil: "networkidle" });
   await page.fill(".picker input", "flutter");
   await page.waitForTimeout(200);

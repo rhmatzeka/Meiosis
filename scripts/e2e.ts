@@ -6,11 +6,11 @@
  * Butuh `bun run start --test` lebih dulu, dan Chrome/Chromium terpasang
  * (atau CHROMIUM_PATH menunjuk ke sana).
  */
-import { browserPath } from "../e2e/harness";
+import { BASE, browserPath } from "../e2e/harness";
 
-const st = await fetch("http://127.0.0.1:5173/api/status").then((r) => r.json() as Promise<{ testMode?: boolean }>).catch(() => null);
+const st = await fetch(`${BASE}/api/status`).then((r) => r.json() as Promise<{ testMode?: boolean }>).catch(() => null);
 if (!st) {
-  console.error("\n  Server tidak menjawab di :5173. Jalankan `bun run start --test` lebih dulu.\n");
+  console.error(`\n  Server tidak menjawab di ${BASE}. Jalankan \`bun run start --test\` lebih dulu.\n`);
   process.exit(1);
 }
 if (st.testMode !== true) {

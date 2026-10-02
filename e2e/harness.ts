@@ -2,7 +2,7 @@
 import { existsSync } from "node:fs";
 import { chromium, type Page } from "playwright-core";
 
-export const BASE = process.env.UI_BASE ?? "http://127.0.0.1:5173";
+export const BASE = process.env.UI_BASE ?? `http://127.0.0.1:${process.env.UI_PORT ?? 5173}`;
 export const RPC = process.env.RPC ?? "http://127.0.0.1:8545";
 
 /** Chromium di container sandbox, atau Chrome/Chromium yang terpasang di mesin ini. */
@@ -61,11 +61,12 @@ const SEED_PROFILES = [
 /**
  * Pasar dimulai kosong (tanpa founder), jadi uji membuat agent Studio sendiri:
  * profil berbeda, milik SEED_OWNER, dan dibuka untuk kawin tanpa tarif.
+ * `profile` memilih satu profil bibit menurut namanya, mis. "Pelukis Flutter".
  */
-export async function seedAgents(n = 2): Promise<number[]> {
+export async function seedAgents(n = 2, profile?: string): Promise<number[]> {
   const before = new Set((await agents()).map((a) => a.id));
   for (let i = 0; i < n; i++) {
-    const p = SEED_PROFILES[(before.size + i) % SEED_PROFILES.length];
+    const p = SEED_PROFILES.find((x) => x.name === profile) ?? SEED_PROFILES[(before.size + i) % SEED_PROFILES.length];
     const soul = await api<{ hash: string; loci: number[]; error?: string }>("/api/studio/soul", {
       role: p.role, traits: p.traits.map(([label, value]) => ({ label, value })), instructions: `Kamu ${p.role.toLowerCase()}.`,
     });

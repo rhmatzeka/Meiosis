@@ -20,8 +20,9 @@ const kill = async (label: string, pids: string[]) => {
   console.log(`  ${label}: dihentikan (${clean.join(", ")})`);
 };
 
-// Server dicari lewat port, bukan lewat pola perintah.
-const listening = await sh(["ss", "-lptnH", "sport = :5173"]);
+// Server dicari lewat port, bukan lewat pola perintah. UI_PORT sama dengan `bun run start`,
+// supaya server uji di port lain bisa dihentikan tanpa menyentuh layanan beta di :5173.
+const listening = await sh(["ss", "-lptnH", `sport = :${process.env.UI_PORT ?? 5173}`]);
 await kill("server", [...listening.matchAll(/pid=(\d+)/g)].map((m) => m[1]));
 
 // -x mencocokkan NAMA proses persis, bukan seluruh baris perintah.
