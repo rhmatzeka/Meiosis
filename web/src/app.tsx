@@ -12,6 +12,8 @@ import { BreedPage } from "./pages/breed";
 import { GuidePage } from "./pages/guide";
 import { MarketPage } from "./pages/market";
 import { StudioPage } from "./pages/studio";
+import { AdminPage } from "./pages/admin";
+import { FeedbackButton } from "./components/feedback";
 import { FamilyPage } from "./pages/family";
 import { HomePage } from "./pages/home";
 import { NotFound } from "./pages/not-found";
@@ -111,7 +113,7 @@ function Footer() {
         </div>
         <nav className="footer-links" aria-label="Tambahan">
           <div><Link to="/pasar">Pasar</Link><Link to="/studio">Studio</Link><Link to="/kawin">Kawinkan</Link></div>
-          <div><Link to="/panduan">Panduan</Link><Link to="/dompet">Dompet</Link></div>
+          <div><Link to="/panduan">Panduan</Link><Link to="/dompet">Dompet</Link><FeedbackButton /></div>
         </nav>
       </div>
       <div className="footer-giant" aria-hidden>Meiosis</div>
@@ -134,6 +136,7 @@ function Routes({ path }: { path: string }) {
   if (path === "/tugas") return <RunPage />;
   if (path === "/arena") return <ArenaPage />;
   if (path === "/dompet") return <WalletPage />;
+  if (path === "/admin") return <AdminPage />;
   return <NotFound />;
 }
 

@@ -232,3 +232,21 @@
 .trait-seg button { padding: 6px 12px; font-size: var(--t-xs); }
 .trait-seg button[aria-selected="true"] { background: var(--accent); color: #fff; box-shadow: none; }
 @media (max-width: 620px) { .trait-row { grid-template-columns: 1fr; gap: 6px; } .studio-block { padding: var(--s-4); } }
+
+/* ---------- admin & masukan ---------- */
+.link-btn { background: none; border: 0; padding: 0; color: var(--muted); font: inherit; cursor: pointer; text-align: left; }
+.link-btn:hover, .link-btn:focus-visible { color: var(--ink); text-decoration: underline; }
+.agent-report { display: flex; justify-content: flex-end; }
+.admin-cards { display: grid; gap: var(--s-4, 16px); grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.admin-big { font-size: 1.9rem; font-weight: 600; letter-spacing: -0.02em; }
+.admin-big small { font-size: var(--t-sm, 0.875rem); font-weight: 400; color: var(--muted); }
+.admin-warn { border-color: color-mix(in srgb, var(--danger) 55%, transparent); }
+.admin-note { padding: 10px 0; border-top: 1px solid var(--line, rgba(255,255,255,.08)); gap: 12px; }
+.admin-note p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.meter { height: 8px; border-radius: 99px; background: color-mix(in srgb, var(--ink) 10%, transparent); overflow: hidden; }
+.meter b { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+.meter b.hot { background: var(--danger); }
+.funnel { display: grid; gap: 10px; }
+.funnel-row { display: grid; grid-template-columns: 9rem 1fr 3rem; align-items: center; gap: 12px; font-size: var(--t-sm, 0.875rem); }
+.funnel-row .v { text-align: right; font-variant-numeric: tabular-nums; }
+.account-quota { line-height: 1.4; }

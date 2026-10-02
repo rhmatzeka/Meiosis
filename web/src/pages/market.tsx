@@ -25,7 +25,8 @@ const priceOf = (a: Agent, tab: Tab) =>
 
 export function MarketPage() {
   useTitle("Pasar");
-  const { agents, loading } = useData();
+  const { agents: all, loading } = useData();
+  const agents = useMemo(() => all.filter((a) => !a.hidden), [all]);
   const actor = useActor();
   const { query } = useLocation();
   const tab = (query.get("tab") as Tab) in TABS ? (query.get("tab") as Tab) : "semua";

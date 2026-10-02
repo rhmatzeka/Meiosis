@@ -29,7 +29,8 @@ const BUILT_ON = ["Ethereum", "Privy", "Claude", "Foundry", "OpenZeppelin", "Bun
 
 export function HomePage() {
   useTitle("");
-  const { agents, status } = useData();
+  const { agents: all, status } = useData();
+  const agents = useMemo(() => all.filter((a) => !a.hidden), [all]);
   const root = useRef<HTMLDivElement>(null);
   const living = agents.length;
   const newest = useMemo(() => [...agents].sort((x, y) => y.id - x.id), [agents]);

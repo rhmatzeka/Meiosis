@@ -34,7 +34,8 @@ interface Job { status: "running" | "done" | "error"; error?: string; elapsedMs:
 
 export function RunPage() {
   useTitle("Beri tugas");
-  const { agents, status, byId, loading } = useData();
+  const { agents: all, status, byId, loading } = useData();
+  const agents = all.filter((a) => !a.hidden);
   const actor = useActor();
   const toast = useToast();
   const { query } = useLocation();

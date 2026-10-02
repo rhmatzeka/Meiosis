@@ -23,6 +23,8 @@ import { SoulStore, inheritedSoul, profileFor, promptSoul, type ProfileNode } fr
 import { encodeProfile } from "./encode";
 import { testMode } from "./mode";
 import { QuotaLedger } from "./quota";
+import { FeedbackStore, HiddenList, isAdmin } from "./admin";
+import { Metrics, type MetricEvent } from "./metrics";
 import { MAX_INSTRUCTIONS, composeSoul, parseSoul, type FreeTrait } from "../packages/shared/src/profile";
 import { parseSuggestion, suggestFromText, suggestPrompt } from "./suggest";
 import { faucetDecision, faucetMessage, loadFaucetState, saveFaucetState, verifyPrivyToken } from "./faucet";
@@ -198,6 +200,20 @@ const quota = new QuotaLedger(`.runs/usage-${CHAIN}.json`, {
 }, Number(process.env.MAX_OUTPUT_TOKENS ?? 3000) + 5000);
 const FULL_MODE_PUBLIC = process.env.FULL_MODE_PUBLIC === "1";
 
+// --- admin beta: moderasi, metrik minat, masukan --------------------------------
+/** Mode uji tanpa ADMIN_ADDRESSES: akun Anvil #9 menjadi admin supaya panel admin bisa diuji e2e. */
+const ADMIN_ENV = { ADMIN_ADDRESSES: process.env.ADMIN_ADDRESSES || (TEST ? "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720" : "") };
+const METRICS_SALT = process.env.METRICS_SALT || "meiosis";
+const hidden = new HiddenList(`.runs/hidden-${CHAIN}.json`);
+const feedback = new FeedbackStore(`.runs/feedback-${CHAIN}.json`, METRICS_SALT);
+const reports = new FeedbackStore(`.runs/reports-${CHAIN}.json`, METRICS_SALT, 10);
+const metrics = new Metrics(`.runs/metrics-${CHAIN}.json`, METRICS_SALT);
+const ADMIN_CONFIG = `.runs/admin-config-${CHAIN}.json`;
+if (existsSync(ADMIN_CONFIG)) quota.configure(JSON.parse(readFileSync(ADMIN_CONFIG, "utf8")));
+const track = (e: MetricEvent, user: string) => { try { metrics.record(e, user); } catch { /* metrik tidak boleh menggagalkan permintaan */ } };
+/** Perkiraan biaya: campuran 70% token masuk ($0,15/juta) dan 30% keluar ($0,60/juta) gpt-oss-120b. */
+const usdOf = (tokens: number) => (tokens / 1e6) * (0.7 * 0.15 + 0.3 * 0.6);
+
 const jam = (t: number) => new Date(t).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
 const quotaMessage = (f: { reason: "jatah-akun" | "anggaran-harian"; resetsAt: number }) =>
   f.reason === "jatah-akun"
@@ -330,6 +346,7 @@ const listAgents = cached(async () => {
     ...a,
     soulFrom: inheritedSoul(a.id, (i) => { const x = byId.get(i); return x && { soulHash: x.soulHash, parents: x.parents }; }, (h) => soulStore.get(h)).sources,
     profile: profileFor(a.id, node, memo),
+    hidden: hidden.has(a.id),
   }));
 });
 
@@ -699,10 +716,11 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
         return handleMcp(req, {
           keys: keyStore,
           allowMock: TEST,
-          agents: async () => (await listAgents()).map((a) => ({ id: a.id, name: a.name, modules: a.modules.filter((m): m is string => !!m), generation: a.generation, role: a.profile.role, traits: a.profile.traits })),
+          agents: async () => (await listAgents()).filter((a) => !a.hidden).map((a) => ({ id: a.id, name: a.name, modules: a.modules.filter((m): m is string => !!m), generation: a.generation, role: a.profile.role, traits: a.profile.traits })),
           priceOf: async (id) => (await read(credits, abis.credits, "maxPrice", [id])) as bigint,
           balanceOf: async (addr) => (await read(credits, abis.credits, "balanceOf", [getAddress(addr)])) as bigint,
           run: async (id, task, context, mock, user) => {
+            if (hidden.has(id)) throw new Error(`Agent #${id} disembunyikan admin dan tidak bisa disewa.`);
             const ticket = quota.reserveTask(`key:${user.toLowerCase()}`);
             if (!ticket.ok) throw new Error(quotaMessage(ticket));
             try {
@@ -758,6 +776,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
       if (p === "/api/quota") {
         const who = await quotaUser(req, server);
         if (!who.ok) return json({ error: who.error }, 401);
+        track("masuk", who.user);
         return json(quota.left(who.user));
       }
 
@@ -775,6 +794,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           const slot = quota.reserveStudio(who.user);
           if (!slot.ok) return json({ error: `Batas ${quota.config.studioPerDay} agent baru per hari tercapai. Buka lagi besok jam ${jam(slot.resetsAt)} WIB.`, quota: quota.left(who.user) }, 429);
           const hash = soulStore.put(text);
+          track("buat", who.user);
           const parsed = parseSoul(text);
           const ai = modelMissing() || process.env.MOCK_LLM === "1" || !quota.canSpend(2_000) ? undefined : async (pr: { system: string; user: string }) => {
             const r = await getProvider({ ...process.env, MOCK_LLM: "0" }).chat("fast", { system: pr.system, messages: [{ role: "user", content: pr.user }], temperature: 0, maxTokens: 400 });
@@ -820,6 +840,7 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           try { userId = await verifyPrivyToken(token, PRIVY_APP_ID); }
           catch { return json({ ok: false, message: "Sesi masuk tidak sah. Coba keluar lalu masuk lagi." }, 401); }
         }
+        track("masuk", userId.startsWith("lokal:") ? userId : `privy:${userId}`);
 
         // Diproses satu per satu: dua permintaan serentak tidak boleh sama-sama lolos batas.
         const run = faucetBusy.then(async () => {
@@ -859,9 +880,60 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
       if (p === "/api/agents") return json(await listAgents(fresh));
       if (p === "/api/pregnancies") return json(await listPregnancies(fresh));
 
+      // --- admin: semua endpoint butuh tanda tangan wallet admin -------------------
+      if (p.startsWith("/api/admin/") && req.method === "POST") {
+        const b = (await req.json().catch(() => ({}))) as Record<string, unknown> & { as?: string; address?: string; message?: string; signature?: string };
+        const who = await provenAddress(b, "panel admin");
+        if (!who.ok) return json({ error: who.error }, 401);
+        if (!isAdmin(who.address, ADMIN_ENV)) return json({ error: "Halaman ini khusus admin." }, 403);
+        if (p === "/api/admin/overview") {
+          const now = Date.now();
+          const snap = quota.snapshot(now);
+          const day = (t: number) => new Date(t).toISOString().slice(0, 10);
+          const faucetToday = loadFaucetState(FAUCET_FILE).records.filter((r) => r.at > now - 86_400_000);
+          return json({
+            day: snap.day, users: snap.users, tasks: snap.tasks, tokens: snap.tokens, usd: usdOf(snap.tokens),
+            config: quota.config,
+            operator: operator ? { address: operator.account.address, balanceEth: formatEther(await pub.getBalance({ address: operator.account.address })) } : null,
+            faucetToday: { count: faucetToday.length, eth: formatEther(faucetToday.reduce((sum, r) => sum + BigInt(r.wei), 0n)) },
+            funnel: metrics.funnel(day(now - 6 * 86_400_000), day(now)),
+            hidden: hidden.list(), feedback: feedback.latest(30), reports: reports.latest(30),
+          });
+        }
+        if (p === "/api/admin/hide" || p === "/api/admin/unhide") {
+          const id = Number(b.id);
+          if (!Number.isInteger(id) || id < 1) return json({ error: "id agent tidak sah" }, 400);
+          if (p === "/api/admin/hide") hidden.hide(id, String(b.reason ?? "")); else hidden.unhide(id);
+          await listAgents(true);
+          return json({ ok: true, hidden: hidden.list() });
+        }
+        if (p === "/api/admin/config") {
+          const patch: Record<string, number> = {};
+          for (const k of ["tasksPerDay", "studioPerDay", "tokenBudget"] as const) if (b[k] !== undefined) patch[k] = Number(b[k]);
+          quota.configure(patch);
+          const saved = existsSync(ADMIN_CONFIG) ? JSON.parse(readFileSync(ADMIN_CONFIG, "utf8")) : {};
+          mkdirSync(".runs", { recursive: true });
+          writeFileSync(ADMIN_CONFIG, JSON.stringify({ ...saved, ...patch }));
+          return json({ ok: true, config: quota.config });
+        }
+        return json({ error: "aksi admin tidak dikenal" }, 404);
+      }
+
+      if ((p === "/api/feedback" || p === "/api/report") && req.method === "POST") {
+        const who = await quotaUser(req, server);
+        if (!who.ok) return json({ error: who.error }, 401);
+        const b = (await req.json().catch(() => ({}))) as { text?: string; page?: string; id?: number; reason?: string };
+        const r = p === "/api/feedback"
+          ? feedback.add(who.user, String(b.text ?? ""), String(b.page ?? ""))
+          : reports.add(who.user, String(b.reason ?? ""), `/agent/${Number(b.id)}`, Date.now(), Number(b.id) || undefined);
+        return r.ok ? json({ ok: true }) : json({ error: "Pesan kosong, atau batas harian tercapai. Coba lagi besok." }, 429);
+      }
+
       if (p === "/api/tx" && req.method === "POST") {
         if (!dep) return json({ error: "belum di-deploy" }, 400);
         const { action, args, from } = (await req.json()) as { action: string; args?: Record<string, unknown>; from?: string };
+        if (from && action === "breed") track("kawin", `addr:${from.toLowerCase()}`);
+        if (from && action === "setRentPrice" && Number(args?.priceEth ?? 0) > 0) track("pasang-harga", `addr:${from.toLowerCase()}`);
         try {
           return json({ ...(await buildTx(action, args ?? {}, from)), chainId: dep.chainId });
         } catch (e) {
@@ -1074,6 +1146,8 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           }
         }
 
+        const hiddenId = ids.find((id) => hidden.has(Number(id)));
+        if (hiddenId) return json({ error: `Agent #${hiddenId} disembunyikan admin dan tidak bisa disewa.` }, 403);
         // Satu agent = satu tugas dari jatah. Semua dicadangkan dulu; bila satu gagal, semuanya dikembalikan.
         const tickets: Record<number, string> = {};
         for (const id of ids) {
@@ -1084,6 +1158,8 @@ async function handle(req: Request, server: Server<unknown>): Promise<Response> 
           }
           tickets[id] = t.ticket;
         }
+        track("tugas", who.user);
+        if (paid.length) track("tugas-berbayar", who.user);
 
         pruneJobs();
         const jobId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ReportLink } from "../components/feedback";
 import { same } from "../api";
 import { AgentCard, TraitList, highlights, useCooldown, useOwnerLabel } from "../components/agent";
 import { ClaudeDialog, useDownloadFull } from "../components/claude";
@@ -128,6 +129,8 @@ export function AgentPage({ id }: { id: number }) {
               )}
             </div>
           )}
+
+          <div className="agent-report"><ReportLink agentId={a.id} /></div>
 
           <details className="tech plate">
             <summary>Detail teknis</summary>

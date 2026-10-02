@@ -154,6 +154,7 @@
 .chip-pink { border-color: color-mix(in srgb, var(--pink) 45%, transparent); color: var(--pink); }
 .chip-gold { border-color: color-mix(in srgb, var(--gold) 45%, transparent); color: var(--gold); }
 .chip-dim { color: var(--muted); }
+.chip-danger { border-color: color-mix(in srgb, var(--danger) 45%, transparent); color: var(--danger); }
 
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); flex: none; }
 .dot-live { background: #34d399; box-shadow: 0 0 10px #34d399; }

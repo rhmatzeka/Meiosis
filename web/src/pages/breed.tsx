@@ -28,7 +28,8 @@ export function BreedPage({ pid }: { pid?: number }) {
 
 function Pick() {
   useTitle("Kawinkan");
-  const { agents, byId, status, loading, refresh } = useData();
+  const { agents: all, byId, status, loading, refresh } = useData();
+  const agents = all.filter((a) => !a.hidden);
   const actor = useActor();
   const { query } = useLocation();
   const a = byId(Number(query.get("a"))), b = byId(Number(query.get("b")));

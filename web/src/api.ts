@@ -54,6 +54,8 @@ export interface Agent {
   soulHash: string | null;
   /** Agent yang instruksi khususnya berlaku untuk agent ini: dirinya, atau leluhurnya. */
   soulFrom: number[];
+  /** Disembunyikan admin: tidak tampil di Pasar, Kawinkan, Tugas, atau MCP. */
+  hidden: boolean;
   /** Profil publik: milik sendiri, atau warisan kedua induk. Tanpa instruksi. */
   profile: { role: string; traits: { label: string; value: string }[]; inherited: boolean; from?: Record<string, "a" | "b"> };
   traits: { locus: number; name: string; value: string }[];

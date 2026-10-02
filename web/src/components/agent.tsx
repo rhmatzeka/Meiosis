@@ -58,6 +58,7 @@ export function AgentCard({ agent, to, onPick, pickedAs, disabledReason, note, s
       <div className="agent-card-tags">
         {highlights(agent).map((h) => <span key={h.text} className="chip">{h.icon} {h.text}</span>)}
       </div>
+      {agent.hidden && <span className="chip chip-danger">disembunyikan admin</span>}
       {showPrices && <Prices agent={agent} />}
       {(disabledReason || note) && <div className="agent-card-note">{disabledReason ?? note}</div>}
     </>
